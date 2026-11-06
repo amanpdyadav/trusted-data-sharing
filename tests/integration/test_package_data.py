@@ -7,6 +7,7 @@ import pytest
 from pets_transformer.assess.kanon import k_anonymity
 from pets_transformer.config import Settings
 from pets_transformer.detect.base import match_rate
+from pets_transformer.detect.rules import detect_source
 from pets_transformer.detect.validators import HetuValidator, IbanValidator
 from pets_transformer.sources import open_source
 
@@ -42,3 +43,15 @@ def test_raw_ed_visits_reproduce_the_known_k_problem(health: object) -> None:
     visits = health.read("ed_visits")  # type: ignore[attr-defined]
     r = k_anonymity(visits, ["sex", "municipality", "arrival_ts"], k_target=5)
     assert r.share_below_k > 0.95
+
+
+def test_detector_on_the_hospital_tables(health: object) -> None:
+    found = {(c.table, c.column): c.privacy_role.value for c in detect_source(health, "health").columns}  # type: ignore[arg-type]
+    assert found[("ed_visits", "visit_id")] == "record_key"
+    assert found[("ed_visits", "patient_hetu")] == "direct_identifier"
+    assert found[("ed_visits", "patient_name")] == "direct_identifier"
+    assert found[("ed_visits", "phone")] == "direct_identifier"
+    assert found[("ed_visits", "date_of_birth")] == "quasi_identifier"
+    assert found[("ed_visits", "icd10_primary")] == "sensitive_attribute"
+    assert found[("ed_visits", "chief_complaint")] == "free_text"
+    assert found[("lab_results", "visit_id")] == "technical_identifier"
