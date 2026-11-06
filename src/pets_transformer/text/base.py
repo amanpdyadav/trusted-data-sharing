@@ -20,6 +20,11 @@ class SpanDetector(Protocol):
     def find(self, text: str) -> list[Span]: ...
 
 
+def words(*lines: str) -> frozenset[str]:
+    """A word list written as readable lines: words("maanantai tiistai", "monday tuesday")."""
+    return frozenset(w for line in lines for w in line.split())
+
+
 SPAN_DETECTORS: Registry[str, SpanDetector] = Registry("span detector")
 
 
