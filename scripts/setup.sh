@@ -14,7 +14,7 @@ say() { printf '\n\033[1m▸ %s\033[0m\n' "$*"; }
 die() { printf '\n\033[31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 
 # 1. Challenge pack (team-only, never committed)
-say "1/4 Challenge pack"
+say "1/5 Challenge pack"
 if [ -d "$PACK_DIR/data" ]; then
   echo "Already unpacked at $PACK_DIR"
 else
@@ -36,7 +36,7 @@ else
 fi
 
 # 2. Python environment (3.12; the Mac's default 3.14 breaks some scientific packages)
-say "2/4 Python environment"
+say "2/5 Python environment"
 if command -v uv >/dev/null 2>&1; then
   [ -x .venv/bin/python ] || uv venv --python 3.12 .venv
   uv pip install --python .venv/bin/python -q -r requirements.txt -e "$PACK_DIR/toolkit"
@@ -50,7 +50,7 @@ fi
 .venv/bin/python -c "import pets_eval, streamlit, pandas; print('Python', __import__('sys').version.split()[0], '· packages OK')"
 
 # 3. Secrets
-say "3/4 .env"
+say "3/5 .env"
 if [ -f .env ]; then
   echo ".env already exists, leaving it alone"
 else
@@ -60,7 +60,7 @@ else
 fi
 
 # 4. Releases the app compares: the toolkit's quickstart example and our HEALTH-S1 release
-say "4/4 Releases for the app"
+say "4/5 Releases for the app"
 if [ -f "$PACK_DIR/results/quickstart/health/ed_visits.csv" ]; then
   echo "Toolkit quickstart release already built"
 else
@@ -72,5 +72,14 @@ else
   .venv/bin/python scripts/build_health_s1.py | tail -n 12
 fi
 
-say "Done. Start the app with:"
-echo "  .venv/bin/streamlit run app/streamlit_app.py"
+# 5. React + D3 front end (optional: needs Node 18+)
+say "5/5 React front end"
+if command -v npm >/dev/null 2>&1; then
+  (cd web && npm install --silent && npm run build --silent) && echo "Built web/dist (served by the API at http://localhost:8000/)"
+else
+  echo "npm not found: skipping the React app. The Streamlit front end works without it."
+fi
+
+say "Done. Start the API, then a front end:"
+echo "  .venv/bin/uvicorn api.main:app --port 8000        # API, and the React app at http://localhost:8000/"
+echo "  .venv/bin/streamlit run app/streamlit_app.py       # Streamlit front end at http://localhost:8501/"

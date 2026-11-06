@@ -2,10 +2,28 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "pets-api",
+      "runtimeExecutable": ".venv/bin/uvicorn",
+      "runtimeArgs": ["api.main:app", "--port", "8000"],
+      "port": 8000
+    },
+    {
       "name": "pets-app",
       "runtimeExecutable": ".venv/bin/streamlit",
       "runtimeArgs": ["run", "app/streamlit_app.py", "--server.headless", "true", "--server.port", "8501"],
       "port": 8501
+    },
+    {
+      "name": "pets-app-alt",
+      "runtimeExecutable": ".venv/bin/streamlit",
+      "runtimeArgs": ["run", "app/streamlit_app.py", "--server.headless", "true", "--server.port", "8502"],
+      "port": 8502
+    },
+    {
+      "name": "pets-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "web", "run", "dev", "--", "--port", "5173"],
+      "port": 5173
     }
   ]
 }

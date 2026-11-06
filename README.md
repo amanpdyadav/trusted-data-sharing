@@ -14,12 +14,31 @@ It is team-only and never goes in git.
 ```bash
 git clone <repo-url> Trusted && cd Trusted
 ./scripts/setup.sh /path/to/TRUSTED_PETS_PROVING_GROUND_2026.zip
-.venv/bin/streamlit run app/streamlit_app.py
+.venv/bin/uvicorn api.main:app --port 8000          # 1. the API (keep it running)
+.venv/bin/streamlit run app/streamlit_app.py        # 2a. Streamlit front end → http://localhost:8501
+open http://localhost:8000/                         # 2b. React + D3 front end, served by the API
 ```
 
 `setup.sh` unpacks the pack into `challenge/`, creates a Python 3.12 environment (with
-[uv](https://docs.astral.sh/uv/) if you have it), writes `.env` with a fresh pseudonym key, and builds
-our HEALTH-S1 release into `outputs/`. It is safe to run again. Add your `ANTHROPIC_API_KEY` to `.env`
+[uv](https://docs.astral.sh/uv/) if you have it), writes `.env` with a fresh pseudonym key, builds
+our HEALTH-S1 release into `outputs/`, and builds the React app if Node is installed. It is safe to run again.
+The API warms its caches for about 30 seconds after starting.
+
+## How it fits together
+
+```
+challenge/ data ──► pets/ (library) ──► api/ (FastAPI, port 8000) ──┬──► app/  Streamlit front end (8501)
+                                                                    └──► web/  React + D3 front end (8000/ or 5173 in dev)
+```
+
+Both front ends show the same two views from the same API:
+
+- **Mosaic attack**: one public scrap (social post or news clip) → hospital visit → bank, energy, transport,
+  school, employer, telecom. Three modes: raw data shared, names removed, our release.
+- **Release audit**: who the release is for, every column decision, before/after measurements, every attack,
+  file fingerprints, pass/fail checks and the risk left.
+
+API docs: http://localhost:8000/docs Add your `ANTHROPIC_API_KEY` to `.env`
 when you work on the LLM steps.
 
 ## What's in the repo
@@ -37,14 +56,18 @@ pets/                 WHAT WE BUILT: the library
   evaluate.py         wrapper around the official pets-eval scorecard              ✅ working
   manifest.py         release manifest with SHA-256 of every released file         ✅ working
   attack_demo.py      linkage attacks against a release                            ✅ working
-  reid_chain.py       one social post → full profile across all datasets           ✅ working
+  reid_chain.py       one post or news clip → one patient → other datasets         ✅ working
+  mosaic.py           attack cases in three modes, release audit                   ✅ working
   detect.py           column classifier, rules + LLM                               ⏳ stub
   text.py             free-text PII redaction, rules + LLM                         ⏳ stub
   plan.py             generic per-column PET choice                                ⏳ stub
-app/                  Streamlit UI
+api/main.py           FastAPI: /api/summary, /api/cases, /api/cases/{id}, /api/audit/{dataset}
+app/                  Streamlit front end
   streamlit_app.py    dataset browser and baseline scores
   pages/1_Attack_demo.py     single-dataset and two-dataset linkage attacks
-  pages/2_From_one_post.py   presenter-mode story: one post → named person
+  pages/2_Mosaic_attack.py   mosaic attack walkthrough (same look as the team's problem demo)
+  pages/3_Release_audit.py   release audit
+web/                  React + D3 front end (Vite): mosaic attack and release audit
 scripts/
   setup.sh            one-time setup after cloning
   build_health_s1.py  build, score and document the HEALTH-S1 release
@@ -60,11 +83,12 @@ outputs/              protected releases and scorecards (git-ignored, rebuilt by
 |---|---|---|
 | Re-identified via social posts | 54 % | 0 % |
 | Records with k < 5 | 100 % | 0 % |
-| Privacy / utility / composite | – | 1.00 / 0.98 / 0.99 |
+| Privacy / utility / composite | – | 1.00 / 0.98 / 0.99 (baseline B2-k: 0.52 / 0.44 / 0.48) |
 
-Baseline B2-k gets utility 0.40 on the same scenario. Starting from one public post, an attacker narrows
-the names-removed hospital data to exactly one patient for 263 of 948 posts. 75 of them end with a
-verified name and home address.
+Starting from one public scrap, an attacker narrows the names-removed hospital data to exactly one verified
+patient for 407 of 948 posts and 140 of 220 news clips. On our release, no scrap narrows it to one visit.
+**Residual risk:** 8 of 1,168 scraps narrow it to 2–4 visits that include the real person, because length of
+stay and diagnosis group are not covered by the k ≥ 5 check. The release audit reports this as a failed check.
 
 ## Common tasks
 
