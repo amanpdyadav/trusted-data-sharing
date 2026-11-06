@@ -57,7 +57,7 @@ def _value_span(text: str, cue: re.Match[str], label: SpanLabel, source: str) ->
     m = _VALUE.match(text, cue.end())
     if not m:
         return None
-    value = m.group(0).rstrip(".!?)")
+    value = m.group(0).rstrip(".!?):")
     if len(value) < 2:
         return None
     return Span(start=m.start(), end=m.start() + len(value), label=label, text=value, source=source)

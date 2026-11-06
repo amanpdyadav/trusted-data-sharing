@@ -96,3 +96,7 @@ class TestRedactor:
 
     def test_empty_text(self) -> None:
         assert build_redactor().spans("") == []
+
+
+def test_a_word_before_a_colon_is_no_password() -> None:
+    assert SecretCueDetector().find("Lähetin salasanan vaihtolinkin: https://example.fi/reset") == []
