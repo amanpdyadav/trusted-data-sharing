@@ -8,8 +8,6 @@ column is an error, never a silent release); row order is shuffled with the secr
 arrival order; row maps never go into the release folder.
 """
 
-import hashlib
-import hmac
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -19,6 +17,7 @@ import numpy as np
 import pandas as pd
 
 from pets_transformer import __version__
+from pets_transformer.aggregate import EpsilonLedger, bound_contributions, noisy_table
 from pets_transformer.assess.kanon import KAnonymityResult
 from pets_transformer.contracts import (
     Metrics,
@@ -63,16 +62,32 @@ class ProtectedTable:
     suppression: SuppressionResult | None = None
 
 
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+@dataclass(frozen=True)
+class RunSettings:
+    clock: Callable[[], datetime] = _utc_now  # injectable for reproducible tests
+    ledger: EpsilonLedger | None = None  # where differential-privacy spending is recorded (and capped)
+
+
+DEFAULT_SETTINGS = RunSettings()
+
+
+@dataclass(frozen=True)
+class PublishedAggregate:
+    name: str
+    frame: pd.DataFrame
+
+
 @dataclass(frozen=True)
 class RunOutcome:
     layout: OutputLayout
     manifest: ReleaseManifest
     tables: list[ProtectedTable] = field(default_factory=list)
-
-
-def _shuffle_seed(scope: KeyScope, table: str) -> int:
-    digest = hmac.new(scope.key(), f"shuffle/{table}".encode(), hashlib.sha256).digest()
-    return int.from_bytes(digest[:8], "big")
+    aggregates: list[PublishedAggregate] = field(default_factory=list)
+    epsilon_total: float | None = None  # running total for this receiver, from the ledger
 
 
 def protect_table(
@@ -107,11 +122,53 @@ def protect_table(
         suppression = suppress_to_k(protected, qis, plan.k_target)
         protected = suppression.frame
 
-    order = np.random.default_rng(_shuffle_seed(scope, table)).permutation(len(protected))
+    order = np.random.default_rng(scope.seed(f"shuffle/{table}")).permutation(len(protected))
     protected = protected.iloc[order]
     key_col = plan.record_keys.get(table)
     record_ids = frame.loc[protected.index, key_col].astype(str).tolist() if key_col else None
     return ProtectedTable(table, protected.reset_index(drop=True), record_ids, len(frame), suppression)
+
+
+def publish_aggregates(plan: Plan, inputs: Mapping[str, pd.DataFrame], scope: KeyScope) -> list[PublishedAggregate]:
+    """Noisy statistics tables. Rows are bounded per person once per table, then each table gets its own noise."""
+    dp = plan.differential_privacy
+    if not plan.aggregates or dp is None:
+        return []
+    bounded: dict[str, pd.DataFrame] = {}
+    out = []
+    for a in plan.aggregates:
+        frame = inputs[a.table]
+        needed = {dp.unit, *(d.column for d in a.dimensions), *([a.measure.column] if a.measure.column else [])}
+        missing = sorted(needed - set(frame.columns))
+        if missing:
+            raise PlanError(f"aggregate {a.name}: {a.table} has no columns {missing}")
+        if a.table not in bounded:
+            rng = np.random.default_rng(scope.seed(f"dp-bound/{a.table}"))
+            bounded[a.table] = bound_contributions(frame, dp.unit, dp.max_rows_per_unit, rng)
+        rows = bounded[a.table]
+        ctx = TransformContext(keys=scope.keys, key_domain=scope.domain, source=rows, tables=inputs)
+        noise = np.random.default_rng(scope.seed(f"dp/{a.name}"))
+        out.append(PublishedAggregate(a.name, noisy_table(rows, a, dp, ctx, noise)))
+    return out
+
+
+def _dp_statement(plan: Plan, total: float | None) -> list[str]:
+    dp = plan.differential_privacy
+    if not plan.aggregates or dp is None:
+        return []
+    so_far = f"; {total:g} in total for this receiver so far (epsilon ledger)" if total is not None else ""
+    observed = [f"{a.name}.{d.output_name}" for a in plan.aggregates for d in a.dimensions if d.domain is None]
+    lines = [
+        f"Differential privacy: discrete Laplace noise, epsilon {plan.epsilon_spent:g} for this release{so_far}, "
+        f"delta 0, unit of privacy: one person ({dp.unit}), at most {dp.max_rows_per_unit} rows per person. "
+        "Tables compose sequentially: " + ", ".join(f"{a.name} {a.epsilon:g}" for a in plan.aggregates) + ".",
+        "Rows above the per-person bound are left out at random, so counts of frequent visitors are slightly low.",
+        "Releases add up: each new release spends more budget for the people in it; differencing two releases "
+        "reveals nothing beyond their combined epsilon.",
+    ]
+    if observed:
+        lines.append(f"Categories taken from the data rather than declared in the plan: {', '.join(observed)}.")
+    return lines
 
 
 def _our_metrics(plan: Plan, tables: list[ProtectedTable], run_id: str, created: datetime) -> Metrics:
@@ -137,7 +194,11 @@ def _our_metrics(plan: Plan, tables: list[ProtectedTable], run_id: str, created:
 
 
 def _residual_risks(plan: Plan, tables: list[ProtectedTable], withheld: list[str]) -> list[str]:
-    risks = ["Pseudonymised data is still personal data (GDPR Recital 26): share only under the scenario's agreement."]
+    risks = (
+        ["Pseudonymised data is still personal data (GDPR Recital 26): share only under the scenario's agreement."]
+        if tables
+        else []
+    )
     for t in tables:
         if t.suppression and t.suppression.check:
             c = t.suppression.check
@@ -166,19 +227,31 @@ def run_release(
     plan: Plan,
     scope: KeyScope,
     layout: OutputLayout,
-    clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    settings: RunSettings = DEFAULT_SETTINGS,
 ) -> RunOutcome:
     if not plan.approved:
         raise PlanError("the plan is not approved; a person must approve it before anything is released")
-    created = clock()
+    created = settings.clock()
+    ledger = settings.ledger
     available = source.table_names()
-    lookups = sorted({t for a in plan.actions for t in known_from_tables(a.params)} - set(plan.tables))
-    unknown = [t for t in [*plan.tables, *lookups] if t not in available]
+    lookups = {t for a in plan.actions for t in known_from_tables(a.params)} | {a.table for a in plan.aggregates}
+    reads = [*plan.tables, *sorted(lookups - set(plan.tables))]  # lookups are read, never released as rows
+    unknown = [t for t in reads if t not in available]
     if unknown:
         raise PlanError(f"plan names tables the source does not have: {unknown}")
+    clash = {a.name for a in plan.aggregates} & set(plan.tables)
+    if clash:
+        raise PlanError(f"aggregates and released tables share names: {sorted(clash)}")
 
-    inputs = {t: source.read(t) for t in [*plan.tables, *lookups]}  # lookups are read, never released
+    inputs = {t: source.read(t) for t in reads}
     protected = [protect_table(t, inputs[t], plan, scope, inputs) for t in plan.tables]
+    aggregates = publish_aggregates(plan, inputs, scope)
+    run_id = f"{plan.scenario_id}-{created.strftime('%Y%m%dT%H%M%SZ')}"
+    total = (
+        ledger.record(run_id, scope.domain, plan.epsilon_spent, created)
+        if ledger is not None and plan.aggregates
+        else None
+    )  # recorded before anything is written: a refused release leaves no files
 
     layout.release.mkdir(parents=True, exist_ok=True)
     layout.private.mkdir(parents=True, exist_ok=True)
@@ -191,8 +264,11 @@ def run_release(
             pd.DataFrame({"protected_row": range(len(t.frame)), "original_record_id": t.record_ids}).to_csv(
                 layout.private / f"rowmap_{t.name}.csv", index=False
             )
+    for agg in aggregates:
+        path = layout.release / f"{agg.name}.csv"
+        agg.frame.to_csv(path, index=False)
+        files.append(ReleasedFile(name=path.name, sha256=file_sha256(path), rows=len(agg.frame)))
 
-    run_id = f"{plan.scenario_id}-{created.strftime('%Y%m%dT%H%M%SZ')}"
     withheld = [t for t in available if t not in plan.tables]
     manifest = ReleaseManifest(
         release_id=run_id,
@@ -203,8 +279,8 @@ def run_release(
         plan=plan,
         metrics=_our_metrics(plan, protected, run_id, created),
         files=files,
-        residual_risks=_residual_risks(plan, protected, withheld),
+        residual_risks=_dp_statement(plan, total) + _residual_risks(plan, protected, withheld),
         limitations=["Quasi-identifiers are those named in the plan; detection of further ones is not automated yet."],
     )
     manifest.save(layout.release / "manifest.json")
-    return RunOutcome(layout, manifest, protected)
+    return RunOutcome(layout, manifest, protected, aggregates, total)

@@ -4,9 +4,18 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from pets_transformer.contracts import ColumnAction, Plan, ReleaseManifest, Technique
+from pets_transformer.aggregate import BudgetExceededError, EpsilonLedger
+from pets_transformer.contracts import (
+    Aggregate,
+    ColumnAction,
+    DifferentialPrivacy,
+    Dimension,
+    Plan,
+    ReleaseManifest,
+    Technique,
+)
 from pets_transformer.keys import DerivedKeyProvider, KeyScope
-from pets_transformer.pipeline import OutputLayout, PlanError, run_release
+from pets_transformer.pipeline import OutputLayout, PlanError, RunSettings, run_release
 from pets_transformer.sources import open_source
 from tests.conftest import TEST_MASTER_KEY
 
@@ -84,7 +93,7 @@ def _plan(**kw: object) -> Plan:
 
 def _run(source: object, tmp_path: Path, plan: Plan | None = None, domain: str = "TOY-S1/uni/2026-11") -> object:
     return run_release(
-        source, plan or _plan(), KeyScope(KEYS, domain), OutputLayout(tmp_path / "out"), clock=lambda: NOW
+        source, plan or _plan(), KeyScope(KEYS, domain), OutputLayout(tmp_path / "out"), RunSettings(lambda: NOW)
     )  # type: ignore[arg-type]
 
 
@@ -194,3 +203,52 @@ def test_free_text_is_redacted_with_names_from_a_table_that_is_not_released(tmp_
     released = sorted(pd.read_csv(outcome.layout.release / "notes.csv", dtype=str)["note"])  # type: ignore[attr-defined]
     assert released == ["Lasku maksettu.", "[PERSON] soitti numerosta [PHONE], kiitos."]
     assert not (outcome.layout.release / "customers.csv").exists()  # type: ignore[attr-defined]
+
+
+def _dashboard() -> Plan:
+    weekly = Aggregate(
+        name="weekly_by_sex", table="visits", epsilon=0.5, reason="trend",
+        dimensions=[
+            Dimension(column="arrived", name="week", params={"to": "time", "unit": "week"}),
+            Dimension(column="sex", domain=["F", "M"]),
+        ],
+    )  # fmt: skip
+    return Plan(
+        dataset="toy", scenario_id="TOY-S2", created_at=NOW, epsilon=1.0, aggregates=[weekly],
+        differential_privacy=DifferentialPrivacy(unit="hetu", max_rows_per_unit=2),
+        approved=True, approved_by="Aman Yadav",
+    )  # fmt: skip
+
+
+def test_dashboard_publishes_noisy_tables_and_no_rows(source: object, tmp_path: Path) -> None:
+    ledger = EpsilonLedger(tmp_path / "ledger.jsonl")
+    outcome = run_release(
+        source, _dashboard(), KeyScope(KEYS, "TOY-S2/public/w1"), OutputLayout(tmp_path / "out"),  # type: ignore[arg-type]
+        RunSettings(lambda: NOW, ledger),
+    )  # fmt: skip
+    files = sorted(p.name for p in (tmp_path / "out" / "release").iterdir())
+    assert files == ["manifest.json", "weekly_by_sex.csv"]
+    assert not list((tmp_path / "out" / "private").iterdir())  # no row maps: nothing links back to a person
+    table = pd.read_csv(tmp_path / "out" / "release" / "weekly_by_sex.csv", dtype=str)
+    assert list(table.columns) == ["week", "sex", "value"]
+    assert sorted(table["sex"]) == ["F", "M"]
+    statement = ReleaseManifest.load(tmp_path / "out" / "release" / "manifest.json").residual_risks[0]
+    assert "epsilon 0.5 for this release; 0.5 in total" in statement
+    assert "at most 2 rows per person" in statement
+    assert outcome.epsilon_total == 0.5
+
+
+def test_same_release_same_noise_and_budget_refusal_writes_nothing(source: object, tmp_path: Path) -> None:
+    ledger = EpsilonLedger(tmp_path / "ledger.jsonl", cap=1.0)
+
+    def release(name: str, week: str) -> pd.DataFrame:
+        run_release(
+            source, _dashboard(), KeyScope(KEYS, f"TOY-S2/public/{week}"), OutputLayout(tmp_path / name),  # type: ignore[arg-type]
+            RunSettings(lambda: NOW, ledger),
+        )  # fmt: skip
+        return pd.read_csv(tmp_path / name / "release" / "weekly_by_sex.csv")
+
+    pd.testing.assert_frame_equal(release("a", "w1"), release("b", "w1"))  # re-running gives no fresh noise
+    with pytest.raises(BudgetExceededError):
+        release("c", "w2")
+    assert not (tmp_path / "c").exists()
