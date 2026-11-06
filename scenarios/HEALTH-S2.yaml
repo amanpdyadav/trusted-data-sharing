@@ -1,0 +1,62 @@
+# Source: TRUSTED_PETS_PROVING_GROUND_2026/docs/SCENARIOS.md (HEALTH-S2).
+schema_version: "1"
+id: HEALTH-S2
+dataset: health
+title: Public weekly dashboard
+recipient: Anyone (open data portal)
+purpose: Weekly ED load, influenza-like illness and injury trends by age band and municipality
+trust_level: public
+threat_model: >-
+  Any outsider with news clips, social posts and the public directory; can download every weekly release and
+  difference them.
+legal_context: >-
+  Must be anonymous in the GDPR sense (not reasonably re-identifiable). Small cells and repeated releases are the
+  main risk.
+utility_requirements: [H-U1, H-U8, H-DP]
+targets:
+  epsilon: 1.0           # per release, split over the tables below (sequential composition)
+  epsilon_cap: 4.0       # total per receiver; the ledger refuses releases beyond it
+  rows_per_person: 3     # contribution bound: at most 3 visits of one patient count
+  notes: >-
+    Aggregate only; differential privacy with a stated mechanism and epsilon (<= 1 per release, documented
+    composition). data/health/published_weekly_stats.csv is an example of what NOT to publish.
+notes: No rows are released. Every table is noisy counts or means over declared categories.
+# The dashboard: one published table per entry. 'weight' shares the epsilon budget.
+statistics:
+  - name: weekly_visits_by_age_and_diagnosis   # ED load, influenza-like illness and injury trends by age
+    table: ed_visits
+    by:
+      - {column: arrival_ts, detail: week}
+      - {column: date_of_birth, detail: age_band}
+      - {column: icd10_primary, detail: diagnosis_group}
+    exclude: {disposition: [cancelled_duplicate]}
+    weight: 2
+  - name: monthly_visits_by_age
+    table: ed_visits
+    by:
+      - {column: arrival_ts, detail: month}
+      - {column: date_of_birth, detail: age_band}
+    exclude: {disposition: [cancelled_duplicate]}
+  - name: visits_by_municipality_and_diagnosis
+    table: ed_visits
+    by:
+      - {column: municipality}
+      - {column: icd10_primary, detail: diagnosis_group}
+    exclude: {disposition: [cancelled_duplicate]}
+  - name: arrivals_by_hour
+    table: ed_visits
+    by:
+      - {column: arrival_ts, detail: time_of_day}
+    exclude: {disposition: [cancelled_duplicate]}
+  - name: length_of_stay_by_triage
+    table: ed_visits
+    by:
+      - {column: triage}
+    measure: {kind: mean, column: los_minutes, lower: 0, upper: 1440}
+    exclude: {disposition: [cancelled_duplicate]}
+  - name: admitted_share_by_age
+    table: ed_visits
+    by:
+      - {column: date_of_birth, detail: age_band}
+    measure: {kind: share, column: disposition, values: [admitted_ward, icu]}
+    exclude: {disposition: [cancelled_duplicate]}

@@ -6,7 +6,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from pets_transformer.contracts import DetectionReport, Plan, TrustLevel
+from pets_transformer.contracts import DetectionReport, Measure, Plan, TrustLevel
 from pets_transformer.contracts.base import SCHEMA_VERSION, Contract
 
 
@@ -14,7 +14,9 @@ class PrivacyTargets(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     k: int | None = Field(default=None, ge=2)
-    epsilon: float | None = Field(default=None, gt=0)
+    epsilon: float | None = Field(default=None, gt=0)  # differential privacy budget of one release
+    epsilon_cap: float | None = Field(default=None, gt=0)  # total budget per receiver over all releases
+    rows_per_person: int | None = Field(default=None, ge=1)  # DP contribution bound
     text_recall: float | None = Field(default=None, ge=0.0, le=1.0)
     notes: str | None = None
 
@@ -27,6 +29,19 @@ class Need(BaseModel):
     column: str
     table: str | None = None
     detail: str | None = None
+
+
+class Statistic(BaseModel):
+    """One published table of a dashboard: counts (or a mean/share) by the listed variables."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    name: str = Field(pattern=r"^[a-z0-9][a-z0-9_]*$")
+    table: str
+    by: list[Need] = Field(min_length=1)  # e.g. arrival_ts with detail week; date_of_birth with detail age_band
+    measure: Measure = Field(default_factory=Measure)
+    exclude: dict[str, list[str]] = Field(default_factory=dict)
+    weight: float = Field(default=1.0, gt=0)  # share of the epsilon budget, relative to the other statistics
 
 
 class Scenario(Contract):
@@ -43,6 +58,8 @@ class Scenario(Contract):
     targets: PrivacyTargets = Field(default_factory=PrivacyTargets)
     # the data request, most important first: anything not listed is not released (data minimisation)
     needs: list[Need] = Field(default_factory=list)
+    # published statistics (differential privacy); a scenario with statistics and no needs releases no rows
+    statistics: list[Statistic] = Field(default_factory=list)
     notes: str | None = None
 
 

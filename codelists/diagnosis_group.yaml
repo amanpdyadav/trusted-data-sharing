@@ -1,6 +1,7 @@
-# ICD-10 diagnosis groups for public statistics. Longest matching prefix wins; codes not listed fall back to
-# their chapter letter, then to "other". Groups follow the TrustED package's health data dictionary so published
-# figures are comparable with the organisers' workload. Edit freely for your own reporting needs.
+# diagnosis_group: ICD-10 codes grouped for public statistics. A scenario asks for it with detail: diagnosis_group
+# (the file name is the detail). Longest matching prefix wins; unlisted codes fall back to "default".
+# Groups follow the TrustED package health data dictionary, so published figures are comparable with the
+# organisers' workload. Edit freely for your own reporting needs.
 default: other
 groups:
   # influenza-like illness and COVID-19

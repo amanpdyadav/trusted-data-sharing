@@ -14,8 +14,8 @@ A requested column flagged only by weak evidence is kept with a REVIEW reason in
 A person reviews and approves the draft (production rule 5); the planner never approves.
 """
 
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
@@ -29,11 +29,12 @@ from pets_transformer.contracts import (
     Technique,
     TrustLevel,
 )
+from pets_transformer.plan.common import PERSON_KEYS, REVIEW
 from pets_transformer.plan.scenario import Need, Scenario
+from pets_transformer.plan.statistics import CodeList, StatisticsPlanner
 
 R, S, T = PrivacyRole, Subtype, Technique
 CONTACT = frozenset({S.PERSON_NAME, S.PHONE, S.EMAIL, S.STREET_ADDRESS})
-PERSON_KEYS = frozenset({S.NATIONAL_ID, S.PATIENT_ID, S.STUDENT_ID, S.CUSTOMER_ID})
 DEFAULT_TIME_UNIT = {
     TrustLevel.PUBLIC: "month",
     TrustLevel.CONTRACTUAL: "week",
@@ -41,7 +42,6 @@ DEFAULT_TIME_UNIT = {
     TrustLevel.INTERNAL: "day",
 }
 DEFAULT_K = 5
-REVIEW = "REVIEW"  # reasons starting with this need a person's decision before approval
 WEAK_EVIDENCE = 0.6  # below this detection confidence, an explicit request wins (and is flagged)
 CODE = {"length": 16}
 
@@ -69,7 +69,8 @@ class Context:
 
     @property
     def wanted(self) -> bool:
-        return self.need is not None or not self.scenario.needs
+        """Asked for, or no data request at all. Statistics without a row request release no rows."""
+        return self.need is not None or not (self.scenario.needs or self.scenario.statistics)
 
     @property
     def weak(self) -> bool:
@@ -205,8 +206,11 @@ def decide(x: Context) -> Decision:
 
 
 # ---------------------------------------------------------------- planner
+@dataclass(frozen=True)
 class RulePolicy:
-    """Implements PolicyEngine."""
+    """Implements PolicyEngine. Code lists turn codes into published groups (e.g. diagnosis_group)."""
+
+    codelists: Mapping[str, CodeList] = field(default_factory=dict)
 
     def plan(self, detections: DetectionReport, scenario: Scenario) -> Plan:
         actions: list[ColumnAction] = []
@@ -225,6 +229,7 @@ class RulePolicy:
             if d.quasi_identifier and d.technique is not T.DROP:
                 qis.setdefault(c.table, []).append((rank, str(d.params.get("rename_to", c.column))))
         released = {a.table for a in actions if a.technique is not T.DROP}
+        aggregates, dp = StatisticsPlanner(detections, scenario, self.codelists).plan()
         return Plan(
             dataset=detections.dataset,
             scenario_id=scenario.id,
@@ -233,6 +238,9 @@ class RulePolicy:
             quasi_identifiers={t: [name for _, name in sorted(cols)] for t, cols in qis.items()},
             record_keys={t: k for t, k in record_keys.items() if t in released},
             actions=[a for a in actions if a.table in released],
+            epsilon=(scenario.targets.epsilon or sum(a.epsilon for a in aggregates)) if aggregates else None,
+            aggregates=aggregates,
+            differential_privacy=dp,
             approved=False,
         )
 
