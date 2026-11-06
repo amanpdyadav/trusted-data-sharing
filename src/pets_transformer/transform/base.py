@@ -1,7 +1,7 @@
 """Interfaces for value-level transforms. One class per technique, looked up by `Technique` (open/closed)."""
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 import pandas as pd
@@ -17,6 +17,12 @@ class TransformContext:
 
     keys: KeyProvider
     key_domain: str  # e.g. "HEALTH-S1/uni-research/2026-11": one key per receiver and release
+    source: pd.DataFrame = field(default_factory=pd.DataFrame)  # the whole input table, read-only (e.g. age at arrival)
+
+    def source_column(self, name: str) -> pd.Series:
+        if name not in self.source.columns:
+            raise KeyError(f"transform needs column {name!r}, which the table does not have")
+        return self.source[name]
 
 
 class ColumnTransform(Protocol):
