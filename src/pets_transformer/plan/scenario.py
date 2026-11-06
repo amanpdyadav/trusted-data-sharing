@@ -19,6 +19,16 @@ class PrivacyTargets(BaseModel):
     notes: str | None = None
 
 
+class Need(BaseModel):
+    """One variable the receiver asked for. `detail` names the resolution, e.g. age_band or time_of_day."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    column: str
+    table: str | None = None
+    detail: str | None = None
+
+
 class Scenario(Contract):
     schema_version: Literal["1"] = SCHEMA_VERSION
     id: str = Field(pattern=r"^[A-Z0-9][A-Z0-9-]*$")
@@ -31,6 +41,8 @@ class Scenario(Contract):
     legal_context: str | None = None
     utility_requirements: list[str] = Field(default_factory=list)
     targets: PrivacyTargets = Field(default_factory=PrivacyTargets)
+    # the data request, most important first: anything not listed is not released (data minimisation)
+    needs: list[Need] = Field(default_factory=list)
     notes: str | None = None
 
 

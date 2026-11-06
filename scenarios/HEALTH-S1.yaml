@@ -20,3 +20,19 @@ targets:
     No direct identifiers; consistent pseudonymous patient key; QIs generalised so that k>=5 on
     (age band, sex, municipality, arrival week); free text redacted (recall >= 0.95 on PERSON/PHONE/ADDRESS/NATIONAL_ID).
 notes: Revisit analysis needs a stable patient pseudonym and joinable visit/lab keys.
+# The research group's data request, most important first. Anything not listed is not released.
+needs:
+  - {table: ed_visits, column: patient_hetu}                      # revisits: same code per patient
+  - {table: ed_visits, column: arrival_ts, detail: time_of_day}   # hour-of-arrival curve
+  - {table: ed_visits, column: municipality}                      # diagnosis mix by municipality
+  - {table: ed_visits, column: date_of_birth, detail: age_band}   # revisits by age
+  - {table: ed_visits, column: icd10_primary}
+  - {table: ed_visits, column: triage}
+  - {table: ed_visits, column: los_minutes}
+  - {table: ed_visits, column: readmit_30d}
+  - {table: ed_visits, column: disposition}
+  - {table: ed_visits, column: temp_c}                            # CRP vs temperature
+  - {table: lab_results, column: test_code}
+  - {table: lab_results, column: test_name}
+  - {table: lab_results, column: value}
+  - {table: lab_results, column: unit}
