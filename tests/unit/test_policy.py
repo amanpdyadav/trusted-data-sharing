@@ -119,3 +119,15 @@ def test_the_planner_never_approves() -> None:
 @pytest.mark.parametrize("trust", list(TrustLevel))
 def test_every_column_gets_a_reason(trust: TrustLevel) -> None:
     assert all(len(reason) > 10 for _, _, reason in _plan(trust=trust).values())
+
+
+def test_requested_free_text_is_redacted_with_the_datasets_known_names() -> None:
+    technique, params, _ = _plan(needs=[Need(column="note")])[("visits", "note")]
+    assert technique is T.REDACT_TEXT
+    assert params == {"known_from": ["visits.name"]}
+
+
+def test_free_text_is_never_public_and_never_unrequested() -> None:
+    public = _plan(trust=TrustLevel.PUBLIC, needs=[Need(column="note"), Need(column="sex")])
+    assert public[("visits", "note")][0] is T.DROP
+    assert _plan()[("visits", "note")][0] is T.DROP

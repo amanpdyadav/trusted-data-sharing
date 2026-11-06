@@ -1,7 +1,7 @@
 """Rule-based planner: detections + scenario -> an unapproved draft plan with a reason for every column.
 
 Rules, first match wins:
-  free text      withheld until text redaction is available
+  free text      requested text is redacted (names, ID codes, contacts, numbers, secrets -> tags); never public
   contact        name, phone, e-mail, address never leave, even when asked for
   tables         a table the data request does not touch is withheld entirely
   keys           row keys and join keys become keyed codes for non-public receivers; other links only if requested
@@ -85,7 +85,13 @@ def _drop(reason: str) -> Decision:
 def free_text(x: Context) -> Decision | None:
     if x.column.privacy_role is not R.FREE_TEXT:
         return None
-    return _drop("Free text can name anyone; withheld until text redaction is in place.")
+    if not x.wanted:
+        return _drop("Free text not in the data request (data minimisation).")
+    if x.public:
+        return _drop("Public release: free text is withheld; details left after redaction can still identify people.")
+    names = [f"{c.table}.{c.column}" for c in x.detections.columns if c.subtype is S.PERSON_NAME]
+    why = "Text kept for its meaning; names, ID codes, contacts, account numbers and secrets become tags like [PERSON]."
+    return Decision(T.REDACT_TEXT, why, {"known_from": names} if names else {})
 
 
 def contact(x: Context) -> Decision | None:
