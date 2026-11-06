@@ -29,7 +29,8 @@ SYMPTOM_GROUPS = [
     ("endocrine", ["verensokeri", "blood sugar", "blodsocker"]),
     ("urological", ["virtsa", "urinat", "kylkikipu", "flank", "flanksmärta", "kissa"]),
     ("injury", ["kaatui", "fall", "fell", "slipped", "liukkaalla", "haava", "cut ", "cut finger", "viilsi", "nilkka",
-                "ankle", "wrist", "ranne", "palovamma", "burn", "raketti", "olkapää", "shoulder", "fotled", "föll"]),
+                "ankle", "wrist", "ranne", "palovamma", "burn", "raketti", "olkapää", "shoulder", "fotled", "föll",
+                "loukkaant", "palovamm", "ilotulit", "firework", "onnettomuu", "accident", "injured", "skadad"]),
     ("musculoskeletal", ["selkä", "back pain", "ryggont"]),
     ("neurological", ["päänsärky", "headache", "huvudvärk", "kouristel", "seizure", "kramp", "näköhäiriö",
                       "voimattomuus", "weakness", "slurred"]),
@@ -51,7 +52,7 @@ class Step:
 
 @dataclass
 class Chain:
-    post: dict
+    post: dict                                         # the public source row: a social post or a news clip
     clues: dict
     funnel: list[Step] = field(default_factory=list)
     visit: dict | None = None
@@ -59,6 +60,7 @@ class Chain:
     dossier: dict = field(default_factory=dict)       # everything learned about the person
     identified: bool = False
     person_correct: bool | None = None
+    source: str = "post"                               # "post" or "news"
 
 
 def _read(path) -> pd.DataFrame:
@@ -81,11 +83,9 @@ def _load() -> dict:
     directory = _with_truth(_read(PG_ROOT / "adversary" / "public_directory.csv"), "adversary", "public_directory", "adv_row_id")
     directory["first"] = directory.name.str.split().str[0]
     students = _read(DATA / "education" / "students.csv")
-    # Public first-name statistics stand-in: the sex most often carried by each first name.
-    first = students.first_names.str.split().str[0]
-    name_sex = students.assign(first=first).groupby("first").sex.agg(lambda s: s.mode().iat[0]).to_dict()
+    news = _with_truth(_read(PG_ROOT / "adversary" / "news_clips_health.csv"), "adversary", "news_clips_health", "adv_row_id")
     return {
-        "ed": ed, "posts": posts, "directory": directory, "name_sex": name_sex,
+        "ed": ed, "posts": posts, "news": news, "directory": directory, "name_sex": _name_sex(students),
         "labs": _read(DATA / "health" / "lab_results.csv"),
         "notes": _read(DATA / "health" / "clinical_notes.csv"),
         "finance": _with_truth(_read(DATA / "finance" / "customers.csv"), "finance", "customers", "customer_id"),
@@ -94,6 +94,32 @@ def _load() -> dict:
         "students": _with_truth(students, "education", "students", "student_id"),
         "stops": _read(DATA / "mobility" / "stops.csv"),
     }
+
+
+def _hetu_sex(hetu: str) -> str | None:
+    """Finnish ID codes encode sex in the individual number: odd is male, even is female."""
+    try:
+        return "M" if int(hetu[7:10]) % 2 else "F"
+    except (ValueError, TypeError):
+        return None
+
+
+def _name_sex(students: pd.DataFrame) -> dict:
+    """Stand-in for public first-name statistics (Finland publishes these): the sex most people with each first
+    name have, taken from the ID codes in the bank and telecom customer lists and from the school register."""
+    f = _read(DATA / "finance" / "customers.csv")
+    c = _read(DATA / "customer_service" / "customers.csv")
+    rows = pd.concat([
+        pd.DataFrame({"first": f.full_name.str.split().str[0], "sex": f.hetu.map(_hetu_sex)}),
+        pd.DataFrame({"first": c.full_name.str.split().str[0], "sex": c.hetu.map(_hetu_sex)}),
+        pd.DataFrame({"first": students.first_names.str.split().str[0], "sex": students.sex}),
+    ]).dropna()
+    rows = rows[rows["first"] != ""]
+    return rows.groupby("first").sex.agg(lambda s: s.mode().iat[0]).to_dict()
+
+
+STAY_PATTERNS = [r"Spent (\d+) hours", r"Jo (\d+) tuntia", r"(\d+) timmar"]
+STAY_TOLERANCE_H = (1.0, 0.5)  # the stated hours match the real length of stay within about half an hour
 
 
 def symptom_group(text: str) -> str | None:
@@ -109,14 +135,14 @@ def read_post(post: dict) -> dict:
     d = _load()
     parts = post["display_name"].split()
     first = parts[0] if parts else None
-    hours = re.search(r"(\d+)\s*(?:hours|tuntia|timmar)", post["text"])
+    stay = next((int(m.group(1)) for pat in STAY_PATTERNS if (m := re.search(pat, post["text"]))), None)
     return {
         "first_name": first,
         "full_name": post["display_name"] if len(parts) > 1 else None,
         "sex": d["name_sex"].get(first) if first else None,
         "city": post["profile_city"] or None,
         "posted": pd.Timestamp(post["posted_ts"]),
-        "hours_in_er": int(hours.group(1)) if hours else None,
+        "stay_hours": stay,
         "symptom_group": symptom_group(post["text"]),
     }
 
@@ -126,7 +152,91 @@ def _step(source, clue, cand: pd.DataFrame, truth_pid: str | None) -> Step:
     return Step(source, clue, int(len(cand)), ok)
 
 
-def run_chain(post_id: str) -> Chain:
+def run_chain(source_id: str) -> Chain:
+    """Run the chain from a social post (POST…) or a news clip (NEWS…)."""
+    if source_id.startswith("NEWS"):
+        return run_news_chain(source_id)
+    return run_post_chain(source_id)
+
+
+def read_news(clip: dict) -> dict:
+    """What a reader of the news clip learns: when, which town, age, sex, sometimes the hour and a name."""
+    hour = re.search(r"kello (\d+)", clip["text"])
+    age = pd.to_numeric(clip["age_mentioned"], errors="coerce")
+    return {
+        "date": pd.Timestamp(clip["event_date"]) if clip["event_date"] else None,
+        "published": pd.Timestamp(clip["published_date"]),
+        "hour": int(hour.group(1)) if hour else None,
+        "city": clip["place"] or None,
+        "sex": clip["sex_mentioned"] or None,
+        "age": None if pd.isna(age) else int(age),
+        "full_name": clip["name_mentioned"] or None,
+        "first_name": clip["name_mentioned"].split()[0] if clip["name_mentioned"] else None,
+        "symptom_group": symptom_group(clip["text"]),
+    }
+
+
+NEWS_AGE_TOLERANCE = 2  # "noin 40-vuotias" (about 40): the real age is within about two years
+
+
+def _age_at(df: pd.DataFrame) -> pd.Series:
+    dob = pd.to_datetime(df.date_of_birth, errors="coerce")
+    return ((df.arrival - dob).dt.days / 365.25).round()
+
+
+def run_news_chain(news_id: str) -> Chain:
+    d = _load()
+    clip = d["news"].set_index("adv_row_id").loc[news_id].to_dict() | {"adv_row_id": news_id}
+    pid = clip.get("person_id") or None
+    c = read_news(clip)
+    chain = Chain(post=clip, clues=c, source="news")
+    ed = d["ed"]
+    chain.funnel.append(_step("Hospital ED visits (names removed)", "all visits in 2025", ed, pid))
+    if c["date"] is not None:
+        day = c["date"]
+        cand = ed[ed.arrival.dt.normalize() == day]
+        chain.funnel.append(_step("News clip", f"arrived on {day:%a %d %b %Y}, the day of the accident", cand, pid))
+    else:
+        lo = c["published"] - pd.Timedelta(days=2)
+        cand = ed[(ed.arrival >= lo) & (ed.arrival < c["published"] + pd.Timedelta(days=1))]
+        chain.funnel.append(_step("News clip", f"arrived in the 3 days up to publication ({c['published']:%d %b %Y})", cand, pid))
+    if c["hour"] is not None:
+        cand = cand[cand.arrival.dt.hour.isin([c["hour"], (c["hour"] + 1) % 24])]
+        chain.funnel.append(_step("News clip", f"rescue services were called at {c['hour']}:00", cand, pid))
+    if c["city"]:
+        cand = cand[cand.municipality == c["city"]]
+        chain.funnel.append(_step("News clip", f"it happened in {c['city']}", cand, pid))
+    if c["sex"]:
+        cand = cand[cand.sex == c["sex"]]
+        chain.funnel.append(_step("News clip", "a woman" if c["sex"] == "F" else "a man", cand, pid))
+    if c["age"] is not None:
+        a = _age_at(cand)
+        cand = cand[(a >= c["age"] - NEWS_AGE_TOLERANCE) & (a <= c["age"] + NEWS_AGE_TOLERANCE)]
+        chain.funnel.append(_step("News clip", f"aged about {c['age']}", cand, pid))
+    if c["symptom_group"]:
+        narrowed = cand[cand.group == c["symptom_group"]]
+        if len(narrowed):
+            cand = narrowed
+            chain.funnel.append(_step("News clip", f"{c['symptom_group'].replace('_', ' ')} diagnosis", cand, pid))
+    dir_hits = pd.DataFrame()
+    if c["full_name"]:
+        dir_hits = d["directory"][d["directory"].name == c["full_name"]]
+        narrowed = cand[cand.postcode.isin(dir_hits.postcode)] if len(dir_hits) else cand.iloc[:0]
+        if len(narrowed):
+            cand = narrowed
+            chain.funnel.append(_step("Public phone directory", f"'{c['full_name']}' is listed at postcode "
+                                      f"{', '.join(sorted(dir_hits.postcode.unique()))}", cand, pid))
+    people = cand.drop_duplicates(["date_of_birth", "postcode", "sex"])
+    if len(people) != 1:
+        return chain
+    v = cand.sort_values("arrival").iloc[-1]
+    chain.identified, chain.visit = True, v.to_dict()
+    chain.person_correct = None if pid is None else v.person_id == pid
+    _pivot(chain, v, d, dir_hits)
+    return chain
+
+
+def run_post_chain(post_id: str) -> Chain:
     d = _load()
     post = d["posts"].set_index("adv_row_id").loc[post_id].to_dict() | {"adv_row_id": post_id}
     pid = post.get("person_id") or None
@@ -152,6 +262,9 @@ def run_chain(post_id: str) -> Chain:
             cand = narrowed
             chain.funnel.append(_step("Social post", f"symptoms in the post point to: {c['symptom_group'].replace('_', ' ')} "
                                       "diagnosis", cand, pid))
+    if c["stay_hours"]:
+        cand = _stay_filter(cand, c["stay_hours"])
+        chain.funnel.append(_step("Social post", f"stayed about {c['stay_hours']} hours (the post says so)", cand, pid))
     dir_hits = pd.DataFrame()
     if c["full_name"]:
         dir_hits = d["directory"][d["directory"].name == c["full_name"]]
@@ -173,6 +286,11 @@ def run_chain(post_id: str) -> Chain:
     chain.person_correct = None if pid is None else v.person_id == pid
     _pivot(chain, v, d, dir_hits)
     return chain
+
+
+def _stay_filter(df: pd.DataFrame, hours: int, col: str = "los_minutes") -> pd.DataFrame:
+    los_h = pd.to_numeric(df[col], errors="coerce") / 60
+    return df[(los_h >= hours - STAY_TOLERANCE_H[0]) & (los_h <= hours + STAY_TOLERANCE_H[1])]
 
 
 def _pivot(chain: Chain, v: pd.Series, d: dict, dir_hits: pd.DataFrame) -> None:
@@ -219,6 +337,8 @@ def _pivot(chain: Chain, v: pd.Series, d: dict, dir_hits: pd.DataFrame) -> None:
          "birth date + postcode")
 
     # Last step: put a name and street address on it.
+    if not len(dir_hits) and not chain.clues.get("first_name"):
+        return  # nobody is named and names are removed everywhere: the person stays unnamed
     dr = dir_hits if len(dir_hits) else d["directory"][(d["directory"].postcode == pc)
                                                        & (d["directory"]["first"] == chain.clues["first_name"])]
     row = {"Dataset": "Public phone directory", "Matches": int(len(dr)),
@@ -257,11 +377,12 @@ def _taps_for(card_id: str) -> pd.DataFrame:
 def survey() -> pd.DataFrame:
     """Run the chain on every post: how often does a single post lead to one named person?"""
     rows = []
-    for pid in _load()["posts"].adv_row_id:
+    d = _load()
+    for pid in list(d["posts"].adv_row_id) + list(d["news"].adv_row_id):
         ch = run_chain(pid)
         joined = [l["Dataset"] for l in ch.links if l["Matches"] == 1 and l["Dataset"] != "Public phone directory"]
         named = any(l["Dataset"] == "Public phone directory" and l["Correct"] for l in ch.links)
-        rows.append({"post": pid, "identified": ch.identified, "correct": bool(ch.person_correct),
+        rows.append({"post": pid, "source": ch.source, "identified": ch.identified, "correct": bool(ch.person_correct),
                      "named": bool(ch.person_correct and named), "datasets_joined": len(joined),
                      "candidates_left": ch.funnel[-1].candidates, "steps": len(ch.funnel)})
     return pd.DataFrame(rows)
@@ -282,6 +403,8 @@ def protected_funnel(chain: Chain) -> list[Step] | None:
         return None
     r, c = _release(), chain.clues
     steps = [Step("Our release", "all released visits", len(r))]
+    if chain.source == "news":
+        return _protected_news(r, c, steps)
     lo = c["posted"] - pd.Timedelta(hours=ARRIVAL_WINDOW_H[0])
     hours = {(lo + pd.Timedelta(hours=h)).hour for h in range(sum(ARRIVAL_WINDOW_H) + 1)}
     r = r[r.hour.isin(hours)]
@@ -295,4 +418,32 @@ def protected_funnel(chain: Chain) -> list[Step] | None:
     if c["symptom_group"] and (r.diagnosis_group == c["symptom_group"]).any():
         r = r[r.diagnosis_group == c["symptom_group"]]
         steps.append(Step("Social post", f"{c['symptom_group'].replace('_', ' ')} diagnosis", len(r)))
+    if c.get("stay_hours"):
+        r = _stay_filter(r, c["stay_hours"])
+        steps.append(Step("Social post", f"stayed about {c['stay_hours']} hours (length of stay is released)", len(r)))
     return steps
+
+
+def _protected_news(r: pd.DataFrame, c: dict, steps: list[Step]) -> list[Step]:
+    steps.append(Step("News clip", "the date is not released, so every day of the year still fits", len(r)))
+    if c["hour"] is not None:
+        r = r[r.hour.isin([c["hour"], (c["hour"] + 1) % 24])]
+        steps.append(Step("News clip", f"arrival hour {c['hour']}:00", len(r)))
+    if c["city"]:
+        towns = set(_release().municipality)
+        r = r[r.municipality == (c["city"] if c["city"] in towns else "other")]
+        steps.append(Step("News clip", f"{c['city']}" + ("" if c["city"] in towns else " (merged into 'other')"), len(r)))
+    if c["sex"]:
+        steps.append(Step("News clip", "sex is not released, so this clue is useless", len(r)))
+    if c["age"] is not None:
+        bands = {_band(a) for a in range(c["age"] - NEWS_AGE_TOLERANCE, c["age"] + NEWS_AGE_TOLERANCE + 1)}
+        r = r[r.age.isin(bands)]
+        steps.append(Step("News clip", f"age band {' or '.join(sorted(bands))}", len(r)))
+    if c["symptom_group"] and (r.diagnosis_group == c["symptom_group"]).any():
+        r = r[r.diagnosis_group == c["symptom_group"]]
+        steps.append(Step("News clip", f"{c['symptom_group'].replace('_', ' ')} diagnosis", len(r)))
+    return steps
+
+
+def _band(age: int) -> str:
+    return "80+" if age >= 80 else f"{age // 10 * 10}-{age // 10 * 10 + 9}"
