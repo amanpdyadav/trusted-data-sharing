@@ -2,8 +2,13 @@ PY ?= .venv/bin/python
 UV ?= uv
 PKG ?= TRUSTED_PETS_PROVING_GROUND_2026
 CODE = src tests evaluation
+PLAN ?= plans/health-s1.yaml
+RECEIVER ?= uni-research
+OUT ?= out/health-s1
+RELEASE ?= $(OUT)/release
+ROWMAPS ?= $(OUT)/private
 
-.PHONY: install fmt lint typecheck test test-all schemas check baseline validate detect-score
+.PHONY: install fmt lint typecheck test test-all schemas check release baseline validate detect-score
 
 install:  ## create/refresh the dev environment (+ the organisers' pets-eval toolkit for evaluation)
 	$(UV) pip install -p $(PY) -e ".[dev]"
@@ -32,12 +37,15 @@ schemas:  ## regenerate JSON schemas for the shared files (UI reads these)
 
 check: lint typecheck test  ## run before every push
 
-# ---------------------------------------------------------------- validation (needs the data package)
+# ---------------------------------------------------------------- releases and validation (need the data package)
+release:  ## protect data with a plan: make release [PLAN=plans/health-s1.yaml RECEIVER=uni-research OUT=out/health-s1]
+	$(PY) -m pets_transformer.cli run --plan $(PLAN) --receiver $(RECEIVER) --out $(OUT)
+
 baseline:  ## score the package quickstart output: our measured 'before'
 	$(PY) -m evaluation baseline
 
-validate:  ## score a release: make validate RELEASE=out/health/release ROWMAPS=out/health/private [SCENARIO=HEALTH-S1]
-	$(PY) -m evaluation validate --release $(RELEASE) --rowmaps $(ROWMAPS) --scenario $(or $(SCENARIO),HEALTH-S1) --gate
+validate:  ## score a release (defaults to the last `make release` output): make release validate
+	$(PY) -m evaluation validate --release $(RELEASE) --rowmaps $(ROWMAPS) --scenario $(or $(SCENARIO),HEALTH-S1) $(if $(RUN_ID),--run-id $(RUN_ID)) --gate
 
 detect-score:  ## score a detection file: make detect-score DETECTION=out/health/detection.json
 	$(PY) -m evaluation detect --detection $(DETECTION) --gate

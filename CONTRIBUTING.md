@@ -104,8 +104,8 @@ Changing a contract: change the model, run `make schemas`, update `examples/`, t
 Testing checks that the code does what we wrote. Validation checks that a release meets the requirements.
 
 ```bash
-make baseline                                                    # the measured 'before' (package quickstart)
-make validate RELEASE=out/health/release ROWMAPS=out/health/private   # score our release
+make baseline                 # the measured 'before' (package quickstart)
+make release validate         # protect with plans/health-s1.yaml, then score it (the 'after')
 make detect-score DETECTION=out/health/detection.json            # score column detection
 ```
 

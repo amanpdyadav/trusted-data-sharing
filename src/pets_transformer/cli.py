@@ -3,6 +3,7 @@
 pets-transformer doctor                       # is everything configured? (AI on/off, key, data, scenarios)
 pets-transformer schemas --out schemas        # JSON schemas for the shared files (the UI reads these)
 pets-transformer validate plan.yaml --kind plan
+pets-transformer run --plan plans/health-s1.yaml --receiver uni-research --out out/health-s1
 """
 
 import argparse
@@ -15,12 +16,14 @@ from pydantic import BaseModel
 
 from pets_transformer import __version__
 from pets_transformer.config import Settings
-from pets_transformer.contracts import CONTRACTS, Contract, RecordSpans
+from pets_transformer.contracts import CONTRACTS, Contract, Plan, RecordSpans
 from pets_transformer.envfile import load_env_file
-from pets_transformer.keys import DerivedKeyProvider, MissingKeyError
+from pets_transformer.keys import DerivedKeyProvider, KeyScope, MissingKeyError
 from pets_transformer.llm import LlmUnavailableError, build_llm
+from pets_transformer.pipeline import OutputLayout, run_release
 from pets_transformer.plan.scenario import Scenario, load_scenarios
 from pets_transformer.plugins import load_plugins
+from pets_transformer.sources import open_source
 
 KINDS: dict[str, type[Contract]] = {**CONTRACTS, "scenario": Scenario}
 
@@ -69,6 +72,25 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_run(args: argparse.Namespace) -> int:
+    plan = Plan.load(args.plan)
+    settings = Settings.from_env()
+    source = open_source(args.source or f"csv:{settings.package_root / 'data' / plan.dataset}")
+    month = plan.created_at.strftime("%Y-%m")
+    scope = KeyScope(DerivedKeyProvider.from_env(), f"{plan.scenario_id}/{args.receiver}/{month}")
+    outcome = run_release(source, plan, scope, OutputLayout(Path(args.out)))
+    print(f"release {outcome.manifest.release_id} for receiver '{args.receiver}'")
+    for t in outcome.tables:
+        line = f"  {t.name}: {t.rows_in} rows in, {len(t.frame)} out, {len(t.frame.columns)} columns"
+        if t.suppression and t.suppression.check:
+            c = t.suppression.check
+            line += f"; k>={c.k_target} {'met' if c.passes else 'NOT met'}, {t.suppression.rows_removed} rows removed"
+        print(line)
+    print(f"  release: {outcome.layout.release}   private (never share): {outcome.layout.private}")
+    print(f"  next: make validate RELEASE={outcome.layout.release} ROWMAPS={outcome.layout.private}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="pets-transformer", description=__doc__.splitlines()[0])
     p.add_argument("--version", action="version", version=__version__)
@@ -87,6 +109,11 @@ def build_parser() -> argparse.ArgumentParser:
     v = add("validate", cmd_validate, "validate a shared file")
     v.add_argument("file")
     v.add_argument("--kind", required=True, choices=sorted(KINDS))
+    r = add("run", cmd_run, "apply an approved plan and write a release")
+    r.add_argument("--plan", required=True)
+    r.add_argument("--receiver", required=True, help="who gets the data; selects their own pseudonym key")
+    r.add_argument("--out", required=True, help="output folder; release/ and private/ are created inside")
+    r.add_argument("--source", help="e.g. csv:path/to/folder (default: the package data for the plan's dataset)")
     return p
 
 
@@ -95,7 +122,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         args.env_file_loaded = None if args.no_env_file else load_env_file(args.env_file)
         code: int = args.func(args)
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, KeyError, MissingKeyError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     return code

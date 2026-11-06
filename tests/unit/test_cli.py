@@ -88,3 +88,42 @@ def test_explicit_env_file_and_opt_out(isolated: Path, capsys: pytest.CaptureFix
 def test_missing_explicit_env_file_is_an_error(isolated: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["--env-file", "nope.env", "doctor"]) == 1
     assert "env file not found" in capsys.readouterr().err
+
+
+def _toy_release_inputs(folder: Path) -> Path:
+    data = folder / "data"
+    data.mkdir()
+    rows = 6
+    (data / "people.csv").write_text(
+        "id,name,sex\n" + "".join(f"P{i},Person {i},{'F' if i % 2 else 'M'}\n" for i in range(rows)), encoding="utf-8"
+    )
+    plan = folder / "plan.yaml"
+    plan.write_text(
+        "dataset: toy\nscenario_id: TOY-S1\ncreated_at: '2026-11-07T00:00:00Z'\n"
+        "record_keys: {people: id}\napproved: true\napproved_by: Tester\nactions:\n"
+        "  - {table: people, column: id, technique: pseudonymise, reason: join key}\n"
+        "  - {table: people, column: name, technique: drop, reason: not needed}\n"
+        "  - {table: people, column: sex, technique: keep, reason: analysis}\n",
+        encoding="utf-8",
+    )
+    return plan
+
+
+def test_run_writes_a_release_and_says_what_to_do_next(isolated: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    plan = _toy_release_inputs(isolated)
+    os.environ["PETS_MASTER_KEY"] = KEY
+    args = ["run", "--plan", str(plan), "--receiver", "uni", "--out", "out", "--source", f"csv:{isolated / 'data'}"]
+    assert main(args) == 0
+    out = capsys.readouterr().out
+    assert "people: 6 rows in, 6 out, 2 columns" in out
+    assert "next: make validate RELEASE=out/release ROWMAPS=out/private" in out
+    assert (isolated / "out/release/people.csv").exists()
+    assert (isolated / "out/private/rowmap_people.csv").exists()
+
+
+def test_run_without_a_key_writes_nothing(isolated: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    plan = _toy_release_inputs(isolated)
+    args = ["run", "--plan", str(plan), "--receiver", "uni", "--out", "out", "--source", f"csv:{isolated / 'data'}"]
+    assert main(args) == 1
+    assert "PETS_MASTER_KEY is not set" in capsys.readouterr().err
+    assert not (isolated / "out").exists()
