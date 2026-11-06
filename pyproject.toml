@@ -1,0 +1,84 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pets-transformer"
+version = "0.1.0"
+description = "Beyond Syntax: detect privacy risks, apply proportionate PETs for a named receiver, prove the before/after."
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Beyond Syntax" }]
+dependencies = [
+  "numpy>=1.26",
+  "pandas>=2.1",
+  "pydantic>=2.6",
+  "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "mypy>=1.10",
+  "pandas-stubs>=2.1",
+  "pytest>=8.0",
+  "pytest-cov>=5.0",
+  "ruff>=0.6",
+  "types-PyYAML>=6.0",
+]
+
+[project.scripts]
+pets-transformer = "pets_transformer.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pets_transformer"]
+
+# ---------------------------------------------------------------- lint & format
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "E", "W", "F",   # pycodestyle, pyflakes
+  "I",             # import order
+  "B",             # bugbear
+  "UP",            # modern syntax
+  "SIM",           # simplifications
+  "N",             # naming
+  "PT",            # pytest style
+  "RUF",           # ruff-specific
+  "C4",            # comprehensions
+  "PL",            # pylint subset
+]
+ignore = ["PLR2004"]  # magic numbers are fine in tests and domain constants
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR0913", "S101"]
+
+# ---------------------------------------------------------------- types
+[tool.mypy]
+python_version = "3.11"
+packages = ["pets_transformer"]
+mypy_path = "src"
+plugins = ["pydantic.mypy"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+no_implicit_optional = true
+warn_return_any = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+strict_equality = true
+
+# ---------------------------------------------------------------- tests
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers --strict-config"
+markers = [
+  "integration: needs the TrustED package data on disk",
+  "ollama: needs a running local Ollama server",
+]
+
+[tool.coverage.run]
+source = ["pets_transformer"]
+branch = true

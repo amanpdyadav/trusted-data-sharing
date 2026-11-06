@@ -1,0 +1,33 @@
+# Challenge material: never commit (large, and the data package has its own licence)
+TRUSTED_PETS_PROVING_GROUND_2026/
+*.zip
+*.mp4
+*.pdf
+*.docx
+
+# Outputs: releases, row maps and caches can contain sensitive values
+out/
+.cache/
+rowmap_*.csv
+
+# Secrets
+.env
+*.key
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
