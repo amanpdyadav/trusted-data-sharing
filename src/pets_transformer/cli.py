@@ -19,15 +19,17 @@ import pandas as pd
 from pydantic import BaseModel
 
 from pets_transformer import __version__
+from pets_transformer.aggregate import EpsilonLedger
 from pets_transformer.config import Settings
 from pets_transformer.contracts import CONTRACTS, Contract, DetectionReport, Plan, RecordSpans, Technique
 from pets_transformer.detect.rules import detect_source
 from pets_transformer.envfile import load_env_file
 from pets_transformer.keys import DerivedKeyProvider, KeyScope, MissingKeyError
 from pets_transformer.llm import LlmUnavailableError, build_llm
-from pets_transformer.pipeline import OutputLayout, run_release
+from pets_transformer.pipeline import OutputLayout, RunSettings, run_release
 from pets_transformer.plan.policy import REVIEW, RulePolicy
 from pets_transformer.plan.scenario import Scenario, load_scenarios
+from pets_transformer.plan.statistics import load_codelists
 from pets_transformer.plugins import load_plugins
 from pets_transformer.sources import open_source
 
@@ -84,7 +86,9 @@ def cmd_run(args: argparse.Namespace) -> int:
     source = open_source(args.source or f"csv:{settings.package_root / 'data' / plan.dataset}")
     month = plan.created_at.strftime("%Y-%m")
     scope = KeyScope(DerivedKeyProvider.from_env(), f"{plan.scenario_id}/{args.receiver}/{month}")
-    outcome = run_release(source, plan, scope, OutputLayout(Path(args.out)))
+    dp = plan.differential_privacy
+    ledger = EpsilonLedger(settings.epsilon_ledger, dp.budget_cap if dp else None)
+    outcome = run_release(source, plan, scope, OutputLayout(Path(args.out)), RunSettings(ledger=ledger))
     print(f"release {outcome.manifest.release_id} for receiver '{args.receiver}'")
     for t in outcome.tables:
         line = f"  {t.name}: {t.rows_in} rows in, {len(t.frame)} out, {len(t.frame.columns)} columns"
@@ -92,6 +96,10 @@ def cmd_run(args: argparse.Namespace) -> int:
             c = t.suppression.check
             line += f"; k>={c.k_target} {'met' if c.passes else 'NOT met'}, {t.suppression.rows_removed} rows removed"
         print(line)
+    for agg in outcome.aggregates:
+        print(f"  {agg.name}: {len(agg.frame)} cells (noisy statistics)")
+    if outcome.epsilon_total is not None:
+        print(f"  epsilon {plan.epsilon_spent:g} spent; {outcome.epsilon_total:g} in total for this receiver")
     print(f"  release: {outcome.layout.release}   private (never share): {outcome.layout.private}")
     print(f"  next: make validate RELEASE={outcome.layout.release} ROWMAPS={outcome.layout.private}")
     return 0
@@ -128,20 +136,28 @@ def _scenario(ref: str, settings: Settings) -> Scenario:
 
 def cmd_plan(args: argparse.Namespace) -> int:
     detections = DetectionReport.load(args.detection)
-    plan = RulePolicy().plan(detections, _scenario(args.scenario, Settings.from_env()))
+    settings = Settings.from_env()
+    policy = RulePolicy(load_codelists(settings.codelist_dir))
+    plan = policy.plan(detections, _scenario(args.scenario, settings))
     plan.save(args.out)
-    reviews = [a for a in plan.actions if a.reason.startswith(REVIEW)]
     kept = sum(1 for a in plan.actions if a.technique is not Technique.DROP)
     print(f"draft plan for {plan.scenario_id}: {len(plan.tables)} tables, {kept} columns released -> {args.out}")
-    for a in reviews:
-        print(f"  {REVIEW}: {a.table}.{a.column}")
+    for agg in plan.aggregates:
+        print(f"  statistic {agg.name}: epsilon {agg.epsilon:g}")
+    for item in _open_reviews(plan):
+        print(f"  {REVIEW}: {item}")
     print(f'  next: read the reasons, edit if needed, then: pets-transformer approve {args.out} --by "Your Name"')
     return 0
 
 
+def _open_reviews(plan: Plan) -> list[str]:
+    columns = [f"{a.table}.{a.column}" for a in plan.actions if a.reason.startswith(REVIEW)]
+    return columns + [f"statistic {a.name}" for a in plan.aggregates if a.reason.startswith(REVIEW)]
+
+
 def cmd_approve(args: argparse.Namespace) -> int:
     plan = Plan.load(args.plan)
-    open_reviews = [f"{a.table}.{a.column}" for a in plan.actions if a.reason.startswith(REVIEW)]
+    open_reviews = _open_reviews(plan)
     if open_reviews and not args.confirm_review:
         raise ValueError(f"plan has open REVIEW items {open_reviews}; resolve them or pass --confirm-review")
     plan.model_copy(update={"approved": True, "approved_by": args.by}).save(args.plan)

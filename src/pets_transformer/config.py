@@ -24,7 +24,13 @@ class Settings:
     package_root: Path = Path("TRUSTED_PETS_PROVING_GROUND_2026")
     out_dir: Path = Path("out")
     scenario_dirs: tuple[Path, ...] = (Path("scenarios"),)
+    codelist_dir: Path = Path("codelists")
     llm: LlmSettings = field(default_factory=LlmSettings)
+
+    @property
+    def epsilon_ledger(self) -> Path:
+        """Differential-privacy spending per receiver; private, kept with the controller's outputs."""
+        return self.out_dir / "epsilon_ledger.jsonl"
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -35,6 +41,7 @@ class Settings:
             package_root=Path(e.get("PETS_PACKAGE_ROOT", "TRUSTED_PETS_PROVING_GROUND_2026")),
             out_dir=out_dir,
             scenario_dirs=scenario_dirs,
+            codelist_dir=Path(e.get("PETS_CODELIST_DIR", "codelists")),
             llm=LlmSettings(
                 enabled=e.get("PETS_LLM_ENABLED", "false").strip().lower() in _TRUE,
                 url=e.get("PETS_LLM_URL", LlmSettings.url),
