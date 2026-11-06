@@ -1,0 +1,132 @@
+<title>Linkage Attack Demo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single reading column (~72ch) with full-width tables; pipeline as a wrapping row of stages */
+:root{
+  --bg:#f6f7f5; --surface:#ffffff; --ink:#17201e; --muted:#5b6662; --line:#dfe3e0;
+  --accent:#0f6b5c; --accent-soft:#e2f0ec; --risk:#b4521a; --risk-soft:#f8eadf;
+  --display:"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body:"IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111715; --surface:#18201e; --ink:#e6ece9; --muted:#9aa7a2; --line:#2a3532;
+  --accent:#5cc4ae; --accent-soft:#1a302b; --risk:#f0a06b; --risk-soft:#33241a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111715; --surface:#18201e; --ink:#e6ece9; --muted:#9aa7a2; --line:#2a3532;
+  --accent:#5cc4ae; --accent-soft:#1a302b; --risk:#f0a06b; --risk-soft:#33241a; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:16px/1.6 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 64px}
+.wrap{max-width:880px;margin:0 auto;display:flex;flex-direction:column;gap:44px}
+.prose{max-width:68ch}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(2rem,5vw,2.9rem);letter-spacing:-.01em}
+h2{font-size:1.5rem;margin-bottom:14px}
+h3{font-size:1.05rem}
+p{margin:0 0 12px}
+.eyebrow{font:500 .75rem/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:12px}
+.lede{font-size:1.15rem;color:var(--muted);margin-top:14px;max-width:62ch}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.chip{font:500 .8rem/1 var(--mono);padding:7px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
+.chip.warn{background:var(--risk-soft);color:var(--risk)}
+ol.steps{margin:0;padding-left:1.3em;display:grid;gap:6px}
+.pipe{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 16px}
+.stage{flex:1 1 150px;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
+.stage b{display:block;font:600 .72rem/1 var(--mono);color:var(--accent);letter-spacing:.06em;margin-bottom:6px}
+.stage h3{margin-bottom:4px}
+.stage p{font-size:.88rem;color:var(--muted);margin:0}
+.stage.measure{border-color:var(--accent)}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.92rem}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 .75rem/1.2 var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--bg)}
+tr:last-child td{border-bottom:0}
+td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pri{font:600 .72rem/1 var(--mono);padding:4px 8px;border-radius:6px;white-space:nowrap;display:inline-block}
+.p1{background:var(--accent);color:var(--surface)} .p2{background:var(--accent-soft);color:var(--accent)} .p3{background:var(--line);color:var(--ink)}
+.callouts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.callout{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
+.callout h3{margin-bottom:6px}
+.callout p{font-size:.92rem;color:var(--muted);margin:0}
+.rules li{margin-bottom:6px}
+code{font-family:var(--mono);font-size:.86em;background:var(--accent-soft);color:var(--accent);padding:1px 5px;border-radius:4px}
+.note{border-left:3px solid var(--risk);background:var(--risk-soft);padding:12px 16px;border-radius:0 8px 8px 0;font-size:.94rem}
+.score{font-family:var(--mono);color:var(--risk);font-weight:500}
+footer{font-size:.85rem;color:var(--muted);border-top:1px solid var(--line);padding-top:16px}
+</style>
+<style>
+.big{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
+.stat .n{font:700 2rem/1.1 var(--display);font-variant-numeric:tabular-nums;color:var(--risk)}
+.stat .n.ok{color:var(--accent)}
+.stat .l{font-size:.88rem;color:var(--muted);margin-top:4px}
+blockquote{margin:0;padding:12px 16px;background:var(--surface);border:1px solid var(--line);border-radius:10px;font-size:.95rem}
+.verdict{font:500 .85rem/1.4 var(--mono);margin-top:8px}
+.verdict.bad{color:var(--risk)} .verdict.good{color:var(--accent)}
+.story{display:grid;gap:12px}
+</style>
+<div class="wrap">
+<header>
+  <div class="eyebrow">Beyond Syntax · demo feature · synthetic data only</div>
+  <h1>Linkage attack demo</h1>
+  <p class="lede">We play the attacker. Using only the public knowledge shipped with the challenge, we try to find patients in the hospital data, and we link the hospital and bank datasets to each other. This becomes the “before” moment of our demo.</p>
+  <div class="meta">
+    <span class="chip">pets/attack_demo.py</span>
+    <span class="chip">App page: Attack demo</span>
+    <span class="chip">Same attack code as the official scorecard</span>
+  </div>
+</header>
+
+<section>
+  <h2>The headline: linking two datasets</h2>
+  <p class="prose">A hospital and a bank both publish data with <strong>names removed</strong>. An attacker joins them on just <strong>birth date and postcode</strong>.</p>
+  <div class="big">
+    <div class="stat"><div class="n">1,642</div><div class="l">people linked across the two releases</div></div>
+    <div class="stat"><div class="n">96%</div><div class="l">of those links are the right person (1,581 correct)</div></div>
+    <div class="stat"><div class="n">2</div><div class="l">columns needed: birth date and postcode</div></div>
+  </div>
+  <p class="prose" style="margin-top:14px">Each link joins a person's <strong>emergency-department diagnosis</strong> with their <strong>income band and occupation</strong> from the bank. Neither organisation published anything that looks identifying on its own. This is the mosaic effect that TrustED and the challenge's threat model warn about.</p>
+</section>
+
+<section>
+  <h2>Attacking the hospital data alone</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Attacker</th><th>Names removed</th><th>Quickstart protection</th></tr></thead>
+    <tbody>
+      <tr><td>Local news stories about accidents<br><span style="color:var(--muted);font-size:.85rem">200 targets in the data</span></td><td class="num score">9.5% re-identified</td><td class="num score">5.5% re-identified</td></tr>
+      <tr><td>Social media posts from the emergency department<br><span style="color:var(--muted);font-size:.85rem">850 targets</span></td><td class="num score">2.1%</td><td class="num score">2.1%</td></tr>
+      <tr><td>Public phone and address directory<br><span style="color:var(--muted);font-size:.85rem">739 targets</span></td><td class="num">0%</td><td class="num">0%</td></tr>
+    </tbody>
+  </table></div>
+  <p class="prose" style="margin-top:14px">The quickstart's protection (age bands, hourly times, 3-character diagnoses) helps against news stories but does nothing against social media posts. Our target is <strong>0% on every attacker</strong> while keeping the research tasks working.</p>
+</section>
+
+<section>
+  <h2>What the attacker sees</h2>
+  <div class="story">
+    <div>
+      <blockquote>A news story: the rescue service got a call at 8 on Monday about an accident in Turku. A woman of about 90 fell at home and was taken to hospital by ambulance.</blockquote>
+      <div class="verdict good">Names removed: 7 matching visits · Quickstart: 19 · the attacker cannot tell which</div>
+    </div>
+    <div>
+      <blockquote>A news story: a named ice-hockey player was taken to the Aurajoki emergency department on 17 May 2025.</blockquote>
+      <div class="verdict bad">Names removed: exactly 1 matching visit · diagnosis revealed (R07.4, chest pain)<br>Quickstart: still exactly 1 match · diagnosis still revealed (R07)</div>
+    </div>
+  </div>
+  <p class="note" style="margin-top:14px">The second story is the one to show in the demo: even after the toolkit's example protection, one news article is enough to learn a named person's diagnosis. When the exact date and a rare combination stay in the data, generalising other columns doesn't help. Our per-patient date shifting is designed to break exactly this.</p>
+</section>
+
+<section class="prose">
+  <h2>How it fits the demo</h2>
+  <ol class="steps">
+    <li><strong>Before:</strong> show the mosaic link and the hockey-player match on names-removed data.</li>
+    <li><strong>Protect:</strong> run our tool on the same data for HEALTH-S1.</li>
+    <li><strong>After:</strong> rerun the same attacks on our release. The attack page picks it up automatically from <code>outputs/health/</code>.</li>
+    <li><strong>Keep the value:</strong> show the utility tasks still working.</li>
+  </ol>
+  <p>Every person in these examples is synthetic. The attack uses only the attacker files and ground truth provided in the challenge pack.</p>
+</section>
+
+<footer>Friday 6 November 2026. Numbers from pets-eval 1.0.0 linkage attacks and our cross-dataset join, verified against the pack's ground truth.</footer>
+</div>
