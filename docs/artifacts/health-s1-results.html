@@ -1,0 +1,186 @@
+<title>HEALTH-S1 Release Results</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single reading column (~72ch) with full-width tables; pipeline as a wrapping row of stages */
+:root{
+  --bg:#f6f7f5; --surface:#ffffff; --ink:#17201e; --muted:#5b6662; --line:#dfe3e0;
+  --accent:#0f6b5c; --accent-soft:#e2f0ec; --risk:#b4521a; --risk-soft:#f8eadf;
+  --display:"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body:"IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111715; --surface:#18201e; --ink:#e6ece9; --muted:#9aa7a2; --line:#2a3532;
+  --accent:#5cc4ae; --accent-soft:#1a302b; --risk:#f0a06b; --risk-soft:#33241a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111715; --surface:#18201e; --ink:#e6ece9; --muted:#9aa7a2; --line:#2a3532;
+  --accent:#5cc4ae; --accent-soft:#1a302b; --risk:#f0a06b; --risk-soft:#33241a; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:16px/1.6 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 64px}
+.wrap{max-width:880px;margin:0 auto;display:flex;flex-direction:column;gap:44px}
+.prose{max-width:68ch}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(2rem,5vw,2.9rem);letter-spacing:-.01em}
+h2{font-size:1.5rem;margin-bottom:14px}
+h3{font-size:1.05rem}
+p{margin:0 0 12px}
+.eyebrow{font:500 .75rem/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:12px}
+.lede{font-size:1.15rem;color:var(--muted);margin-top:14px;max-width:62ch}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.chip{font:500 .8rem/1 var(--mono);padding:7px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
+.chip.warn{background:var(--risk-soft);color:var(--risk)}
+ol.steps{margin:0;padding-left:1.3em;display:grid;gap:6px}
+.pipe{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 16px}
+.stage{flex:1 1 150px;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
+.stage b{display:block;font:600 .72rem/1 var(--mono);color:var(--accent);letter-spacing:.06em;margin-bottom:6px}
+.stage h3{margin-bottom:4px}
+.stage p{font-size:.88rem;color:var(--muted);margin:0}
+.stage.measure{border-color:var(--accent)}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.92rem}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 .75rem/1.2 var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--bg)}
+tr:last-child td{border-bottom:0}
+td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pri{font:600 .72rem/1 var(--mono);padding:4px 8px;border-radius:6px;white-space:nowrap;display:inline-block}
+.p1{background:var(--accent);color:var(--surface)} .p2{background:var(--accent-soft);color:var(--accent)} .p3{background:var(--line);color:var(--ink)}
+.callouts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.callout{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
+.callout h3{margin-bottom:6px}
+.callout p{font-size:.92rem;color:var(--muted);margin:0}
+.rules li{margin-bottom:6px}
+code{font-family:var(--mono);font-size:.86em;background:var(--accent-soft);color:var(--accent);padding:1px 5px;border-radius:4px}
+.note{border-left:3px solid var(--risk);background:var(--risk-soft);padding:12px 16px;border-radius:0 8px 8px 0;font-size:.94rem}
+.score{font-family:var(--mono);color:var(--risk);font-weight:500}
+footer{font-size:.85rem;color:var(--muted);border-top:1px solid var(--line);padding-top:16px}
+</style>
+<style>
+.cmp{display:grid;gap:14px}
+.row{display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:center}
+.row .name{font-size:.9rem}
+.row .name small{display:block;color:var(--muted);font-size:.78rem}
+.pair{display:grid;gap:4px}
+.bar{display:grid;grid-template-columns:62px 1fr 44px;gap:8px;align-items:center;font-size:.8rem}
+.track{height:10px;background:var(--line);border-radius:5px;overflow:hidden}
+.fill{height:100%;border-radius:5px;background:var(--muted)}
+.fill.priv{background:var(--accent)} .fill.util{background:var(--risk)}
+.v{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+.ours .name{font-weight:600}
+.legend{display:flex;gap:16px;font-size:.82rem;color:var(--muted);flex-wrap:wrap}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.big{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
+.stat .n{font:700 2rem/1.1 var(--display);font-variant-numeric:tabular-nums;color:var(--accent)}
+.stat .l{font-size:.86rem;color:var(--muted);margin-top:4px}
+@media (max-width:520px){.row{grid-template-columns:1fr}}
+</style>
+<div class="wrap">
+<header>
+  <div class="eyebrow">Beyond Syntax · Friday night milestone · self-assessment scores</div>
+  <h1>HEALTH-S1 release: privacy 1.00, utility 0.98</h1>
+  <p class="lede">Our first real protected release: emergency-department visits and lab results for a university research group. Every public attacker is stopped, and the research questions still work.</p>
+  <div class="meta">
+    <span class="chip">pets/health_s1.py</span>
+    <span class="chip">scripts/build_health_s1.py</span>
+    <span class="chip">Self-assessment with pets-eval 1.0.0, not the official judging score</span>
+  </div>
+</header>
+
+<section>
+  <div class="big">
+    <div class="stat"><div class="n">1.00</div><div class="l">privacy score (baseline B2: 0.36)</div></div>
+    <div class="stat"><div class="n">0.98</div><div class="l">utility score (B2-k with k ≥ 5: 0.40)</div></div>
+    <div class="stat"><div class="n">0%</div><div class="l">re-identified by news, social-media and directory attackers</div></div>
+    <div class="stat"><div class="n">6</div><div class="l">rows suppressed out of 46,284</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>Against the baselines</h2>
+  <div class="legend"><span><span class="sw" style="background:var(--accent)"></span>Privacy</span><span><span class="sw" style="background:var(--risk)"></span>Utility (HEALTH-S1 tasks)</span></div>
+  <div class="cmp" style="margin-top:12px">
+    <div class="row"><div class="name">B0<small>names removed</small></div><div class="pair">
+      <div class="bar"><span>Privacy</span><div class="track"><div class="fill priv" style="width:28%"></div></div><span class="v">0.28</span></div>
+      <div class="bar"><span>Utility</span><div class="track"><div class="fill util" style="width:100%"></div></div><span class="v">1.00</span></div></div></div>
+    <div class="row"><div class="name">Quickstart<small>toolkit example</small></div><div class="pair">
+      <div class="bar"><span>Privacy</span><div class="track"><div class="fill priv" style="width:37%"></div></div><span class="v">0.37</span></div>
+      <div class="bar"><span>Utility</span><div class="track"><div class="fill util" style="width:79%"></div></div><span class="v">0.79</span></div></div></div>
+    <div class="row"><div class="name">B2<small>classic de-identification</small></div><div class="pair">
+      <div class="bar"><span>Privacy</span><div class="track"><div class="fill priv" style="width:36%"></div></div><span class="v">0.36</span></div>
+      <div class="bar"><span>Utility</span><div class="track"><div class="fill util" style="width:79%"></div></div><span class="v">0.79</span></div></div></div>
+    <div class="row"><div class="name">B2-k<small>B2 + k ≥ 5</small></div><div class="pair">
+      <div class="bar"><span>Privacy</span><div class="track"><div class="fill priv" style="width:52%"></div></div><span class="v">0.52</span></div>
+      <div class="bar"><span>Utility</span><div class="track"><div class="fill util" style="width:40%"></div></div><span class="v">0.40</span></div></div></div>
+    <div class="row ours"><div class="name">Ours<small>data minimisation + k ≥ 5</small></div><div class="pair">
+      <div class="bar"><span>Privacy</span><div class="track"><div class="fill priv" style="width:100%"></div></div><span class="v">1.00</span></div>
+      <div class="bar"><span>Utility</span><div class="track"><div class="fill util" style="width:98.4%"></div></div><span class="v">0.98</span></div></div></div>
+  </div>
+  <p class="prose" style="margin-top:12px;font-size:.88rem;color:var(--muted)">Baseline privacy and utility for HEALTH-S1 are from the pack's BENCHMARK.md (dataset privacy, scenario utility) and our quickstart run.</p>
+</section>
+
+<section>
+  <h2>Utility tasks</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Task</th><th>Ours</th><th>Quickstart</th></tr></thead>
+    <tbody>
+      <tr><td>H-U2 · Median length of stay by triage</td><td class="num">1.00</td><td class="num">1.00</td></tr>
+      <tr><td>H-U4 · Diagnosis mix by municipality</td><td class="num">0.92</td><td class="num">1.00</td></tr>
+      <tr><td>H-U6 · 30-day revisit rate by age band</td><td class="num">1.00</td><td class="num">0.96</td></tr>
+      <tr><td>H-U7 · CRP vs temperature (lab join)</td><td class="num">1.00</td><td class="num score">0 (not released)</td></tr>
+      <tr><td>H-U8 · Hour-of-day arrival curve</td><td class="num">1.00</td><td class="num">1.00</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="prose">
+  <h2>The key insight: minimisation beat generalisation</h2>
+  <p>We tried three versions. Keeping sex and arrival mode and coarsening them only where groups were small gave utility 0.93–0.97. <strong>Dropping them entirely, because no HEALTH-S1 question uses them, gave 0.98</strong>: with fewer attributes to protect, far fewer visits had to lose their municipality (1,078 instead of 8,136). Data minimisation isn't only a legal principle here; it measurably keeps more of the data that matters.</p>
+  <p>The other big move was the timestamp. Attackers match on the arrival <em>date</em>; the research needs only the <em>hour</em>. Releasing the hour alone took small groups from 83% to 18% before any other step.</p>
+</section>
+
+<section>
+  <h2>What we did to each column</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Column</th><th>What we did</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>Name, phone, address, postcode, ambulance unit, secondary diagnosis, physician</td><td>Drop</td><td>Not needed for the research; each one identifies or locates a person.</td></tr>
+      <tr><td>Personal ID code</td><td>Keyed pseudonym</td><td>Revisits need to know which visits belong together, not who the patient is.</td></tr>
+      <tr><td>Visit ID</td><td>Keyed pseudonym</td><td>Joins visits to lab results without the hospital's sequential numbers.</td></tr>
+      <tr><td>Birth date</td><td>10-year age band at arrival</td><td>Exact birth dates make 99% of patients unique.</td></tr>
+      <tr><td>Municipality</td><td>8 largest kept, others “other”</td><td>The analysis covers the 8 largest; small places single people out.</td></tr>
+      <tr><td>Arrival time</td><td>Hour of day only</td><td>The date is what news stories and posts match on.</td></tr>
+      <tr><td>Primary diagnosis</td><td>Diagnosis group</td><td>Rare and sensitive codes are near-unique.</td></tr>
+      <tr><td>Sex, arrival mode, most vital signs</td><td>Drop</td><td>Not used by this scenario's questions.</td></tr>
+      <tr><td>Temperature</td><td>Keep, convert °F values</td><td>Needed for CRP analysis; fixes a data-quality trap.</td></tr>
+      <tr><td>Length of stay, outcome, 30-day revisit, triage</td><td>Keep</td><td>The outcomes being studied.</td></tr>
+      <tr><td>Lab results</td><td>Keep values, pseudonymised join; drop sample times, reference ranges, blood-alcohol and pregnancy tests</td><td>CRP analysis needs the join; the rest re-links or is extra-sensitive.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="prose">
+  <h2>Checks we ran</h2>
+  <ul class="rules">
+    <li><strong>k-anonymity:</strong> every combination of age band, municipality and arrival hour is shared by at least 5 visits (median 56).</li>
+    <li><strong>l-diversity:</strong> every group contains at least 2 different diagnosis groups, so no group reveals one diagnosis for everyone in it.</li>
+    <li><strong>Attacks:</strong> the news, social-media and directory attackers re-identify 0 of their targets. The ice-hockey player from the attack demo can no longer be found.</li>
+    <li><strong>Residual identifier scan:</strong> the toolkit's scan finds no ID codes, phones, cards or emails in the released files.</li>
+    <li><strong>Release manifest:</strong> <code>manifest.json</code> records the scenario, each decision with its reason, the scores, and a SHA-256 fingerprint of each released file.</li>
+  </ul>
+  <p>Along the way the scan flagged our own pseudonyms: some random tokens happened to look like Finnish phone numbers or pass the card-number checksum. We now prefix every token with letters (<code>pt…</code>, <code>v…</code>, <code>lab…</code>) so released data never looks like an identifier.</p>
+</section>
+
+<section class="prose">
+  <h2>Remaining risks, stated honestly</h2>
+  <ul class="rules">
+    <li>The organisers hold <strong>stronger hidden attackers</strong>; these results cover only the public ones.</li>
+    <li>The patient pseudonym links all visits of one person (up to 28). A patient's sequence of visits could be distinctive to someone who knows their history.</li>
+    <li>Pseudonymised data is still personal data under GDPR. This release is designed for a controlled research environment, not open publication.</li>
+    <li>Free text is not released yet: the complaint field is dropped and clinical notes are withheld until our redactor is ready.</li>
+    <li>These are self-assessment scores from the toolkit, not the official judging score.</li>
+  </ul>
+</section>
+
+<footer>Friday 6 November 2026, night. Source: outputs/health/scorecard.json and build_log.json. All data is synthetic.</footer>
+</div>
