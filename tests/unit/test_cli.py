@@ -139,3 +139,31 @@ def test_detect_writes_report_and_organiser_labels(isolated: Path, capsys: pytes
     assert labels[0] == "column,privacy_role,subtype"
     assert "id,record_key,RECORD_ID" in labels
     assert main(["validate", "det.json", "--kind", "detection"]) == 0
+
+
+def test_plan_then_approve_with_review_items(isolated: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _toy_release_inputs(isolated)
+    src = f"csv:{isolated / 'data'}"
+    assert main(["detect", "--dataset", "toy", "--source", src, "--out", "det.json"]) == 0
+    scenario = isolated / "toy.yaml"
+    scenario.write_text(
+        "id: TOY-S1\ndataset: toy\ntitle: t\nrecipient: r\npurpose: p\ntrust_level: controlled_research\n"
+        "threat_model: tm\nneeds:\n  - {column: sex}\n",
+        encoding="utf-8",
+    )
+    assert main(["plan", "--detection", "det.json", "--scenario", str(scenario), "--out", "plan.yaml"]) == 0
+    assert "draft plan for TOY-S1" in capsys.readouterr().out
+    assert main(["approve", "plan.yaml", "--by", "Tester"]) == 0
+    assert "approved_by: Tester" in (isolated / "plan.yaml").read_text()
+
+
+def test_approve_refuses_open_review_items(isolated: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    plan = isolated / "plan.yaml"
+    plan.write_text(
+        "dataset: toy\nscenario_id: TOY-S1\ncreated_at: '2026-11-07T00:00:00Z'\nactions:\n"
+        "  - {table: t, column: c, technique: keep, reason: 'REVIEW: weak evidence, confirm'}\n",
+        encoding="utf-8",
+    )
+    assert main(["approve", str(plan), "--by", "Tester"]) == 1
+    assert "open REVIEW items" in capsys.readouterr().err
+    assert main(["approve", str(plan), "--by", "Tester", "--confirm-review"]) == 0

@@ -5,6 +5,8 @@ pets-transformer schemas --out schemas        # JSON schemas for the shared file
 pets-transformer validate plan.yaml --kind plan
 pets-transformer run --plan plans/health-s1.yaml --receiver uni-research --out out/health-s1
 pets-transformer detect --dataset health --out out/health/detection.json
+pets-transformer plan --detection out/health/detection.json --scenario HEALTH-S1 --out out/health/plan.yaml
+pets-transformer approve out/health/plan.yaml --by "Your Name"
 """
 
 import argparse
@@ -18,12 +20,13 @@ from pydantic import BaseModel
 
 from pets_transformer import __version__
 from pets_transformer.config import Settings
-from pets_transformer.contracts import CONTRACTS, Contract, Plan, RecordSpans
+from pets_transformer.contracts import CONTRACTS, Contract, DetectionReport, Plan, RecordSpans, Technique
 from pets_transformer.detect.rules import detect_source
 from pets_transformer.envfile import load_env_file
 from pets_transformer.keys import DerivedKeyProvider, KeyScope, MissingKeyError
 from pets_transformer.llm import LlmUnavailableError, build_llm
 from pets_transformer.pipeline import OutputLayout, run_release
+from pets_transformer.plan.policy import REVIEW, RulePolicy
 from pets_transformer.plan.scenario import Scenario, load_scenarios
 from pets_transformer.plugins import load_plugins
 from pets_transformer.sources import open_source
@@ -113,6 +116,39 @@ def cmd_detect(args: argparse.Namespace) -> int:
     return 0
 
 
+def _scenario(ref: str, settings: Settings) -> Scenario:
+    """A scenario id from the configured folders, or a path to a YAML file."""
+    if Path(ref).is_file():
+        return Scenario.load(ref)
+    found = load_scenarios(settings.scenario_dirs)
+    if ref not in found:
+        raise ValueError(f"unknown scenario {ref!r}; known: {sorted(found)}")
+    return found[ref]
+
+
+def cmd_plan(args: argparse.Namespace) -> int:
+    detections = DetectionReport.load(args.detection)
+    plan = RulePolicy().plan(detections, _scenario(args.scenario, Settings.from_env()))
+    plan.save(args.out)
+    reviews = [a for a in plan.actions if a.reason.startswith(REVIEW)]
+    kept = sum(1 for a in plan.actions if a.technique is not Technique.DROP)
+    print(f"draft plan for {plan.scenario_id}: {len(plan.tables)} tables, {kept} columns released -> {args.out}")
+    for a in reviews:
+        print(f"  {REVIEW}: {a.table}.{a.column}")
+    print(f'  next: read the reasons, edit if needed, then: pets-transformer approve {args.out} --by "Your Name"')
+    return 0
+
+
+def cmd_approve(args: argparse.Namespace) -> int:
+    plan = Plan.load(args.plan)
+    open_reviews = [f"{a.table}.{a.column}" for a in plan.actions if a.reason.startswith(REVIEW)]
+    if open_reviews and not args.confirm_review:
+        raise ValueError(f"plan has open REVIEW items {open_reviews}; resolve them or pass --confirm-review")
+    plan.model_copy(update={"approved": True, "approved_by": args.by}).save(args.plan)
+    print(f"approved by {args.by}: {args.plan}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="pets-transformer", description=__doc__.splitlines()[0])
     p.add_argument("--version", action="version", version=__version__)
@@ -136,6 +172,14 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("--out", required=True, help="detection.json to write")
     d.add_argument("--source", help="e.g. csv:path/to/folder (default: the package data for the dataset)")
     d.add_argument("--labels-csv", help="also write column,privacy_role,subtype (organisers' format)")
+    pl = add("plan", cmd_plan, "draft a plan from detections and a scenario (never approved)")
+    pl.add_argument("--detection", required=True)
+    pl.add_argument("--scenario", required=True, help="scenario id (e.g. HEALTH-S1) or a YAML path")
+    pl.add_argument("--out", required=True)
+    ap = add("approve", cmd_approve, "record a person's approval of a plan")
+    ap.add_argument("plan")
+    ap.add_argument("--by", required=True, help="name of the person approving")
+    ap.add_argument("--confirm-review", action="store_true", help="approve even with open REVIEW items")
     r = add("run", cmd_run, "apply an approved plan and write a release")
     r.add_argument("--plan", required=True)
     r.add_argument("--receiver", required=True, help="who gets the data; selects their own pseudonym key")
