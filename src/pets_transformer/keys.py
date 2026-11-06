@@ -58,3 +58,8 @@ class KeyScope:
 
     def key(self) -> bytes:
         return self.keys.key_for(self.domain)
+
+    def seed(self, purpose: str) -> int:
+        """A random seed only the key holder can reproduce (row shuffles, DP noise): secret, yet re-runnable."""
+        digest = hmac.new(self.key(), purpose.encode(), hashlib.sha256).digest()
+        return int.from_bytes(digest[:8], "big")
