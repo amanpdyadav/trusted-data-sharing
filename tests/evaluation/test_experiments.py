@@ -35,3 +35,12 @@ def test_arrival_variants_only_change_arrival_time(base: Plan, variant: object) 
     assert action.params == {"to": "time", "unit": variant.name}  # type: ignore[attr-defined]
     others = [a for a in changed.actions if a.column != "arrival_ts"]
     assert others == [a for a in base.actions if a.column != "arrival_ts"]
+
+
+@pytest.mark.parametrize("variant", EXPERIMENTS["suppression-order"], ids=lambda v: v.name)
+def test_suppression_order_variants_reorder_the_same_four_columns(base: Plan, variant: object) -> None:
+    changed = variant.change(base)  # type: ignore[attr-defined]
+    assert sorted(changed.quasi_identifiers["ed_visits"]) == sorted(base.quasi_identifiers["ed_visits"])
+    assert changed.action_for("ed_visits", "arrival_ts").params["unit"] == "time_of_day"
+    blanked_first = variant.name.removesuffix("-blanked-first")  # type: ignore[attr-defined]
+    assert changed.quasi_identifiers["ed_visits"][-1] == {"hour": "arrival_ts"}.get(blanked_first, blanked_first)

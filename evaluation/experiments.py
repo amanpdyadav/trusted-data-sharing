@@ -32,6 +32,20 @@ def with_action(plan: Plan, action: ColumnAction) -> Plan:
     return plan.model_copy(update={"actions": actions})
 
 
+def with_quasi_identifiers(plan: Plan, table: str, columns: list[str]) -> Plan:
+    """A copy of the plan with a new k check for one table (most important first; blanking starts at the end)."""
+    return plan.model_copy(update={"quasi_identifiers": {**plan.quasi_identifiers, table: columns}})
+
+
+def _then(*changes: Callable[[Plan], Plan]) -> Callable[[Plan], Plan]:
+    def apply(plan: Plan) -> Plan:
+        for change in changes:
+            plan = change(plan)
+        return plan
+
+    return apply
+
+
 def _arrival(unit: str, reason: str) -> Callable[[Plan], Plan]:
     action = ColumnAction(
         table="ed_visits",
@@ -52,6 +66,21 @@ EXPERIMENTS: dict[str, tuple[Variant, ...]] = {
             "Hour of day only, e.g. 20:00 (no date)",
             _arrival("time_of_day", "Hour-of-arrival curve (H-U8) without the date that links to news and posts."),
         ),
+    ),
+    "suppression-order": tuple(
+        Variant(
+            name,
+            f"time of day; k check order {order} (blanking starts at the end)",
+            _then(
+                _arrival("time_of_day", "Hour-of-arrival curve (H-U8) without the date."),
+                lambda p, o=order: with_quasi_identifiers(p, "ed_visits", o),  # type: ignore[misc]
+            ),
+        )
+        for name, order in (
+            ("hour-blanked-first", ["municipality", "age", "sex", "arrival_ts"]),
+            ("sex-blanked-first", ["arrival_ts", "municipality", "age", "sex"]),
+            ("age-blanked-first", ["arrival_ts", "municipality", "sex", "age"]),
+        )
     ),
 }
 

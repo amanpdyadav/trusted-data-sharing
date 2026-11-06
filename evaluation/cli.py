@@ -89,14 +89,15 @@ def cmd_experiment(args: argparse.Namespace) -> int:
     results = run_experiment(args.name, base, scope, Settings.from_env().package_root)
     print(f"experiment {args.name} · base plan {args.plan}")
     cols = f"{'combined':>8} {'utility':>7} {'H-U8':>5} {'k<5':>6} {'blanked':>8} {'demo attacks':>14}"
-    print(f"  {'variant':<12} {cols}  passed")
+    width = max(len("variant"), *(len(r.variant.name) for r in results))
+    print(f"  {'variant':<{width}} {cols}  passed")
     for r in results:
         m = r.scored.metrics
         blanked = sum(sum(t.suppression.cells_blanked.values()) for t in r.outcome.tables if t.suppression)
         attacks = "/".join(str(after.candidates_left) for _, after in r.scored.replays)
         passed = sum(1 for g in r.scored.gates if g.passed)
         print(
-            f"  {r.variant.name:<12} {m.composite or 0:>8.3f} {m.utility or 0:>7.3f} {_task(r.scored, 'H-U8'):>5} "
+            f"  {r.variant.name:<{width}} {m.composite or 0:>8.3f} {m.utility or 0:>7.3f} {_task(r.scored, 'H-U8'):>5} "
             f"{m.share_below_k or 0:>6.3f} {blanked:>8} {attacks:>14}  {passed}/{len(r.scored.gates)}"
         )
     print("  (demo attacks = candidates left for POST00635/NEWS00100; >= 5 means defeated)")
