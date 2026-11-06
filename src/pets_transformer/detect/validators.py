@@ -1,6 +1,7 @@
 """Format validators. Each is small, pure and unit-tested. Add new ones with `VALIDATORS.register(...)`.
 
-Starter set: Finnish personal identity code (HETU), IBAN, e-mail. Phone, card, plate, IP, MAC ... go here next.
+Finnish ID code (HETU), IBAN, e-mail, phone, payment card (Luhn, masked), IPv4, MAC, Finnish plate, UUID,
+hex digest, Finnish property ID, ICD-10 code, URL.
 """
 
 import re
@@ -74,5 +75,91 @@ class EmailValidator:
         return bool(_EMAIL_RE.match(value.strip()))
 
 
-for _v in (HetuValidator(), IbanValidator(), EmailValidator()):
+# ---------------------------------------------------------------- phone numbers (Finnish and international forms)
+_PHONE_CHARS = re.compile(r"^\+?[\d\s\-()]+$")
+
+
+@dataclass(frozen=True)
+class PhoneValidator:
+    """+358 50 123 4567, 040-1234567, 0401234567, 044 3571 097. Needs a country code or a trunk 0."""
+
+    name: str = "phone"
+    subtype: Subtype = Subtype.PHONE
+
+    def is_valid(self, value: str) -> bool:
+        v = value.strip()
+        if not _PHONE_CHARS.match(v):
+            return False
+        digits = re.sub(r"\D", "", v)
+        if v.startswith("+"):
+            return 8 <= len(digits) <= 15
+        return digits.startswith("0") and not digits.startswith("00") and 7 <= len(digits) <= 12
+
+
+# ---------------------------------------------------------------- payment cards (Luhn), also masked first6+last4
+_MASKED_CARD = re.compile(r"^\d{4,6}[*xX\s]{4,}\d{4}$|^[*xX]{4}[\s*xX]*\d{4}$")
+
+
+@dataclass(frozen=True)
+class PaymentCardValidator:
+    name: str = "payment_card"
+    subtype: Subtype = Subtype.PAYMENT_CARD
+
+    def is_valid(self, value: str) -> bool:
+        v = value.strip()
+        if _MASKED_CARD.match(v):
+            return True
+        digits = re.sub(r"[\s-]", "", v)
+        if not digits.isdigit() or not 13 <= len(digits) <= 19:
+            return False
+        total = 0
+        for i, ch in enumerate(reversed(digits)):
+            d = int(ch) * (2 if i % 2 else 1)
+            total += d - 9 if d > 9 else d
+        return total % 10 == 0
+
+
+# ---------------------------------------------------------------- IPv4 addresses (CIDR ranges are reference data)
+@dataclass(frozen=True)
+class Ipv4Validator:
+    name: str = "ipv4"
+    subtype: Subtype = Subtype.IP_ADDRESS
+
+    def is_valid(self, value: str) -> bool:
+        parts = value.strip().split(".")
+        return len(parts) == 4 and all(p.isdigit() and int(p) <= 255 and str(int(p)) == p for p in parts)
+
+
+# ---------------------------------------------------------------- simple pattern checks (one class, many formats: DRY)
+@dataclass(frozen=True)
+class PatternValidator:
+    name: str
+    subtype: Subtype
+    pattern: re.Pattern[str]
+
+    def is_valid(self, value: str) -> bool:
+        return bool(self.pattern.match(value.strip()))
+
+
+PATTERNS = (
+    PatternValidator("mac_address", Subtype.MAC_ADDRESS, re.compile(r"^[0-9A-Fa-f]{2}([:-][0-9A-Fa-f]{2}){5}$")),
+    PatternValidator("fi_plate", Subtype.LICENSE_PLATE, re.compile(r"^[A-ZÅÄÖ]{2,3}-[0-9*]{1,3}$")),
+    PatternValidator(
+        "uuid", Subtype.RECORD_ID, re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
+    ),
+    PatternValidator("hex_digest", Subtype.OTHER, re.compile(r"^([0-9a-fA-F]{32}|[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$")),
+    PatternValidator("fi_property_id", Subtype.PROPERTY_ID, re.compile(r"^\d{1,3}-\d{1,3}-\d{1,4}-\d{1,4}$")),
+    PatternValidator("icd10", Subtype.DIAGNOSIS_CODE, re.compile(r"^[A-TV-Z]\d{2}(\.\d{1,2})?$")),
+    PatternValidator("url", Subtype.URL, re.compile(r"^https?://\S+$")),
+)
+
+for _v in (
+    HetuValidator(),
+    IbanValidator(),
+    EmailValidator(),
+    PhoneValidator(),
+    PaymentCardValidator(),
+    Ipv4Validator(),
+    *PATTERNS,
+):
     VALIDATORS.register(_v.name, _v)
