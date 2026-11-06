@@ -1,7 +1,7 @@
 import pytest
-from tests.conftest import TEST_MASTER_KEY
 
 from pets_transformer.keys import DerivedKeyProvider, MissingKeyError
+from tests.conftest import TEST_MASTER_KEY
 
 
 @pytest.fixture

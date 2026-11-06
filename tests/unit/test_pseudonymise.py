@@ -1,10 +1,10 @@
 import pandas as pd
 import pytest
-from tests.conftest import TEST_MASTER_KEY
 
 from pets_transformer.contracts import Technique
 from pets_transformer.keys import DerivedKeyProvider
 from pets_transformer.transform import TRANSFORMS, TransformContext
+from tests.conftest import TEST_MASTER_KEY
 
 
 @pytest.fixture

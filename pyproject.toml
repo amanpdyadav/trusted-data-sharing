@@ -38,7 +38,7 @@ packages = ["src/pets_transformer"]
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-src = ["src", "tests"]
+src = ["src", "."]  # first-party: pets_transformer, evaluation, tests
 
 [tool.ruff.lint]
 select = [
@@ -61,8 +61,8 @@ ignore = ["PLR2004"]  # magic numbers are fine in tests and domain constants
 # ---------------------------------------------------------------- types
 [tool.mypy]
 python_version = "3.11"
-packages = ["pets_transformer"]
-mypy_path = "src"
+packages = ["pets_transformer", "evaluation"]
+mypy_path = "src:."
 plugins = ["pydantic.mypy"]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
@@ -71,6 +71,10 @@ warn_return_any = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 strict_equality = true
+
+[[tool.mypy.overrides]]
+module = ["pets_eval", "pets_eval.*"]  # organisers' toolkit ships without type hints
+ignore_missing_imports = true
 
 # ---------------------------------------------------------------- tests
 [tool.pytest.ini_options]
