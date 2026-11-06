@@ -1,0 +1,102 @@
+"""Shared label vocabulary.
+
+Mirrors the public vocabulary in the challenge's metadata/taxonomy.md so our outputs can be scored by pets-eval.
+This is a vocabulary, not answer data: nothing here says which column has which label.
+"""
+
+from enum import StrEnum
+
+
+class PrivacyRole(StrEnum):
+    DIRECT_IDENTIFIER = "direct_identifier"
+    QUASI_IDENTIFIER = "quasi_identifier"
+    SENSITIVE_ATTRIBUTE = "sensitive_attribute"
+    TECHNICAL_IDENTIFIER = "technical_identifier"
+    FREE_TEXT = "free_text"
+    RECORD_KEY = "record_key"
+    NON_SENSITIVE = "non_sensitive"
+
+
+class Subtype(StrEnum):
+    PERSON_NAME = "PERSON_NAME"
+    NATIONAL_ID = "NATIONAL_ID"
+    EMAIL = "EMAIL"
+    PHONE = "PHONE"
+    STREET_ADDRESS = "STREET_ADDRESS"
+    POSTCODE = "POSTCODE"
+    MUNICIPALITY = "MUNICIPALITY"
+    GPS_COORDINATE = "GPS_COORDINATE"
+    LOCATION_NAME = "LOCATION_NAME"
+    BIRTH_DATE = "BIRTH_DATE"
+    AGE = "AGE"
+    SEX = "SEX"
+    LANGUAGE = "LANGUAGE"
+    NATIONALITY = "NATIONALITY"
+    IBAN = "IBAN"
+    PAYMENT_CARD = "PAYMENT_CARD"
+    CUSTOMER_ID = "CUSTOMER_ID"
+    ACCOUNT_ID = "ACCOUNT_ID"
+    EMPLOYEE_ID = "EMPLOYEE_ID"
+    STUDENT_ID = "STUDENT_ID"
+    PATIENT_ID = "PATIENT_ID"
+    CARD_ID = "CARD_ID"
+    DEVICE_ID = "DEVICE_ID"
+    IP_ADDRESS = "IP_ADDRESS"
+    MAC_ADDRESS = "MAC_ADDRESS"
+    IMEI = "IMEI"
+    HOSTNAME = "HOSTNAME"
+    USERNAME = "USERNAME"
+    URL = "URL"
+    USER_AGENT = "USER_AGENT"
+    LICENSE_PLATE = "LICENSE_PLATE"
+    PROPERTY_ID = "PROPERTY_ID"
+    METER_ID = "METER_ID"
+    TIMESTAMP = "TIMESTAMP"
+    DATE = "DATE"
+    DURATION = "DURATION"
+    HEALTH_DATA = "HEALTH_DATA"
+    DIAGNOSIS_CODE = "DIAGNOSIS_CODE"
+    FINANCIAL_DATA = "FINANCIAL_DATA"
+    EDUCATION_DATA = "EDUCATION_DATA"
+    SOCIAL_DATA = "SOCIAL_DATA"
+    OCCUPATION = "OCCUPATION"
+    ORG_NAME = "ORG_NAME"
+    MEASUREMENT = "MEASUREMENT"
+    CATEGORY = "CATEGORY"
+    AGGREGATE = "AGGREGATE"
+    SECRET = "SECRET"
+    FREE_TEXT = "FREE_TEXT"
+    RECORD_ID = "RECORD_ID"
+    OTHER = "OTHER"
+
+
+class SpanLabel(StrEnum):
+    PERSON = "PERSON"
+    NATIONAL_ID = "NATIONAL_ID"
+    EMAIL = "EMAIL"
+    PHONE = "PHONE"
+    ADDRESS = "ADDRESS"
+    LOCATION = "LOCATION"
+    DATE = "DATE"
+    AGE = "AGE"
+    IBAN = "IBAN"
+    PAYMENT_CARD = "PAYMENT_CARD"
+    ACCOUNT_NUMBER = "ACCOUNT_NUMBER"
+    IP_ADDRESS = "IP_ADDRESS"
+    LICENSE_PLATE = "LICENSE_PLATE"
+    ORG = "ORG"
+    URL = "URL"
+    USERNAME = "USERNAME"
+    SECRET = "SECRET"
+    HEALTH = "HEALTH"
+    DEVICE_ID = "DEVICE_ID"
+    PROPERTY_ID = "PROPERTY_ID"
+
+
+class TrustLevel(StrEnum):
+    """How far the receiver is trusted; drives how strong the protection must be."""
+
+    PUBLIC = "public"
+    CONTRACTUAL = "contractual"
+    CONTROLLED_RESEARCH = "controlled_research"
+    INTERNAL = "internal"

@@ -1,0 +1,22 @@
+# Source: TRUSTED_PETS_PROVING_GROUND_2026/docs/SCENARIOS.md (HEALTH-S1). Silenat converts the other 26.
+schema_version: "1"
+id: HEALTH-S1
+dataset: health
+title: Secondary-use research in a controlled environment
+recipient: University research group studying ED crowding and revisits
+purpose: Analyse length of stay, revisits and diagnosis patterns
+trust_level: controlled_research
+threat_model: >-
+  Researcher with access to public_directory, news_clips_health and social_posts_health;
+  may try record linkage on QIs (age, sex, municipality, arrival time).
+legal_context: >-
+  Pseudonymised data remains personal data (GDPR Recital 26); health data is Art. 9 special category.
+  Comparable to a permit-based secure processing environment.
+utility_requirements: [H-U2, H-U4, H-U6, H-U7, H-U8]
+targets:
+  k: 5
+  text_recall: 0.95
+  notes: >-
+    No direct identifiers; consistent pseudonymous patient key; QIs generalised so that k>=5 on
+    (age band, sex, municipality, arrival week); free text redacted (recall >= 0.95 on PERSON/PHONE/ADDRESS/NATIONAL_ID).
+notes: Revisit analysis needs a stable patient pseudonym and joinable visit/lab keys.
