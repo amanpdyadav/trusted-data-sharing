@@ -4,6 +4,7 @@ pets-transformer doctor                       # is everything configured? (AI on
 pets-transformer schemas --out schemas        # JSON schemas for the shared files (the UI reads these)
 pets-transformer validate plan.yaml --kind plan
 pets-transformer run --plan plans/health-s1.yaml --receiver uni-research --out out/health-s1
+pets-transformer detect --dataset health --out out/health/detection.json
 """
 
 import argparse
@@ -12,11 +13,13 @@ import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
+import pandas as pd
 from pydantic import BaseModel
 
 from pets_transformer import __version__
 from pets_transformer.config import Settings
 from pets_transformer.contracts import CONTRACTS, Contract, Plan, RecordSpans
+from pets_transformer.detect.rules import detect_source
 from pets_transformer.envfile import load_env_file
 from pets_transformer.keys import DerivedKeyProvider, KeyScope, MissingKeyError
 from pets_transformer.llm import LlmUnavailableError, build_llm
@@ -91,6 +94,25 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_detect(args: argparse.Namespace) -> int:
+    settings = Settings.from_env()
+    source = open_source(args.source or f"csv:{settings.package_root / 'data' / args.dataset}")
+    report = detect_source(source, args.dataset)
+    report.save(args.out)
+    counts: dict[str, int] = {}
+    for c in report.columns:
+        counts[c.privacy_role.value] = counts.get(c.privacy_role.value, 0) + 1
+    print(f"detected {len(report.columns)} columns in {len(source.table_names())} tables -> {args.out}")
+    for role, n in sorted(counts.items(), key=lambda x: -x[1]):
+        print(f"  {role:22s} {n}")
+    if args.labels_csv:
+        rows = report.to_pets_eval_rows()
+        Path(args.labels_csv).parent.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame(rows)[["column", "privacy_role", "subtype"]].to_csv(args.labels_csv, index=False)
+        print(f"  labels (column,privacy_role,subtype): {args.labels_csv}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="pets-transformer", description=__doc__.splitlines()[0])
     p.add_argument("--version", action="version", version=__version__)
@@ -109,6 +131,11 @@ def build_parser() -> argparse.ArgumentParser:
     v = add("validate", cmd_validate, "validate a shared file")
     v.add_argument("file")
     v.add_argument("--kind", required=True, choices=sorted(KINDS))
+    d = add("detect", cmd_detect, "label every column of a dataset, with evidence")
+    d.add_argument("--dataset", required=True)
+    d.add_argument("--out", required=True, help="detection.json to write")
+    d.add_argument("--source", help="e.g. csv:path/to/folder (default: the package data for the dataset)")
+    d.add_argument("--labels-csv", help="also write column,privacy_role,subtype (organisers' format)")
     r = add("run", cmd_run, "apply an approved plan and write a release")
     r.add_argument("--plan", required=True)
     r.add_argument("--receiver", required=True, help="who gets the data; selects their own pseudonym key")

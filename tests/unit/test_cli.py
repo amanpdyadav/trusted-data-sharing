@@ -127,3 +127,15 @@ def test_run_without_a_key_writes_nothing(isolated: Path, capsys: pytest.Capture
     assert main(args) == 1
     assert "PETS_MASTER_KEY is not set" in capsys.readouterr().err
     assert not (isolated / "out").exists()
+
+
+def test_detect_writes_report_and_organiser_labels(isolated: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _toy_release_inputs(isolated)
+    args = ["detect", "--dataset", "toy", "--source", f"csv:{isolated / 'data'}", "--out", "det.json",
+            "--labels-csv", "labels.csv"]  # fmt: skip
+    assert main(args) == 0
+    assert "detected 3 columns in 1 tables" in capsys.readouterr().out
+    labels = (isolated / "labels.csv").read_text().splitlines()
+    assert labels[0] == "column,privacy_role,subtype"
+    assert "id,record_key,RECORD_ID" in labels
+    assert main(["validate", "det.json", "--kind", "detection"]) == 0

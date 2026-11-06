@@ -8,7 +8,7 @@ OUT ?= out/health-s1
 RELEASE ?= $(OUT)/release
 ROWMAPS ?= $(OUT)/private
 
-.PHONY: install fmt lint typecheck test test-all schemas check release baseline validate detect-score
+.PHONY: install fmt lint typecheck test test-all schemas check release baseline validate detect-score detect-all
 
 install:  ## create/refresh the dev environment (+ the organisers' pets-eval toolkit for evaluation)
 	$(UV) pip install -p $(PY) -e ".[dev]"
@@ -49,3 +49,6 @@ validate:  ## score a release (defaults to the last `make release` output): make
 
 detect-score:  ## score a detection file: make detect-score DETECTION=out/health/detection.json
 	$(PY) -m evaluation detect --detection $(DETECTION) --gate
+
+detect-all:  ## detect and score every dataset; education is the held-out set
+	$(PY) -m evaluation detect-all

@@ -4,6 +4,7 @@
     python -m evaluation baseline          # score the package's quickstart output: our measured 'before'
     python -m evaluation detect --detection out/health/detection.json
     python -m evaluation experiment arrival-time    # compare plan variants side by side
+    python -m evaluation detect-all        # column detection on every dataset, held-out reported apart
 
 Each run writes results/runs/<run_id>/ (scorecard + metrics.json, not committed) and appends results/history.csv.
 `--gate` makes the command fail when a pass mark in evaluation/targets.yaml is missed (for CI or make).
@@ -78,6 +79,24 @@ def cmd_detect(args: argparse.Namespace) -> int:
     return 0 if ok or not args.gate else 1
 
 
+DEV_DATASETS = ["health", "mobility", "smart_city", "energy", "finance", "cyber", "public_admin", "customer_service"]
+HELD_OUT = ["education"]  # never used to design rules; see the detector commit for its first-look score
+
+
+def cmd_detect_all(_: argparse.Namespace) -> int:
+    root = Settings.from_env().package_root
+    for label, datasets in (("development", DEV_DATASETS), ("held out", HELD_OUT)):
+        overall, per = detection.score_datasets(root, datasets)
+        sens = overall["per_role"]["sensitive_attribute"]["recall"]
+        print(
+            f"{label}: macro-F1 {overall['macro_f1']:.3f} · accuracy {overall['accuracy']:.3f} · "
+            f"sensitive-attribute recall {sens:.2f} · subtype accuracy {overall.get('subtype_accuracy')}"
+        )
+        for ds, f1 in per.items():
+            print(f"  {ds:18s} {f1:.3f}")
+    return 0
+
+
 def _task(s: Scored, task_id: str) -> str:
     score = next((u.score for u in s.metrics.utility_tasks if u.task_id == task_id), None)
     return "n/a" if score is None else f"{score:.2f}"
@@ -121,6 +140,9 @@ def build_parser() -> argparse.ArgumentParser:
     d = sub.add_parser("detect", help="score a detection.json")
     d.add_argument("--detection", required=True)
     d.set_defaults(func=cmd_detect)
+
+    da = sub.add_parser("detect-all", help="detect and score every dataset (development and held-out)")
+    da.set_defaults(func=cmd_detect_all)
 
     e = sub.add_parser("experiment", help="release and score plan variants side by side")
     e.add_argument("name", choices=sorted(EXPERIMENTS))
