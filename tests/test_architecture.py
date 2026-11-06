@@ -51,6 +51,12 @@ def test_rule2_only_the_ai_helper_talks_to_the_network(path: Path) -> None:
     assert not (_imports(path) & network), f"{path.name} imports a network library"
 
 
+@pytest.mark.parametrize("path", _modules(), ids=lambda p: str(p.relative_to(SRC)))
+def test_runtime_never_imports_the_evaluation_harness(path: Path) -> None:
+    """Layering: evaluation may use the runtime package, never the other way round."""
+    assert not any(m == "evaluation" or m.startswith("evaluation.") for m in _imports(path))
+
+
 @pytest.mark.parametrize("package", ["transform", "assess", "plan", "keys.py", "contracts"])
 def test_protection_and_checks_never_depend_on_the_ai(package: str) -> None:
     """The AI may advise; it may not protect or measure. Keeps releases reproducible with AI off."""

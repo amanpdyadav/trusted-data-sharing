@@ -9,6 +9,7 @@ TRUSTED_PETS_PROVING_GROUND_2026/
 out/
 .cache/
 rowmap_*.csv
+results/runs/
 
 # Secrets
 .env

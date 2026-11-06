@@ -99,6 +99,29 @@ Changing a contract: change the model, run `make schemas`, update `examples/`, t
 - Every new function gets a test; every bug gets a test first.
 - Evaluation against the organisers' scorer lives outside `src/` (it uses answer files).
 
+## Validating against the requirements (`evaluation/`)
+
+Testing checks that the code does what we wrote. Validation checks that a release meets the requirements.
+
+```bash
+make baseline                                                    # the measured 'before' (package quickstart)
+make validate RELEASE=out/health/release ROWMAPS=out/health/private   # score our release
+make detect-score DETECTION=out/health/detection.json            # score column detection
+```
+
+Each run prints PASS/FAIL against `evaluation/targets.yaml`, writes `results/runs/<run_id>/` (scorecard and
+`metrics.json`, not committed) and appends one row to `results/history.csv` (committed: the before/after record).
+
+| Checks | How |
+|---|---|
+| Privacy, usefulness, combined score, rows with k < 5, organisers' linkage attacks | pets-eval scorecard for the scenario |
+| The two problem-demo attacks still find their person? | `evaluation/attacks.py` replays them on the release, reading generalised values the way an attacker would |
+| Column detection | pets-eval `detect` against the field catalogue |
+
+Release layout the harness expects: protected tables in one folder, row maps (`rowmap_<table>.csv`) in a separate
+private folder that never ships. To add an attack, add an `AttackCase` built from clues in `evaluation/attack_cases.py`;
+to add a clue, add a small class with `label` and `matches(frame)` in `evaluation/attacks.py`.
+
 ## Git
 
 - Branch per task: `feat/<step>-<what>`, `fix/...`. Small commits, one concern each.
