@@ -4,7 +4,7 @@ health.clinical_notes.note_text,dev,ours,30103,55287,0.0003,0.9997,0.9998,0.9997
 health.ed_visits.chief_complaint,dev,quickstart,46398,0,0.0,0.0,0.0,0.0
 health.ed_visits.chief_complaint,dev,ours,46398,0,0.0,0.0,0.0,0.0
 customer_service.turns.text,dev,quickstart,140345,41889,0.7845,0.2106,0.7529,0.2461
-customer_service.turns.text,dev,ours,140345,41889,0.0363,0.9638,0.7278,0.9051
+customer_service.turns.text,dev,ours,140345,41889,0.0363,0.9638,0.7294,0.9056
 customer_service.conversations.agent_note,dev,quickstart,11943,16524,0.8286,0.1714,0.7508,0.2027
 customer_service.conversations.agent_note,dev,ours,11943,16524,0.0168,0.9835,0.7511,0.9262
 cyber.incident_tickets.description,dev,quickstart,315,843,0.7343,0.2657,1.0,0.3115

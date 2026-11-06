@@ -803,7 +803,7 @@ T0014391,"Tunnistetaan ensin: asiakasnumero tai syntymäaika, kiitos."
 T0014392,"Asiakasnumeroni on [ACCOUNT_NUMBER], nimellä [PERSON]"
 T0014393,"Kiitos, löysin tietosi."
 T0014394,"Näen reitittimesi julkisen IP-osoitteen [IP_ADDRESS], yhteys toimii meidän päästä."
-T0014395,Lähetin salasanan [SECRET] [URL]
+T0014395,Lähetin salasanan vaihtolinkin: [URL]
 T0014396,Ei toimi vieläkään.
 T0014397,Vaihda kanava 5 GHz:lle ja tallenna.
 T0014398,PIN-koodi on [SECRET]
@@ -1723,7 +1723,7 @@ T0032180,"Kiitos [PERSON], tunnistus onnistui."
 T0032181,"Näen reitittimesi julkisen IP-osoitteen [IP_ADDRESS], yhteys toimii meidän päästä."
 T0032182,wifin salasana on varmaan [SECRET]
 T0032183,"Kiitos, mutta älä koskaan kerro salasanaa asiakaspalvelulle. Vaihda se vielä tänään."
-T0032184,Lähetin salasanan [SECRET] [URL]
+T0032184,Lähetin salasanan vaihtolinkin: [URL]
 T0032185,ei tiomi vieläkään.
 T0032186,Suosittelen mesh-lisäpistettä yläkertaan.
 T0032187,"Oliko muuta, jossa voin auttaa?"
@@ -2428,7 +2428,7 @@ T0041580,Saisinko asiakasnumerosi tai syntymäaikasi?
 T0041581,asiakasnumero on [ACCOUNT_NUMBER]
 T0041582,"Selvä, tilisi löytyi."
 T0041583,Reitittimen hallintaan pääsee osoitteesta [IP_ADDRESS]. Oletussalasana on laitteen pohjassa.
-T0041584,Lähetin salasanan [SECRET] [URL]
+T0041584,Lähetin salasanan vaihtolinkin: [URL]
 T0041585,"Okei, nyt pääsin sisään."
 T0041586,Vaihda kanava 5 GHz:lle ja tallenna.
 T0041587,Asia on nyt kirjattu. Hyvää päivää!
@@ -4093,7 +4093,7 @@ T0073612,"Hei, [PERSON] tässä Aallokolta 👋 Luin jo viestisi, katsotaan tät
 T0073613,Saisinko vielä asiakasnumerosi tai henkilötunnuksen?
 T0073614,[NATIONAL_ID]
 T0073615,"Kiitos, löysin tietosi."
-T0073616,Lähetin salasanan [SECRET] [URL]
+T0073616,Lähetin salasanan vaihtolinkin: [URL]
 T0073617,"Näen reitittimesi julkisen IP-osoitteen [IP_ADDRESS], yhteys toimii meidän päästä."
 T0073618,ei toimi vieläkään.
 T0073619,Suosittelen mesh-lisäpistettä yläkertaan.
@@ -5078,7 +5078,7 @@ T0091184,"Kiitos, mutta älä koskaan kerro salasanaa asiakaspalvelulle. Vaihda 
 T0091185,Emme koskaan kysy pankkitunnuksia puhelimessa.
 T0091186,Hyvä etten vastannut.
 T0091187,Ilmoitan numeron estolistalle.
-T0091188,Lähetin salasanan [SECRET] [URL]
+T0091188,Lähetin salasanan vaihtolinkin: [URL]
 T0091189,"Oliko muuta, jossa voin auttaa?"
 T0091190,Kiitos avusta.
 T0091380,"Aallokko customer service, [PERSON] speaking, how can I help?"
@@ -5902,7 +5902,7 @@ T0103698,"Joo, pitää paikkansa."
 T0103699,"Näen reitittimesi julkisen IP-osoitteen [IP_ADDRESS], yhteys toimii meidän päästä."
 T0103700,Ei toimi vieläkään.
 T0103701,Vaihda kanava 5 GHz:lle ja tallenna.
-T0103702,"Lähetin siis, salasanan [SECRET] [URL]"
+T0103702,"Lähetin siis, salasanan vaihtolinkin: [URL]"
 T0103703,Asia on nyt kirjattu. Hyvää päivää!
 T0103704,"Ei muuta, kiitos!"
 T0103801,Welcome to Aallokko chat! Type your question and I'll connect you to the right team.
@@ -8014,7 +8014,7 @@ T0138447,"joo, pitää paikkansa."
 T0138448,voinko maksaa kortilla nyt? numero on [PHONE]
 T0138449,Älä kirjoita/lue kortin numeroa tähän! Poistan sen. Maksu onnistuu turvallisesti OmaAallokossa.
 T0138450,Emme koskaan kysy pankkitunnuksia puhelimessa.
-T0138451,Lähetin salasanan [SECRET] [URL]
+T0138451,Lähetin salasanan vaihtolinkin: [URL]
 T0138452,hyvä etten vastannut.
 T0138453,Ilmoitan numeron estolistalle.
 T0138454,Kiitos yhteydenotosta ja mukavaa päivänjatkoa!
@@ -9030,7 +9030,7 @@ T0151439,"Selvä, tilisi löytyi."
 T0151440,"Tarkistan vielä: sähköpostisi on [EMAIL], pitääkö paikkansa?"
 T0151441,kyllä.
 T0151442,Emme koskaan kysy pankkitunnuksia puhelimessa.
-T0151443,Lähetin salasanan [SECRET] [URL]
+T0151443,Lähetin salasanan vaihtolinkin: [URL]
 T0151444,"voi ei, ehdin jo syöttää korttitietoja."
 T0151445,Soita heti pankkiisi ja sulje kortti. Teen rikosilmoituksen avuksi kirjauksen.
 T0151446,Asia on nyt kirjattu. Hyvää päivää!
