@@ -8,3 +8,4 @@ exp-suppression-order-hour-blanked-first-20261106T220809Z,2026-11-06T22:08:21+00
 exp-suppression-order-sex-blanked-first-20261106T220809Z,2026-11-06T22:08:32+00:00,ec8feca,health,HEALTH-S1,1.0,0.9948,0.9976,0.0,5,0.0,240,4,4
 exp-suppression-order-age-blanked-first-20261106T220809Z,2026-11-06T22:08:44+00:00,ec8feca,health,HEALTH-S1,1.0,0.9939,0.9972,0.0,5,0.0,299,4,4
 health-s1-v2,2026-11-06T22:09:40+00:00,f60d82f,health,HEALTH-S1,1.0,0.9948,0.9976,0.0,5,0.0,240,4,4
+health-s1-auto,2026-11-06T22:32:14+00:00,f16f8e5,health,HEALTH-S1,1.0,0.9931,0.9969,0.0,5,0.0,398,4,4
