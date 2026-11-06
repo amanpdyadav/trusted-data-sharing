@@ -1,0 +1,11 @@
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
+// The API (FastAPI, port 8000) serves /api. In dev, Vite proxies to it; in production FastAPI serves web/dist itself.
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 5173,
+    proxy: { "/api": { target: "http://localhost:8000", changeOrigin: true } },
+  },
+});
