@@ -10,7 +10,15 @@ from pets_transformer.contracts.metrics import (
     RiskComponent,
     UtilityTaskScore,
 )
-from pets_transformer.contracts.plan import ColumnAction, Plan, Technique
+from pets_transformer.contracts.plan import (
+    Aggregate,
+    ColumnAction,
+    DifferentialPrivacy,
+    Dimension,
+    Measure,
+    Plan,
+    Technique,
+)
 from pets_transformer.contracts.spans import RecordSpans, Span
 from pets_transformer.contracts.taxonomy import PrivacyRole, SpanLabel, Subtype, TrustLevel
 
@@ -23,14 +31,18 @@ CONTRACTS: dict[str, type[Contract]] = {
 
 __all__ = [
     "CONTRACTS",
+    "Aggregate",
     "AttackResult",
     "ColumnAction",
     "ColumnDetection",
     "Contract",
     "DetectionReport",
+    "DifferentialPrivacy",
+    "Dimension",
     "Evidence",
     "EvidenceKind",
     "LlmUsage",
+    "Measure",
     "MetricSource",
     "Metrics",
     "Plan",
