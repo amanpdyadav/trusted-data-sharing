@@ -10,7 +10,7 @@ arrival order; row maps never go into the release folder.
 
 import hashlib
 import hmac
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -33,6 +33,7 @@ from pets_transformer.keys import KeyScope
 from pets_transformer.report.fingerprint import file_sha256, tables_fingerprint
 from pets_transformer.sources import TableSource
 from pets_transformer.transform import TRANSFORMS, TransformContext
+from pets_transformer.transform.redact import known_from_tables
 from pets_transformer.transform.suppress import SuppressionResult, suppress_to_k
 
 
@@ -74,11 +75,13 @@ def _shuffle_seed(scope: KeyScope, table: str) -> int:
     return int.from_bytes(digest[:8], "big")
 
 
-def protect_table(table: str, frame: pd.DataFrame, plan: Plan, scope: KeyScope) -> ProtectedTable:
+def protect_table(
+    table: str, frame: pd.DataFrame, plan: Plan, scope: KeyScope, tables: Mapping[str, pd.DataFrame] | None = None
+) -> ProtectedTable:
     undecided = [c for c in frame.columns if plan.action_for(table, c) is None]
     if undecided:
         raise PlanError(f"{table}: no decision for columns {undecided}; every column needs keep, drop or a technique")
-    ctx = TransformContext(keys=scope.keys, key_domain=scope.domain, source=frame)
+    ctx = TransformContext(keys=scope.keys, key_domain=scope.domain, source=frame, tables=tables or {})
     out: dict[str, pd.Series] = {}
     for column in frame.columns:
         action = plan.action_for(table, column)
@@ -147,6 +150,12 @@ def _residual_risks(plan: Plan, tables: list[ProtectedTable], withheld: list[str
             risks.append(
                 f"{t.name}: {blanked} values blanked and {t.suppression.rows_removed} rows removed to reach k."
             )
+    redacted = [f"{a.table}.{a.column}" for a in plan.actions if a.technique is Technique.REDACT_TEXT]
+    if redacted:
+        risks.append(
+            f"Redacted free text ({', '.join(redacted)}): rule-based tags; unusual names, spellings or indirect "
+            'descriptions ("my neighbour the mayor") can remain. Sample it before release.'
+        )
     if withheld:
         risks.append(f"Withheld tables (not released): {', '.join(withheld)}.")
     return risks
@@ -163,12 +172,13 @@ def run_release(
         raise PlanError("the plan is not approved; a person must approve it before anything is released")
     created = clock()
     available = source.table_names()
-    unknown = [t for t in plan.tables if t not in available]
+    lookups = sorted({t for a in plan.actions for t in known_from_tables(a.params)} - set(plan.tables))
+    unknown = [t for t in [*plan.tables, *lookups] if t not in available]
     if unknown:
         raise PlanError(f"plan names tables the source does not have: {unknown}")
 
-    inputs = {t: source.read(t) for t in plan.tables}
-    protected = [protect_table(t, inputs[t], plan, scope) for t in plan.tables]
+    inputs = {t: source.read(t) for t in [*plan.tables, *lookups]}  # lookups are read, never released
+    protected = [protect_table(t, inputs[t], plan, scope, inputs) for t in plan.tables]
 
     layout.release.mkdir(parents=True, exist_ok=True)
     layout.private.mkdir(parents=True, exist_ok=True)

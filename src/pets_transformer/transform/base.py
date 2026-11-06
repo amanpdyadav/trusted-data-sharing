@@ -18,11 +18,18 @@ class TransformContext:
     keys: KeyProvider
     key_domain: str  # e.g. "HEALTH-S1/uni-research/2026-11": one key per receiver and release
     source: pd.DataFrame = field(default_factory=pd.DataFrame)  # the whole input table, read-only (e.g. age at arrival)
+    tables: Mapping[str, pd.DataFrame] = field(default_factory=dict)  # other input tables, read-only (known names)
 
     def source_column(self, name: str) -> pd.Series:
         if name not in self.source.columns:
             raise KeyError(f"transform needs column {name!r}, which the table does not have")
         return self.source[name]
+
+    def table_column(self, table: str, column: str) -> pd.Series:
+        frame = self.tables.get(table)
+        if frame is None or column not in frame.columns:
+            raise KeyError(f"transform needs {table}.{column}, which the input does not have")
+        return frame[column]
 
 
 class ColumnTransform(Protocol):

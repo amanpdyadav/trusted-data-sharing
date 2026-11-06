@@ -166,11 +166,31 @@ def test_undecided_column_is_never_released(source: object, tmp_path: Path) -> N
 
 def test_unimplemented_technique_and_unknown_table(source: object, tmp_path: Path) -> None:
     plan = _plan()
-    redact = [
-        a if a.column != "name" else a.model_copy(update={"technique": Technique.REDACT_TEXT}) for a in plan.actions
+    synth = [
+        a if a.column != "name" else a.model_copy(update={"technique": Technique.SYNTHESISE}) for a in plan.actions
     ]
     with pytest.raises(PlanError, match="not implemented"):
-        _run(source, tmp_path, plan.model_copy(update={"actions": redact}))
+        _run(source, tmp_path, plan.model_copy(update={"actions": synth}))
     ghost = [*plan.actions, ColumnAction(table="ghost", column="x", technique=Technique.KEEP, reason="test")]
     with pytest.raises(PlanError, match="does not have"):
         _run(source, tmp_path, plan.model_copy(update={"actions": ghost}))
+
+
+def test_free_text_is_redacted_with_names_from_a_table_that_is_not_released(tmp_path: Path) -> None:
+    folder = tmp_path / "data"
+    folder.mkdir()
+    pd.DataFrame({"full_name": ["Hilkka Aalto"]}).to_csv(folder / "customers.csv", index=False)
+    notes = ["Hilkka soitti numerosta 040 123 4567, kiitos.", "Lasku maksettu."]
+    pd.DataFrame({"note": notes}).to_csv(folder / "notes.csv", index=False)
+    action = ColumnAction(
+        table="notes",
+        column="note",
+        technique=Technique.REDACT_TEXT,
+        params={"known_from": ["customers.full_name"]},
+        reason="meaning kept, people removed",
+    )
+    plan = Plan(dataset="toy", scenario_id="TOY-S1", created_at=NOW, actions=[action], approved=True, approved_by="t")
+    outcome = _run(open_source(f"csv:{folder}"), tmp_path, plan)
+    released = sorted(pd.read_csv(outcome.layout.release / "notes.csv", dtype=str)["note"])  # type: ignore[attr-defined]
+    assert released == ["Lasku maksettu.", "[PERSON] soitti numerosta [PHONE], kiitos."]
+    assert not (outcome.layout.release / "customers.csv").exists()  # type: ignore[attr-defined]
