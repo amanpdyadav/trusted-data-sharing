@@ -23,11 +23,12 @@ targets:
 notes: No rows are released. Every table is noisy counts or means over declared categories.
 # The dashboard: one published table per entry. 'weight' shares the epsilon budget.
 statistics:
-  - name: weekly_visits_by_age_and_diagnosis   # ED load, influenza-like illness and injury trends by age
+# Weights favour the counts; the hour curve, means and shares stay accurate with less. Each extra variable in a
+# table splits the same visits into smaller cells, so trends by age are monthly rather than weekly.
+  - name: weekly_visits_by_diagnosis   # ED load, influenza-like illness and injury trends
     table: ed_visits
     by:
       - {column: arrival_ts, detail: week}
-      - {column: date_of_birth, detail: age_band}
       - {column: icd10_primary, detail: diagnosis_group}
     exclude: {disposition: [cancelled_duplicate]}
     weight: 2
@@ -37,12 +38,14 @@ statistics:
       - {column: arrival_ts, detail: month}
       - {column: date_of_birth, detail: age_band}
     exclude: {disposition: [cancelled_duplicate]}
+    weight: 2
   - name: visits_by_municipality_and_diagnosis
     table: ed_visits
     by:
       - {column: municipality}
       - {column: icd10_primary, detail: diagnosis_group}
     exclude: {disposition: [cancelled_duplicate]}
+    weight: 2
   - name: arrivals_by_hour
     table: ed_visits
     by:
@@ -54,9 +57,11 @@ statistics:
       - {column: triage}
     measure: {kind: mean, column: los_minutes, lower: 0, upper: 1440}
     exclude: {disposition: [cancelled_duplicate]}
+    weight: 0.5
   - name: admitted_share_by_age
     table: ed_visits
     by:
       - {column: date_of_birth, detail: age_band}
     measure: {kind: share, column: disposition, values: [admitted_ward, icu]}
     exclude: {disposition: [cancelled_duplicate]}
+    weight: 0.5
