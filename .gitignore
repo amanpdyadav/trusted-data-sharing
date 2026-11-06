@@ -1,0 +1,24 @@
+# What we were given: team-only, never commit or publish. Only challenge/README.md is tracked.
+challenge/*
+!challenge/README.md
+*.zip
+
+# Protected outputs and scoring row maps (rowmaps must never be published)
+outputs/
+rowmap_*.csv
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.streamlit/secrets.toml
+
+# Editor and OS
+.DS_Store
+.idea/
+.vscode/
+.claude/settings.local.json
