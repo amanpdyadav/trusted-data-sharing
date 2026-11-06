@@ -42,10 +42,14 @@ CUES: tuple[tuple[SpanLabel, re.Pattern[str]], ...] = (  # checked in order: mos
 CUE_WINDOW = 60
 
 
-def cue_label(text: str, start: int, default: SpanLabel) -> SpanLabel:
-    """The label named by cue words just before `start` ("hetu on ...", "imei ..."), else `default`."""
+def cue_for(text: str, start: int) -> SpanLabel | None:
+    """The label named by cue words just before `start` ("hetu on ...", "imei ..."), if any."""
     before = text[max(0, start - CUE_WINDOW) : start]
-    return next((label for label, cue in CUES if cue.search(before)), default)
+    return next((label for label, cue in CUES if cue.search(before)), None)
+
+
+def cue_label(text: str, start: int, default: SpanLabel) -> SpanLabel:
+    return cue_for(text, start) or default
 
 
 def _label(text: str, start: int, digits: str) -> SpanLabel:

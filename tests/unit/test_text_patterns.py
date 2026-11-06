@@ -33,7 +33,26 @@ class TestPatternDetector:
         assert (label.value, value) in labels(PatternDetector(), text)
 
     def test_rejects_values_that_fail_the_shared_format_check(self) -> None:
-        assert not [s for s in PatternDetector().find("hetu 131052-308X") if s.label is L.NATIONAL_ID]
+        assert not [s for s in PatternDetector().find("arvo 131052-308X") if s.label is L.NATIONAL_ID]
+
+    def test_a_cue_word_overrides_a_failed_check_digit(self) -> None:
+        assert [s.text for s in PatternDetector().find("hetu 131052-308x") if s.label is L.NATIONAL_ID] == [
+            "131052-308x"
+        ]
+
+    @pytest.mark.parametrize(
+        ("text", "label", "value"),
+        [
+            ("kortilla joka päättyy 9717", L.PAYMENT_CARD, "9717"),
+            ("osoite pappilakuja 52 a 2, 20800 turku", L.ADDRESS, "pappilakuja 52 a 2, 20800 turku"),
+            ("tilille fi4595645672272828", L.IBAN, "fi4595645672272828"),
+            ("Kone LT-JESKUL-8415 ei käynnisty", L.DEVICE_ID, "LT-JESKUL-8415"),
+            ("tavoittaa +358  4 4 4 10 3312.", L.PHONE, "+358  4 4 4 10 3312"),
+            ("Katsoin laskun 2521929543. Siinä", L.ACCOUNT_NUMBER, "2521929543"),
+        ],
+    )
+    def test_speech_style_and_lowercase_values(self, text: str, label: SpanLabel, value: str) -> None:
+        assert (label.value, value) in labels(PatternDetector(), text)
 
     def test_street_name_without_house_number_is_not_an_address(self) -> None:
         assert not [s for s in PatternDetector().find("ajoin Kauppakatua pitkin") if s.label is L.ADDRESS]

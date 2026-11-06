@@ -43,14 +43,38 @@ class TestCues:
         ],
     )
     def test_name_after_a_cue(self, text: str, name: str) -> None:
-        assert [s.text for s in CueNameDetector(KNOWN).find(text)] == [name]
+        assert {s.text for s in CueNameDetector(KNOWN).find(text)} == {name}
+
+    @pytest.mark.parametrize(
+        ("text", "name"),
+        [
+            ("asiakaspalvelu matti puhelimessa", "matti"),
+            ("kundtjänst det alltså är matti hur kan jag", "matti"),
+            ("Hyvitys tehty. /KLAI", "KLAI"),
+            ("Soittakaa minulle, t. Kalle Haukkamaa", "Kalle Haukkamaa"),
+        ],
+    )
+    def test_name_before_a_cue_fillers_and_signatures(self, text: str, name: str) -> None:
+        assert {s.text for s in CueNameDetector(KNOWN).find(text)} == {name}
 
     def test_ordinary_words_after_a_cue_stay(self) -> None:
         assert CueNameDetector(KNOWN).find("kiitos paljon avusta") == []
 
+    def test_after_a_greeting_a_new_capitalised_word_must_stand_alone(self) -> None:
+        assert CueNameDetector(KNOWN).find("Kiitos Aallokolle hyvästä palvelusta") == []
+        assert [s.text for s in CueNameDetector(KNOWN).find("Hei Liisa! Miten menee")] == ["Liisa"]
+
     def test_secret_and_username_values(self) -> None:
         spans = SecretCueDetector().find("salasanani on Kesä2024! ja käyttäjätunnus ainov85.")
         assert [(s.label, s.text) for s in spans] == [(L.SECRET, "Kesä2024"), (L.USERNAME, "ainov85")]
+
+    def test_hedged_secret_and_dotted_login(self) -> None:
+        found = SecretCueDetector().find("salasana on varmaan kruejcy2ve, tunnus joonas.ylaaho")
+        assert [(s.label, s.text) for s in found] == [(L.SECRET, "kruejcy2ve"), (L.USERNAME, "joonas.ylaaho")]
+
+    def test_a_plain_word_after_a_cue_is_no_login_or_password(self) -> None:
+        assert SecretCueDetector().find("käyttäjä valitti hitaudesta") == []
+        assert SecretCueDetector().find("lösenordet med siffror") == []
 
 
 class TestRedactor:
