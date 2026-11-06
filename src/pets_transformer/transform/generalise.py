@@ -4,6 +4,7 @@ One technique, several named strategies chosen by `params["to"]`:
 
     age_band   birth date (+ optional reference date column) -> "30-39", top-coded "80+"
     time       timestamp -> "2025-W04" (week) | "2025-01" (month) | "2025-01-22" (day) | "2025-01-22 20:00" (hour)
+               | "20:00" (time_of_day: hour of the day only, no date)
     truncate   keep the first n characters, e.g. ICD-10 "S52.5" -> "S52"
 
 Missing or unparseable values stay empty; they are never invented. Add a strategy by registering a function.
@@ -22,7 +23,12 @@ from pets_transformer.transform.base import TRANSFORMS, TransformContext
 Strategy = Callable[[pd.Series, Mapping[str, Any], TransformContext], pd.Series]
 STRATEGIES: Registry[str, Strategy] = Registry("generalisation")
 
-_TIME_FORMATS = {"hour": "%Y-%m-%d %H:00", "day": "%Y-%m-%d", "month": "%Y-%m"}
+_TIME_FORMATS = {
+    "hour": "%Y-%m-%d %H:00",
+    "day": "%Y-%m-%d",
+    "month": "%Y-%m",
+    "time_of_day": "%H:00",  # the hour only, no date: keeps daily rhythms, drops when it happened
+}
 
 
 def _to_datetime(values: pd.Series) -> pd.Series:
@@ -67,7 +73,7 @@ def time(values: pd.Series, params: Mapping[str, Any], _: TransformContext) -> p
     elif unit in _TIME_FORMATS:
         out = ts.dt.strftime(_TIME_FORMATS[unit])
     else:
-        raise ValueError(f"unknown time unit {unit!r}; use week, month, day or hour")
+        raise ValueError(f"unknown time unit {unit!r}; use week, month, day, hour or time_of_day")
     return _blank_missing(out.astype(str), ts.isna())
 
 
