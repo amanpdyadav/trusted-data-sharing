@@ -8,6 +8,8 @@ import pytest
 from evaluation.attack_cases import DEMO_CASES
 from evaluation.attacks import replay
 from evaluation.cli import main
+from evaluation.text import redact_eval_split
+from pets_transformer.detect.validators import VALIDATORS
 from pets_transformer.io import read_table
 
 pytestmark = pytest.mark.integration
@@ -41,3 +43,15 @@ def test_baseline_reproduces_the_measured_before(monkeypatch: pytest.MonkeyPatch
     assert row["gates_passed"] == "0"
     assert (tmp_path / "results" / "runs" / "test-baseline" / "metrics.json").exists()
     assert main(["baseline", "--run-id", "test-gated", "--gate"]) == 1  # 'before' must fail our pass marks
+
+
+def test_eval_split_redaction_hides_id_codes(tmp_path: Path) -> None:
+    if not (PKG / "holdout" / "customer_service" / "turns.csv").exists():
+        pytest.skip("TrustED data package not found")
+    out = tmp_path / "eval.csv"
+    rows = redact_eval_split(PKG, out)
+    redacted = read_table(out)
+    assert list(redacted.columns) == ["turn_id", "text"]
+    assert len(redacted) == rows == len(read_table(PKG / "holdout" / "customer_service" / "turns.csv"))
+    hetu = VALIDATORS.get("fi_hetu")
+    assert not [w for t in redacted["text"] for w in t.split() if hetu.is_valid(w.strip(".,"))]

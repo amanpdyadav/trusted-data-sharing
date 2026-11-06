@@ -5,6 +5,8 @@
     python -m evaluation detect --detection out/health/detection.json
     python -m evaluation experiment arrival-time    # compare plan variants side by side
     python -m evaluation detect-all        # column detection on every dataset, held-out reported apart
+    python -m evaluation text              # free-text redaction vs gold spans, quickstart regex as 'before'
+    python -m evaluation redact-eval       # pets_submission/customer_service_eval_redacted.csv for the organisers
 
 Each run writes results/runs/<run_id>/ (scorecard + metrics.json, not committed) and appends results/history.csv.
 `--gate` makes the command fail when a pass mark in evaluation/targets.yaml is missed (for CI or make).
@@ -16,11 +18,11 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
-from evaluation import detection
+from evaluation import detection, text
 from evaluation.experiments import EXPERIMENTS, run_experiment
 from evaluation.runner import RESULTS, Scored, score_run
 from evaluation.scorecard import Run
-from evaluation.targets import Gate, detection_gates, load_targets
+from evaluation.targets import Gate, detection_gates, load_targets, text_gates
 from pets_transformer.config import Settings
 from pets_transformer.contracts import DetectionReport, Plan
 from pets_transformer.envfile import load_env_file
@@ -97,6 +99,33 @@ def cmd_detect_all(_: argparse.Namespace) -> int:
     return 0
 
 
+TEXT_SCORES = RESULTS / "text_redaction.csv"
+EVAL_REDACTED = Path("pets_submission") / "customer_service_eval_redacted.csv"
+
+
+def cmd_text(args: argparse.Namespace) -> int:
+    scores = text.score_all(Settings.from_env().package_root)
+    for s in scores:
+        r = s.row()
+        print(
+            f"{r['split']:8s} {r['method']:10s} {r['column']:45s} values {r['gold_values']:6d}  "
+            f"leakage {r['leakage']:.3f}  recall {r['recall']:.3f}  precision {r['precision']:.3f}"
+        )
+    summary = text.summary(scores)
+    print(summary.to_string(index=False))
+    text.write_scores(scores, TEXT_SCORES)
+    print(f"written {TEXT_SCORES}")
+    held = summary[(summary["split"] == "held-out") & (summary["method"] == "ours")].iloc[0]
+    passed = _print_gates(text_gates(float(held["leakage"]), float(held["recall"]), load_targets()))
+    return 0 if passed or not args.gate else 1
+
+
+def cmd_redact_eval(_: argparse.Namespace) -> int:
+    rows = text.redact_eval_split(Settings.from_env().package_root, EVAL_REDACTED)
+    print(f"written {EVAL_REDACTED} ({rows} turns)")
+    return 0
+
+
 def _task(s: Scored, task_id: str) -> str:
     score = next((u.score for u in s.metrics.utility_tasks if u.task_id == task_id), None)
     return "n/a" if score is None else f"{score:.2f}"
@@ -144,12 +173,18 @@ def build_parser() -> argparse.ArgumentParser:
     da = sub.add_parser("detect-all", help="detect and score every dataset (development and held-out)")
     da.set_defaults(func=cmd_detect_all)
 
+    t = sub.add_parser("text", help="score free-text redaction against the gold spans (dev and held-out)")
+    t.set_defaults(func=cmd_text)
+
+    r = sub.add_parser("redact-eval", help="redact the customer_service eval split for the organisers' check")
+    r.set_defaults(func=cmd_redact_eval)
+
     e = sub.add_parser("experiment", help="release and score plan variants side by side")
     e.add_argument("name", choices=sorted(EXPERIMENTS))
     e.add_argument("--plan", default="plans/health-s1.yaml", help="base plan the variants change")
     e.set_defaults(func=cmd_experiment)
 
-    for sp in (v, b, d):
+    for sp in (v, b, d, t):
         sp.add_argument("--gate", action="store_true", help="exit 1 if a pass mark is missed")
     for sp in (v, b):
         sp.add_argument("--run-id")

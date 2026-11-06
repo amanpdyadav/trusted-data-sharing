@@ -65,7 +65,8 @@ def test_targets_load_with_scenario_override(tmp_path: Path) -> None:
     f = tmp_path / "t.yaml"
     f.write_text(
         "default: {composite_min: 0.7, share_below_k_max: 0.05, attack_candidates_min: 5,"
-        " detection_macro_f1_min: 0.85, sensitive_attribute_recall_min: 0.7}\n"
+        " detection_macro_f1_min: 0.85, sensitive_attribute_recall_min: 0.7,"
+        " text_leakage_max: 0.05, text_recall_min: 0.95}\n"
         "scenarios: {HEALTH-S2: {composite_min: 0.6}}\n"
     )
     assert load_targets("HEALTH-S2", f).composite_min == 0.6

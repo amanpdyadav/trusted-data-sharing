@@ -22,6 +22,8 @@ class Targets(BaseModel):
     attack_candidates_min: int = Field(ge=1)
     detection_macro_f1_min: float = Field(ge=0, le=1)
     sensitive_attribute_recall_min: float = Field(ge=0, le=1)
+    text_leakage_max: float = Field(ge=0, le=1)
+    text_recall_min: float = Field(ge=0, le=1)
 
 
 def load_targets(scenario_id: str | None = None, path: Path = DEFAULT_FILE) -> Targets:
@@ -96,4 +98,12 @@ def detection_gates(scores: Mapping[str, Any], t: Targets) -> list[Gate]:
             f">= {t.sensitive_attribute_recall_min}",
             None if sens is None else sens >= t.sensitive_attribute_recall_min,
         ),
+    ]
+
+
+def text_gates(leakage: float, recall: float, t: Targets) -> list[Gate]:
+    """Pass marks for free-text redaction, applied to the held-out columns."""
+    return [
+        Gate("held-out text leakage", _fmt(leakage), f"<= {t.text_leakage_max}", leakage <= t.text_leakage_max),
+        Gate("held-out text recall", _fmt(recall), f">= {t.text_recall_min}", recall >= t.text_recall_min),
     ]

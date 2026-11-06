@@ -8,7 +8,7 @@ OUT ?= out/health-s1
 RELEASE ?= $(OUT)/release
 ROWMAPS ?= $(OUT)/private
 
-.PHONY: install fmt lint typecheck test test-all schemas check release baseline validate detect-score detect-all
+.PHONY: install fmt lint typecheck test test-all schemas check release baseline validate detect-score detect-all text-score redact-eval
 
 install:  ## create/refresh the dev environment (+ the organisers' pets-eval toolkit for evaluation)
 	$(UV) pip install -p $(PY) -e ".[dev]"
@@ -52,3 +52,9 @@ detect-score:  ## score a detection file: make detect-score DETECTION=out/health
 
 detect-all:  ## detect and score every dataset; education is the held-out set
 	$(PY) -m evaluation detect-all
+
+text-score:  ## score free-text redaction against the gold spans (quickstart regex as the 'before')
+	$(PY) -m evaluation text --gate
+
+redact-eval:  ## write pets_submission/customer_service_eval_redacted.csv for the organisers' hidden check
+	$(PY) -m evaluation redact-eval
