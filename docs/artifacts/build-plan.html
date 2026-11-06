@@ -1,0 +1,206 @@
+<title>PETs Transformer Build Plan</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single reading column (~72ch) with full-width tables; pipeline as a wrapping row of stages */
+:root{
+  --bg:#f6f7f5; --surface:#ffffff; --ink:#17201e; --muted:#5b6662; --line:#dfe3e0;
+  --accent:#0f6b5c; --accent-soft:#e2f0ec; --risk:#b4521a; --risk-soft:#f8eadf;
+  --display:"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body:"IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111715; --surface:#18201e; --ink:#e6ece9; --muted:#9aa7a2; --line:#2a3532;
+  --accent:#5cc4ae; --accent-soft:#1a302b; --risk:#f0a06b; --risk-soft:#33241a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111715; --surface:#18201e; --ink:#e6ece9; --muted:#9aa7a2; --line:#2a3532;
+  --accent:#5cc4ae; --accent-soft:#1a302b; --risk:#f0a06b; --risk-soft:#33241a; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:16px/1.6 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 64px}
+.wrap{max-width:880px;margin:0 auto;display:flex;flex-direction:column;gap:44px}
+.prose{max-width:68ch}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(2rem,5vw,2.9rem);letter-spacing:-.01em}
+h2{font-size:1.5rem;margin-bottom:14px}
+h3{font-size:1.05rem}
+p{margin:0 0 12px}
+.eyebrow{font:500 .75rem/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:12px}
+.lede{font-size:1.15rem;color:var(--muted);margin-top:14px;max-width:62ch}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.chip{font:500 .8rem/1 var(--mono);padding:7px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
+.chip.warn{background:var(--risk-soft);color:var(--risk)}
+ol.steps{margin:0;padding-left:1.3em;display:grid;gap:6px}
+.pipe{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 16px}
+.stage{flex:1 1 150px;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
+.stage b{display:block;font:600 .72rem/1 var(--mono);color:var(--accent);letter-spacing:.06em;margin-bottom:6px}
+.stage h3{margin-bottom:4px}
+.stage p{font-size:.88rem;color:var(--muted);margin:0}
+.stage.measure{border-color:var(--accent)}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.92rem}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 .75rem/1.2 var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--bg)}
+tr:last-child td{border-bottom:0}
+td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pri{font:600 .72rem/1 var(--mono);padding:4px 8px;border-radius:6px;white-space:nowrap;display:inline-block}
+.p1{background:var(--accent);color:var(--surface)} .p2{background:var(--accent-soft);color:var(--accent)} .p3{background:var(--line);color:var(--ink)}
+.callouts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.callout{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
+.callout h3{margin-bottom:6px}
+.callout p{font-size:.92rem;color:var(--muted);margin:0}
+.rules li{margin-bottom:6px}
+code{font-family:var(--mono);font-size:.86em;background:var(--accent-soft);color:var(--accent);padding:1px 5px;border-radius:4px}
+.note{border-left:3px solid var(--risk);background:var(--risk-soft);padding:12px 16px;border-radius:0 8px 8px 0;font-size:.94rem}
+.score{font-family:var(--mono);color:var(--risk);font-weight:500}
+footer{font-size:.85rem;color:var(--muted);border-top:1px solid var(--line);padding-top:16px}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">Beyond Syntax · Since AI Hackathon 2026 · TrustED challenge</div>
+  <h1>PETs Transformer build plan</h1>
+  <p class="lede">A privacy tool that finds what is sensitive in a dataset, protects it in proportion to who receives it, and proves with measured numbers that the protected data is still useful.</p>
+  <div class="meta">
+    <span class="chip warn">Submissions close Sun 8 Nov, 10:00</span>
+    <span class="chip">Company Q&amp;A Sat 09:00–12:00 · 14:30–18:00</span>
+    <span class="chip">Prizes €2,000 / €750 / €250</span>
+  </div>
+</header>
+
+<section class="prose">
+  <h2>What the challenge asks for</h2>
+  <p>One working prototype that, for a synthetic dataset and a defined sharing scenario:</p>
+  <ol class="steps">
+    <li><strong>Detects</strong> what each column and free-text field contains: direct identifiers, quasi-identifiers, sensitive attributes, technical IDs, free text.</li>
+    <li><strong>Selects</strong> a proportionate privacy technique per field, justified by the scenario: who gets the data, why, and what an attacker knows.</li>
+    <li><strong>Transforms</strong> the data: pseudonymise, generalise, suppress, redact, add differential-privacy noise or synthesise.</li>
+    <li><strong>Demonstrates</strong> before and after: re-identification risk down, analytical value kept, remaining risks stated honestly.</li>
+  </ol>
+  <p style="margin-top:14px">Judges score technical implementation, innovation, impact (measured risk reduction with utility kept) and presentation. The submission is the prototype, a short demo video in English, a description and the repository.</p>
+</section>
+
+<section>
+  <h2>What we were given</h2>
+  <div class="callouts">
+    <div class="callout"><h3>10 synthetic datasets</h3><p>One fake population of 100,000 people in Southwest Finland across health, mobility, smart city, energy, finance, cyber, education, public services and customer service, plus an unlabelled HR export.</p></div>
+    <div class="callout"><h3>27 sharing scenarios</h3><p>Three per dataset. Each names the recipient, purpose, threat model, utility tasks and suggested privacy targets.</p></div>
+    <div class="callout"><h3>Ground truth and attackers</h3><p>Column labels, 354,000 labelled PII spans in free text, attacker background knowledge and holdout records, so privacy is measured rather than claimed.</p></div>
+    <div class="callout"><h3>The <code>pets-eval</code> toolkit</h3><p>Scores detection, redaction, k-anonymity, linkage attacks and utility tasks, and produces an HTML before/after scorecard. Our measurement layer comes ready-made.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>Baselines we need to beat</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Finding from the benchmark</th><th>What it means for us</th></tr></thead>
+    <tbody>
+      <tr><td>Baseline detection of sensitive attributes scores <span class="score">F1 0.16</span></td><td>An LLM reading column names and sample values should beat this clearly.</td></tr>
+      <tr><td>Regex redaction misses names, spoken numbers and spelled-out emails</td><td>The pack calls free text the place where most teams can win. A rules + LLM hybrid targets exactly this.</td></tr>
+      <tr><td>Enforcing k ≥ 5 drops HEALTH-S1 utility from <span class="score">0.79</span> to <span class="score">0.40</span></td><td>Smarter, scenario-aware generalisation that keeps what the analysis needs is where the score is.</td></tr>
+      <tr><td>Dropping names alone still lets receipts re-identify <span class="score">79%</span> of finance targets</td><td>We must treat quasi-identifiers (time, amount, place) seriously, not just obvious IDs.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>What we build: a privacy engineer in a box</h2>
+  <p class="prose">Most teams will write one-off scripts for one dataset. We build the tool a data-sharing team would actually use: upload a dataset, choose a scenario, and get a justified, measured, protected release.</p>
+  <div class="pipe">
+    <div class="stage"><b>STEP 1</b><h3>Detect</h3><p>Rules plus an LLM classify every column and find PII in free text.</p></div>
+    <div class="stage"><b>STEP 2</b><h3>Plan</h3><p>A technique per field with a plain-language reason. The user can override it.</p></div>
+    <div class="stage"><b>STEP 3</b><h3>Transform</h3><p>Deterministic code: keyed pseudonyms, bands, suppression, redaction, DP noise.</p></div>
+    <div class="stage measure"><b>STEP 4</b><h3>Measure</h3><p><code>pets-eval</code> scorecard: risk and utility, before and after.</p></div>
+    <div class="stage"><b>STEP 5</b><h3>Trust report + manifest</h3><p>A plain-language report and a verifiable record of what was released, for whom and why.</p></div>
+  </div>
+  <div class="prose">
+    <p><strong>AI only where it adds value.</strong> The LLM classifies columns, finds personal details in messy text and writes explanations. Plain code does the protecting, which keeps results reliable and defensible.</p>
+    <p><strong>A visible trade-off.</strong> A privacy-versus-utility view per scenario shows the scores move as the user changes a decision. That is our innovation and presentation story.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Three additions from the sponsor research</h2>
+  <p class="prose">TrustED's own work centres on data minimisation, transparency and tools that non-experts can trust. These three additions make that alignment obvious to the judges.</p>
+  <div class="callouts">
+    <div class="callout"><h3>1 · Data minimisation framing</h3><p>We pitch the tool as data minimisation for datasets: share only what the scenario's purpose needs, at the resolution it needs. Every PET decision in the app cites that purpose, for example “arrival time rounded to the week, because the revisit analysis only needs weekly patterns”. No extra build work.</p></div>
+    <div class="callout"><h3>2 · Release manifest</h3><p>Every protected release ships with <code>manifest.json</code> and a readable page: recipient, purpose, the transformation and parameters per column, before/after scores, remaining risks and a SHA-256 fingerprint of each output file. Generated automatically. Owner: Transform, with UI rendering it. About half a day.</p></div>
+    <div class="callout"><h3>3 · Trust report for non-experts</h3><p>Written for a hospital data manager, not a cryptographer: how many people could be identified before and after, how well the analysis still works, and what risks remain, all in plain sentences with the real scorecard numbers. Owner: Story and submission, using the LLM to draft from the scorecard.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>Scope</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Priority</th><th>Dataset and scenario</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pri p1">Main demo</span></td><td><strong>health · HEALTH-S1</strong><br>Research group, row-level data</td><td>Tables, clinical free text and linkage attacks in one story. Baseline utility under k ≥ 5 is weak and beatable.</td></tr>
+      <tr><td><span class="pri p2">Second</span></td><td><strong>customer_service · CS-S1</strong></td><td>The free-text redaction benchmark, where an LLM hybrid should clearly beat regex.</td></tr>
+      <tr><td><span class="pri p2">Bonus</span></td><td><strong>unseen</strong> detection</td><td>Proves the detector works without labels. Organisers can score it against private labels.</td></tr>
+      <tr><td><span class="pri p3">Stretch</span></td><td><strong>HEALTH-S2</strong> public dashboard</td><td>Adds differential privacy as a second family of techniques, only if time allows.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>Tech stack</h2>
+  <div class="tbl"><table>
+    <tbody>
+      <tr><td><strong>Language</strong></td><td>Python, because the <code>pets-eval</code> toolkit is Python. Use a virtual environment; fall back to Python 3.12 if packages fail on 3.14.</td></tr>
+      <tr><td><strong>UI</strong></td><td>Streamlit for the fastest polished interactive demo.</td></tr>
+      <tr><td><strong>LLM</strong></td><td>Claude API: <code>claude-sonnet-5-5</code> for speed, <code>claude-opus-5-5</code> for the hardest redaction cases. The data is fully synthetic and CC BY 4.0, so sending samples is fine.</td></tr>
+      <tr><td><strong>Measurement</strong></td><td><code>pets-eval</code>, installed from the provided toolkit.</td></tr>
+      <tr><td><strong>Modules</strong></td><td><code>detect</code> · <code>text</code> · <code>plan</code> · <code>transform</code> · <code>evaluate</code> · <code>app</code>, plus a <code>pets_submission/</code> folder for optional organiser checks.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>Who owns what</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Role</th><th>Owns</th><th>Scored with</th></tr></thead>
+    <tbody>
+      <tr><td>1 · Detect</td><td>Column classifier and the <code>unseen</code> labels</td><td><code>pets-eval detect</code></td></tr>
+      <tr><td>2 · Free text</td><td>Rules + LLM redactor with typed placeholders, recall first</td><td><code>pets-eval text</code> (F2)</td></tr>
+      <tr><td>3 · Transform</td><td>Keyed pseudonyms, generalisation, k ≥ 5 suppression, row maps for scoring, release manifest</td><td><code>pets-eval scorecard</code></td></tr>
+      <tr><td>4 · UI and evaluation</td><td>Streamlit flow, scorecard integration, before/after charts, manifest view</td><td>Demo run-through</td></tr>
+      <tr><td>5 · Story and submission</td><td>Data-minimisation narrative, plain-language trust report, video, README, Saturday Q&amp;A</td><td>Rehearsal</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>Timeline</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>When</th><th>Milestone</th></tr></thead>
+    <tbody>
+      <tr><td class="num">Fri evening</td><td>Install the toolkit, run the quickstart and baseline scorecards, agree module interfaces. Skeleton app runs end to end on HEALTH-S1.</td></tr>
+      <tr><td class="num">Sat morning</td><td>Detector and redactor v1 scored. Use the Q&amp;A to confirm scenario choice and what judges value.</td></tr>
+      <tr><td class="num">Sat afternoon</td><td>Beat the baselines on HEALTH-S1 on both privacy and utility. Customer-service redaction scored. Trust report and release manifest generated.</td></tr>
+      <tr><td class="num">Sat evening</td><td>UI polish, trade-off view, <code>unseen</code> labels, submission folder. Feature freeze around 22:00.</td></tr>
+      <tr><td class="num">Sun 07:00–09:30</td><td>Record the demo video, write the description, final safety checks. Submit before 10:00.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="prose">
+  <h2>Rules we must not break</h2>
+  <ul class="rules">
+    <li>Never publish <code>rowmap_*.csv</code> files. They exist only for scoring.</li>
+    <li>Every privacy claim states its method and parameters, for example “k ≥ 5 on age band, sex, municipality and arrival week” or “ε = 1, person-level, at most 4 visits per person”.</li>
+    <li>Use only the provided synthetic data, and disclose remaining risks.</li>
+  </ul>
+  <p class="note">The challenge pack is for our team only. Keep this page and the repository private until the organisers say otherwise.</p>
+</section>
+
+<section class="prose">
+  <h2>Questions for the Saturday Q&amp;A</h2>
+  <ol class="steps">
+    <li>Do judges prefer one scenario done in depth, or several datasets?</li>
+    <li>Will organisers run the hidden attackers on our outputs before judging, and should we request it?</li>
+    <li>Is a hosted LLM API acceptable, or do they prefer local models?</li>
+  </ol>
+</section>
+
+<footer>Based on the TrustED challenge brief, the TrustED PETs Proving Ground 2026 package and a read of trustedproject.eu. Updated Friday 6 November 2026 with data minimisation framing, the release manifest and the plain-language trust report.</footer>
+</div>

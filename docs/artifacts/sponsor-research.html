@@ -1,0 +1,128 @@
+<title>TrustED Sponsor Research</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single reading column (~72ch) with full-width tables; pipeline as a wrapping row of stages */
+:root{
+  --bg:#f6f7f5; --surface:#ffffff; --ink:#17201e; --muted:#5b6662; --line:#dfe3e0;
+  --accent:#0f6b5c; --accent-soft:#e2f0ec; --risk:#b4521a; --risk-soft:#f8eadf;
+  --display:"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body:"IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111715; --surface:#18201e; --ink:#e6ece9; --muted:#9aa7a2; --line:#2a3532;
+  --accent:#5cc4ae; --accent-soft:#1a302b; --risk:#f0a06b; --risk-soft:#33241a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111715; --surface:#18201e; --ink:#e6ece9; --muted:#9aa7a2; --line:#2a3532;
+  --accent:#5cc4ae; --accent-soft:#1a302b; --risk:#f0a06b; --risk-soft:#33241a; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:16px/1.6 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 64px}
+.wrap{max-width:880px;margin:0 auto;display:flex;flex-direction:column;gap:44px}
+.prose{max-width:68ch}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(2rem,5vw,2.9rem);letter-spacing:-.01em}
+h2{font-size:1.5rem;margin-bottom:14px}
+h3{font-size:1.05rem}
+p{margin:0 0 12px}
+.eyebrow{font:500 .75rem/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:12px}
+.lede{font-size:1.15rem;color:var(--muted);margin-top:14px;max-width:62ch}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.chip{font:500 .8rem/1 var(--mono);padding:7px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
+.chip.warn{background:var(--risk-soft);color:var(--risk)}
+ol.steps{margin:0;padding-left:1.3em;display:grid;gap:6px}
+.pipe{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 16px}
+.stage{flex:1 1 150px;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
+.stage b{display:block;font:600 .72rem/1 var(--mono);color:var(--accent);letter-spacing:.06em;margin-bottom:6px}
+.stage h3{margin-bottom:4px}
+.stage p{font-size:.88rem;color:var(--muted);margin:0}
+.stage.measure{border-color:var(--accent)}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.92rem}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 .75rem/1.2 var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--bg)}
+tr:last-child td{border-bottom:0}
+td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pri{font:600 .72rem/1 var(--mono);padding:4px 8px;border-radius:6px;white-space:nowrap;display:inline-block}
+.p1{background:var(--accent);color:var(--surface)} .p2{background:var(--accent-soft);color:var(--accent)} .p3{background:var(--line);color:var(--ink)}
+.callouts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.callout{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
+.callout h3{margin-bottom:6px}
+.callout p{font-size:.92rem;color:var(--muted);margin:0}
+.rules li{margin-bottom:6px}
+code{font-family:var(--mono);font-size:.86em;background:var(--accent-soft);color:var(--accent);padding:1px 5px;border-radius:4px}
+.note{border-left:3px solid var(--risk);background:var(--risk-soft);padding:12px 16px;border-radius:0 8px 8px 0;font-size:.94rem}
+.score{font-family:var(--mono);color:var(--risk);font-weight:500}
+footer{font-size:.85rem;color:var(--muted);border-top:1px solid var(--line);padding-top:16px}
+</style>
+<div class="wrap">
+<header>
+  <div class="eyebrow">Beyond Syntax · Sponsor research · trustedproject.eu</div>
+  <h1>What TrustED is building</h1>
+  <p class="lede">A read of the TrustED project's website: what they already have, what they are piloting, and what that means for how we pitch the PETs Transformer.</p>
+  <div class="meta">
+    <span class="chip">EU Horizon Europe · grant 101168467</span>
+    <span class="chip">Led by Gradiant · 10 partners, 5 countries</span>
+    <span class="chip">CORDIS Project of the Month, Sep 2026</span>
+  </div>
+</header>
+
+<section class="prose">
+  <h2>In one paragraph</h2>
+  <p>TrustED is an EU research project on <strong>trustworthy European data spaces</strong>. Its two pillars are <strong>self-sovereign digital identity</strong> (people hold verifiable credentials in a wallet and share only what is needed) and <strong>privacy-preserving technologies</strong> that let organisations use data together without handing it over. Its website centres on four themes: <strong>data minimisation</strong>, <strong>federated learning for health</strong>, <strong>secure aggregation</strong> and <strong>tests with real users</strong>.</p>
+</section>
+
+<section>
+  <h2>What they already have</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Work</th><th>What it is</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td><strong>TrustED digital wallet</strong></td><td>Issues, stores and shares verifiable identity and volunteering credentials, aligned with the EU Digital Identity (EUDI) Wallet and eIDAS2.</td><td><span class="pri p1">Piloted</span><br>70+ volunteers in Spain</td></tr>
+      <tr><td><strong>Federated learning platform for health</strong></td><td>Hospitals train shared AI models to predict flu, COVID-19 and RSV without moving clinical data.</td><td><span class="pri p1">Piloted</span><br>Coimbra university hospital, Portugal</td></tr>
+      <tr><td><strong>Selective disclosure</strong></td><td>Prove one fact (for example “over 18”) without revealing the whole document. Fraunhofer AISEC's open-source BBS signature library <code>libbbs</code>, plus a permissions manager by CyberSocial Lab.</td><td><span class="pri p2">Open source</span></td></tr>
+      <tr><td><strong>SASS: secure aggregation with secret sharing</strong></td><td>Several parties compute a joint sum or average while nobody sees anyone's individual input. Used inside federated learning and paired with differential privacy.</td><td><span class="pri p2">Latest article</span><br>20 Oct 2026</td></tr>
+      <tr><td><strong>Biometric gateways</strong></td><td>Face and voice biometrics as secure ways into self-sovereign identity.</td><td><span class="pri p3">Research</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>What they care about</h2>
+  <div class="callouts">
+    <div class="callout"><h3>Data minimisation</h3><p>Their September article argues against “all-or-nothing” sharing: share strictly what the purpose needs (GDPR Art. 5(1)(c)). This is exactly what a scenario-aware PET plan does for a dataset.</p></div>
+    <div class="callout"><h3>Health data across institutions</h3><p>Their flagship health pilot is multi-hospital respiratory-infection prediction. Our health dataset has an influenza-like-illness dashboard scenario (HEALTH-S2).</p></div>
+    <div class="callout"><h3>Aggregates over raw data</h3><p>The SASS article says many analyses need only aggregates. Secret sharing plus differential privacy is their recommended combination.</p></div>
+    <div class="callout"><h3>Real people, not cryptographers</h3><p>Their pilots test whether non-experts understand and trust the tools. Plain-language explanations and consent are part of the goal.</p></div>
+    <div class="callout"><h3>Transparency and audit</h3><p>eIDAS2 principles they highlight include granular consent, revocation and transaction logs that show what was shared, with whom and when.</p></div>
+    <div class="callout"><h3>EU regulation timeline</h3><p>EUDI Wallets are mandatory for public administrations from late 2026 and for banks, energy, transport and health in 2027. Compliance framing resonates.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>What this means for our build</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Idea</th><th>How it fits the brief</th><th>Effort</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Frame the tool as data minimisation for datasets</strong></td><td>Use their language: purpose, minimisation, proportionate protection. Each PET decision cites the scenario's purpose.</td><td><span class="pri p1">Free</span></td></tr>
+      <tr><td><strong>A release manifest and audit log</strong></td><td>Every protected release ships with a log of what was transformed, how, for whom and with which parameters, plus a hash so it can be verified. It mirrors their transaction-logging principle.</td><td><span class="pri p2">Small</span></td></tr>
+      <tr><td><strong>Plain-language trust report</strong></td><td>Matches their focus on non-expert users. Already in our plan as step 5.</td><td><span class="pri p1">Planned</span></td></tr>
+      <tr><td><strong>Stretch: multi-hospital weekly counts with secret sharing + DP</strong></td><td>Split health records into three simulated hospitals, add up weekly influenza-like-illness counts with additive secret sharing (no hospital sees another's numbers), then add DP noise before publishing. It speaks directly to their newest article and their health pilot, and the maths is simple addition.</td><td><span class="pri p3">Medium</span></td></tr>
+    </tbody>
+  </table></div>
+  <p class="note" style="margin-top:16px">Keep the core on the brief: detect, transform and measure. The dataset notice says the challenge is <em>inspired by</em> TrustED and judged through Since AI's process, so wallets and identity credentials are outside our scope. Use TrustED's themes for framing and one stretch feature, not as a pivot.</p>
+</section>
+
+<section class="prose">
+  <h2>Sources</h2>
+  <ul class="rules">
+    <li>trustedproject.eu home, news and publications pages</li>
+    <li>“SASS: Secure Aggregation with Secret Sharing”, 20 Oct 2026</li>
+    <li>“Beyond All-or-Nothing: Operationalising Data Minimisation”, 22 Sep 2026</li>
+    <li>“Europe Is Building the Rulebook for Digital Trust…”, 13 Jul 2026, and the pilot update of 30 Jun 2026</li>
+    <li>Fraunhofer AISEC on <code>libbbs</code>, 21 Apr 2026; Fraunhofer ISST on federated data processing, 2 Apr 2026</li>
+    <li>“Mandatory EUDI Wallet”, 28 May 2026</li>
+  </ul>
+</section>
+
+<footer>Read on Friday 6 November 2026. Companion to the PETs Transformer build plan.</footer>
+</div>
