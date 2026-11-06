@@ -6,6 +6,7 @@ build-backend = "hatchling.build"
 name = "pets-transformer"
 version = "0.1.0"
 description = "Beyond Syntax: detect privacy risks, apply proportionate PETs for a named receiver, prove the before/after."
+readme = "CONTRIBUTING.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Beyond Syntax" }]
