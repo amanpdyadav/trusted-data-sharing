@@ -89,3 +89,27 @@ def test_replay_reports_funnel_and_target() -> None:
     skipped = replay(AttackCase("Y", "s", "d", "r1", (Equals("postcode", "20100", "pc"),)), frame)
     assert not skipped.funnel[1].applied
     assert skipped.target_among_candidates is None
+
+
+class TestTimeOfDay:
+    """A released hour with no date ("20:00") must match any day the attacker's window covers."""
+
+    def test_short_window_keeps_only_the_hours_it_covers(self) -> None:
+        clue = ArrivedBetween(pd.Timestamp("2025-01-22 19:28"), pd.Timestamp("2025-01-22 21:10"), "t")
+        f = pd.DataFrame({"arrival_ts": ["19:00", "20:00", "21:00", "22:00", "07:00", ""]})
+        assert clue.matches(f).tolist() == [True, True, True, False, False, True]
+
+    def test_window_over_midnight(self) -> None:
+        clue = ArrivedBetween(pd.Timestamp("2025-01-22 23:30"), pd.Timestamp("2025-01-23 01:15"), "t")
+        f = pd.DataFrame({"arrival_ts": ["23:00", "00:00", "01:00", "02:00"]})
+        assert clue.matches(f).tolist() == [True, True, True, False]
+
+    def test_a_day_or_more_rules_out_nothing(self) -> None:
+        clue = ArrivedBetween(pd.Timestamp("2025-12-30"), pd.Timestamp("2026-01-01"), "t")
+        f = pd.DataFrame({"arrival_ts": [f"{h:02d}:00" for h in range(24)]})
+        assert clue.matches(f).all()
+
+    def test_dated_values_still_work_alongside(self) -> None:
+        clue = ArrivedBetween(pd.Timestamp("2025-01-22 19:00"), pd.Timestamp("2025-01-22 21:00"), "t")
+        f = pd.DataFrame({"arrival_ts": ["2025-01-22 20:00", "2025-03-01 20:00", "20:00"]})
+        assert clue.matches(f).tolist() == [True, False, True]

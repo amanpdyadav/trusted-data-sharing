@@ -18,6 +18,7 @@ _WEEK = re.compile(r"^\d{4}-?W\d{1,2}$")
 _MONTH = re.compile(r"^\d{4}-\d{2}$")
 _DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _YEAR = re.compile(r"^\d{4}$")
+_TIME_OF_DAY = re.compile(r"^(\d{1,2}):\d{2}(:\d{2})?$")  # an hour with no date: could be any day
 _RANGE = re.compile(r"^\s*(\d+(?:[.,]\d+)?)\s*[-\u2013]\s*(\d+(?:[.,]\d+)?)\s*$")
 _PLUS = re.compile(r"^\s*(\d+(?:[.,]\d+)?)\s*\+\s*$")
 OPEN_TOP = 130.0
@@ -89,8 +90,20 @@ class ArrivedBetween:
     def matches(self, frame: pd.DataFrame) -> pd.Series | None:
         if self.column not in frame.columns:
             return None
-        s, e = time_intervals(frame[self.column])
-        return s.isna() | ((s <= self.end) & (e >= self.start))
+        raw = frame[self.column].fillna("").astype(str).str.strip()
+        hour_of_day = raw.str.extract(_TIME_OF_DAY)[0]
+        dated = hour_of_day.isna()
+        s, e = time_intervals(raw.where(dated, ""))
+        hit = s.isna() | ((s <= self.end) & (e >= self.start))
+        # A bare "20:00" matches if the attacker's window contains any 20:00-21:00 slot on any day.
+        hours = hour_of_day[~dated].astype(int)
+        return hit.where(dated, hours.isin(self._clock_hours()))
+
+    def _clock_hours(self) -> set[int]:
+        if self.end - self.start >= pd.Timedelta(hours=24):
+            return set(range(24))
+        slots = pd.date_range(self.start.floor("h"), self.end, freq="h")
+        return {int(t.hour) for t in slots}
 
 
 @dataclass(frozen=True)
