@@ -1,0 +1,152 @@
+<title>PETs Transformer Setup</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single reading column (~72ch) with full-width tables; pipeline as a wrapping row of stages */
+:root{
+  --bg:#f6f7f5; --surface:#ffffff; --ink:#17201e; --muted:#5b6662; --line:#dfe3e0;
+  --accent:#0f6b5c; --accent-soft:#e2f0ec; --risk:#b4521a; --risk-soft:#f8eadf;
+  --display:"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body:"IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111715; --surface:#18201e; --ink:#e6ece9; --muted:#9aa7a2; --line:#2a3532;
+  --accent:#5cc4ae; --accent-soft:#1a302b; --risk:#f0a06b; --risk-soft:#33241a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111715; --surface:#18201e; --ink:#e6ece9; --muted:#9aa7a2; --line:#2a3532;
+  --accent:#5cc4ae; --accent-soft:#1a302b; --risk:#f0a06b; --risk-soft:#33241a; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:16px/1.6 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 64px}
+.wrap{max-width:880px;margin:0 auto;display:flex;flex-direction:column;gap:44px}
+.prose{max-width:68ch}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(2rem,5vw,2.9rem);letter-spacing:-.01em}
+h2{font-size:1.5rem;margin-bottom:14px}
+h3{font-size:1.05rem}
+p{margin:0 0 12px}
+.eyebrow{font:500 .75rem/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:12px}
+.lede{font-size:1.15rem;color:var(--muted);margin-top:14px;max-width:62ch}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.chip{font:500 .8rem/1 var(--mono);padding:7px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
+.chip.warn{background:var(--risk-soft);color:var(--risk)}
+ol.steps{margin:0;padding-left:1.3em;display:grid;gap:6px}
+.pipe{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 16px}
+.stage{flex:1 1 150px;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
+.stage b{display:block;font:600 .72rem/1 var(--mono);color:var(--accent);letter-spacing:.06em;margin-bottom:6px}
+.stage h3{margin-bottom:4px}
+.stage p{font-size:.88rem;color:var(--muted);margin:0}
+.stage.measure{border-color:var(--accent)}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.92rem}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 .75rem/1.2 var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--bg)}
+tr:last-child td{border-bottom:0}
+td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pri{font:600 .72rem/1 var(--mono);padding:4px 8px;border-radius:6px;white-space:nowrap;display:inline-block}
+.p1{background:var(--accent);color:var(--surface)} .p2{background:var(--accent-soft);color:var(--accent)} .p3{background:var(--line);color:var(--ink)}
+.callouts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.callout{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
+.callout h3{margin-bottom:6px}
+.callout p{font-size:.92rem;color:var(--muted);margin:0}
+.rules li{margin-bottom:6px}
+code{font-family:var(--mono);font-size:.86em;background:var(--accent-soft);color:var(--accent);padding:1px 5px;border-radius:4px}
+.note{border-left:3px solid var(--risk);background:var(--risk-soft);padding:12px 16px;border-radius:0 8px 8px 0;font-size:.94rem}
+.score{font-family:var(--mono);color:var(--risk);font-weight:500}
+footer{font-size:.85rem;color:var(--muted);border-top:1px solid var(--line);padding-top:16px}
+</style>
+<style>
+.bars{display:grid;gap:10px}
+.bar{display:grid;grid-template-columns:110px 1fr 52px;align-items:center;gap:10px;font-size:.9rem}
+.track{height:12px;background:var(--line);border-radius:6px;overflow:hidden}
+.fill{height:100%;background:var(--accent);border-radius:6px}
+.fill.low{background:var(--risk)}
+.bar .v{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+pre{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto;font:13px/1.5 var(--mono);margin:0}
+</style>
+<div class="wrap">
+<header>
+  <div class="eyebrow">Beyond Syntax · Friday evening milestone</div>
+  <h1>Project set up, first score in</h1>
+  <p class="lede">The environment works, the official scoring toolkit passes its tests, the project skeleton is in place, and we have our first real scorecard to beat.</p>
+  <div class="meta">
+    <span class="chip">Python 3.12 venv</span>
+    <span class="chip">pets-eval: 21/21 tests pass</span>
+    <span class="chip">Streamlit app boots</span>
+  </div>
+</header>
+
+<section>
+  <h2>Starting point: the toolkit's quickstart on HEALTH-S1</h2>
+  <p class="prose">The quickstart applies simple protection to the emergency-department visits: keyed patient pseudonyms, 10-year age bands, arrival time rounded to the hour, 3-character diagnosis codes and basic regex redaction. Then it scores the result. These are self-assessment scores, not the official judging score.</p>
+  <div class="bars" style="max-width:560px">
+    <div class="bar"><span>Privacy</span><div class="track"><div class="fill low" style="width:37.3%"></div></div><span class="v">0.37</span></div>
+    <div class="bar"><span>Utility</span><div class="track"><div class="fill" style="width:79.3%"></div></div><span class="v">0.79</span></div>
+    <div class="bar"><span>Composite</span><div class="track"><div class="fill low" style="width:49.1%"></div></div><span class="v">0.49</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>Where the risk comes from</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Risk component</th><th>Score</th><th>What it means</th></tr></thead>
+    <tbody>
+      <tr><td>Records with k &lt; 5</td><td class="num score">0.99</td><td>99% of visits are in groups of fewer than 5 people who share the same quasi-identifiers. This is the main problem to fix.</td></tr>
+      <tr><td>Linkage re-identification</td><td class="num">0.055</td><td>The attackers (news clips, social posts, public directory) single out about 5.5% of their targets.</td></tr>
+      <tr><td>Direct identifiers retained</td><td class="num">0.00</td><td>No names, ID codes or phone numbers left.</td></tr>
+      <tr><td>Free-text identifier leakage</td><td class="num">0.00</td><td>Only for the short complaint field; clinical notes were not released here.</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note" style="margin-top:14px">Before any protection, <strong>98.9% of patients are unique</strong> on birth date, sex and postcode alone. Removing names does not make this data anonymous.</p>
+</section>
+
+<section>
+  <h2>Utility tasks</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Task</th><th>Score</th><th>Note</th></tr></thead>
+    <tbody>
+      <tr><td>H-U2 · Length of stay by triage</td><td class="num">1.00</td><td></td></tr>
+      <tr><td>H-U4 · Diagnosis mix by municipality</td><td class="num">1.00</td><td></td></tr>
+      <tr><td>H-U6 · 30-day revisit rate by age band</td><td class="num">0.96</td><td>Works because pseudonyms are consistent across visits.</td></tr>
+      <tr><td>H-U7 · CRP vs temperature</td><td class="num score">0</td><td>Not answerable: lab results were not released. Easy win for us.</td></tr>
+      <tr><td>H-U8 · Hour-of-day arrival curve</td><td class="num">1.00</td><td></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="prose">
+  <h2>What we have to do to win</h2>
+  <ul class="rules">
+    <li><strong>Fix k &lt; 5 without killing utility.</strong> The baseline that forces k ≥ 5 drops utility to 0.40. Our plan: split arrival time into hour-of-day plus coarse dates, use per-patient date shifting, and generalise only the columns the attackers use.</li>
+    <li><strong>Release the lab results with a consistent visit pseudonym</strong> so H-U7 becomes answerable.</li>
+    <li><strong>Release the clinical notes, properly redacted.</strong> That's where our LLM redactor shows its value.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>What's in the project folder</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Path</th><th>Status</th><th>Owner</th></tr></thead>
+    <tbody>
+      <tr><td><code>pets/evaluate.py</code></td><td><span class="pri p1">Working</span> scorecard wrapper</td><td>UI and evaluation</td></tr>
+      <tr><td><code>pets/manifest.py</code></td><td><span class="pri p1">Working</span> manifest with SHA-256 fingerprints</td><td>Transform</td></tr>
+      <tr><td><code>pets/transform.py</code></td><td><span class="pri p2">Started</span> keyed pseudonyms; plan application to do</td><td>Transform</td></tr>
+      <tr><td><code>pets/text.py</code></td><td><span class="pri p2">Started</span> redaction helper; span finder to do</td><td>Free text</td></tr>
+      <tr><td><code>pets/detect.py</code></td><td><span class="pri p3">Interface only</span></td><td>Detect</td></tr>
+      <tr><td><code>pets/plan.py</code></td><td><span class="pri p3">Interface only</span></td><td>Transform</td></tr>
+      <tr><td><code>app/streamlit_app.py</code></td><td><span class="pri p1">Boots</span> browse data and baseline scores</td><td>UI and evaluation</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>Run it</h2>
+  <pre>uv venv --python 3.12 .venv
+uv pip install --python .venv/bin/python -r requirements.txt
+cp .env.example .env      # add ANTHROPIC_API_KEY and PETS_HMAC_KEY
+.venv/bin/streamlit run app/streamlit_app.py</pre>
+  <p class="prose" style="margin-top:12px">The challenge pack, protected outputs, row maps and <code>.env</code> are excluded from git.</p>
+</section>
+
+<footer>Friday 6 November 2026, evening. Scores from pets-eval 1.0.0 self-assessment.</footer>
+</div>
