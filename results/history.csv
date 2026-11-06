@@ -1,3 +1,10 @@
 run_id,created_at,git_commit,dataset,scenario_id,privacy,utility,composite,share_below_k,k_min,worst_reidentification,fewest_demo_candidates,gates_passed,gates_total
 quickstart-baseline,2026-11-06T21:44:05+00:00,71af171,health,HEALTH-S1,0.3731,0.7928,0.4913,0.9921,1,0.055,1,0,4
 health-s1-v1,2026-11-06T21:56:50+00:00,10a2d03,health,HEALTH-S1,1.0,0.7993,0.8976,0.0,5,0.0,31,4,4
+exp-arrival-time-week-20261106T220600Z,2026-11-06T22:06:13+00:00,645e2f2,health,HEALTH-S1,1.0,0.7993,0.8976,0.0,5,0.0,31,4,4
+exp-arrival-time-hour-20261106T220600Z,2026-11-06T22:06:25+00:00,645e2f2,health,HEALTH-S1,1.0,0.7994,0.8976,0.0,5,0.0,174,4,4
+exp-arrival-time-time_of_day-20261106T220600Z,2026-11-06T22:06:38+00:00,645e2f2,health,HEALTH-S1,1.0,0.9678,0.9851,0.0,5,0.0,175,4,4
+exp-suppression-order-hour-blanked-first-20261106T220809Z,2026-11-06T22:08:21+00:00,ec8feca,health,HEALTH-S1,1.0,0.9678,0.9851,0.0,5,0.0,175,4,4
+exp-suppression-order-sex-blanked-first-20261106T220809Z,2026-11-06T22:08:32+00:00,ec8feca,health,HEALTH-S1,1.0,0.9948,0.9976,0.0,5,0.0,240,4,4
+exp-suppression-order-age-blanked-first-20261106T220809Z,2026-11-06T22:08:44+00:00,ec8feca,health,HEALTH-S1,1.0,0.9939,0.9972,0.0,5,0.0,299,4,4
+health-s1-v2,2026-11-06T22:09:40+00:00,f60d82f,health,HEALTH-S1,1.0,0.9948,0.9976,0.0,5,0.0,240,4,4
