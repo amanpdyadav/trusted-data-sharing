@@ -18,7 +18,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
-from evaluation import detection, text
+from evaluation import dashboard, detection, text
 from evaluation.experiments import EXPERIMENTS, run_experiment
 from evaluation.runner import RESULTS, Scored, score_run
 from evaluation.scorecard import Run
@@ -49,14 +49,21 @@ def _print_scored(s: Scored) -> None:
 def cmd_validate(args: argparse.Namespace) -> int:
     release = Path(args.release)
     run_id = args.run_id or datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    root = Settings.from_env().package_root
+    out_dir = RESULTS / "runs" / run_id
+    rowmaps: Path | None = Path(args.rowmaps) if args.rowmaps else release
+    if dashboard.is_dashboard(release):
+        release = dashboard.scoring_view(release, root, out_dir / "scoring")
+        rowmaps = None
+        print(f"published statistics: scored through {release} (built from the published tables only)")
     run = Run(
         run_id=run_id,
         dataset=args.dataset,
         scenario_id=args.scenario,
-        package_root=Settings.from_env().package_root,
+        package_root=root,
         release=release,
-        rowmap_dir=Path(args.rowmaps) if args.rowmaps else release,
-        out_dir=RESULTS / "runs" / run_id,
+        rowmap_dir=rowmaps,
+        out_dir=out_dir,
     )
     scored = score_run(run)
     _print_scored(scored)

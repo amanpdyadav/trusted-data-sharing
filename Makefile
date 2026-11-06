@@ -44,6 +44,8 @@ release:  ## protect data with a plan: make release [PLAN=plans/health-s1.yaml R
 baseline:  ## score the package quickstart output: our measured 'before'
 	$(PY) -m evaluation baseline
 
+# A dashboard (published statistics) is scored the same way:
+#   make release validate PLAN=plans/health-s2.yaml RECEIVER=public OUT=out/health-s2 SCENARIO=HEALTH-S2
 validate:  ## score a release (defaults to the last `make release` output): make release validate
 	$(PY) -m evaluation validate --release $(RELEASE) --rowmaps $(ROWMAPS) --scenario $(or $(SCENARIO),HEALTH-S1) $(if $(RUN_ID),--run-id $(RUN_ID)) --gate
 
