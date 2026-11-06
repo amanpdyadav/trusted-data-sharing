@@ -1,0 +1,124 @@
+<title>Lining Up With the Build Plan</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single reading column; status tables scroll on their own at phone width. Same identity as the team's other pages. */
+:root{
+  --bg:#f6f7f5; --surface:#ffffff; --ink:#17201e; --muted:#5b6662; --line:#dfe3e0;
+  --accent:#0f6b5c; --accent-soft:#e2f0ec; --risk:#b4521a; --risk-soft:#f8eadf; --warn:#8a6a00; --warn-soft:#f6efd6;
+  --display:"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body:"IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111715; --surface:#18201e; --ink:#e6ece9; --muted:#9aa7a2; --line:#2a3532;
+  --accent:#5cc4ae; --accent-soft:#1a302b; --risk:#f0a06b; --risk-soft:#33241a; --warn:#e3c35a; --warn-soft:#2f2a14; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111715; --surface:#18201e; --ink:#e6ece9; --muted:#9aa7a2; --line:#2a3532;
+  --accent:#5cc4ae; --accent-soft:#1a302b; --risk:#f0a06b; --risk-soft:#33241a; --warn:#e3c35a; --warn-soft:#2f2a14; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:16px/1.6 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 64px}
+.wrap{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:36px}
+h1,h2{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(1.9rem,4.5vw,2.5rem)} h2{font-size:1.35rem}
+p{margin:0;max-width:68ch}
+section{display:flex;flex-direction:column;gap:14px}
+.eyebrow{font:500 .75rem/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.lede{color:var(--muted);font-size:1.05rem}
+.tbl{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:.92rem;min-width:620px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font:500 .72rem var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.pill{display:inline-block;font:500 .72rem/1 var(--mono);padding:4px 8px;border-radius:999px;white-space:nowrap}
+.done{background:var(--accent-soft);color:var(--accent)} .gap{background:var(--risk-soft);color:var(--risk)} .part{background:var(--warn-soft);color:var(--warn)}
+ol{margin:0;padding-left:1.3em;display:flex;flex-direction:column;gap:12px;max-width:72ch}
+ol li b{display:block}
+code{font-family:var(--mono);font-size:.86em;background:var(--accent-soft);padding:1px 5px;border-radius:4px}
+.callout{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--risk);border-radius:6px;padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+ul{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:6px;max-width:70ch}
+.nums{font-variant-numeric:tabular-nums;font-family:var(--mono)}
+</style>
+
+<div class="wrap">
+  <header style="display:flex;flex-direction:column;gap:10px">
+    <div class="eyebrow">Beyond Syntax · Hari · Fri 6 Nov, evening</div>
+    <h1>Lining up our work with Aman's build plan</h1>
+    <p class="lede">The lead's build plan gives me (Hari) Detection. What we built so far is mostly the privacy engine, the attack story and the demo screen. That work is useful, but it belongs to Aman, Anjali and Silenat. This page maps one to the other and proposes how to hand it over.</p>
+  </header>
+
+  <section>
+    <h2>The plan's goals vs our work so far</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>Goal in the plan</th><th>Start</th><th>Target</th><th>Where we are</th></tr></thead>
+      <tbody>
+        <tr><td>Overall score, HEALTH-S1</td><td class="nums">0.49</td><td class="nums">≥ 0.70</td><td><span class="pill done">0.99 self-assessed</span></td></tr>
+        <tr><td>Hospital rows in groups under 5</td><td class="nums">99%</td><td class="nums">&lt; 5%</td><td><span class="pill done">0%</span></td></tr>
+        <tr><td>Columns labelled correctly (F1)</td><td class="nums">0.65</td><td class="nums">≥ 0.85</td><td><span class="pill gap">not started: my job</span></td></tr>
+        <tr><td>Sensitive columns found</td><td class="nums">10%</td><td class="nums">≥ 70%</td><td><span class="pill gap">not started: my job</span></td></tr>
+        <tr><td>Names, IDs, phones, addresses caught in text</td><td>–</td><td class="nums">≥ 95%</td><td><span class="pill gap">Chinedu</span></td></tr>
+        <tr><td>Public dashboard useful when protected (S2, DP)</td><td class="nums">0.00</td><td class="nums">≥ 0.70</td><td><span class="pill gap">Aman</span></td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>Plan items we already cover</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>Plan item</th><th>Owner in plan</th><th>What exists in our repo</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>HMAC codes, k ≥ 5 for the research case</td><td>Aman</td><td><code>pets/transform.py</code>, <code>pets/health_s1.py</code></td><td><span class="pill done">working</span></td></tr>
+        <tr><td>"Arrival hour makes patients easy to spot": test options</td><td>Aman (risk)</td><td>Hour of day only, no date. The one-post attack leaves 5,555 candidates for the demo's own case 1</td><td><span class="pill done">one option tested</span></td></tr>
+        <tr><td><code>release/</code> + manifest</td><td>Aman</td><td><code>outputs/health/</code> + <code>manifest.json</code> with SHA-256 per file</td><td><span class="pill part">needs the agreed folder name</span></td></tr>
+        <tr><td><code>metrics.json</code></td><td>Aman, Silenat</td><td><code>scorecard.json</code> from pets-eval</td><td><span class="pill part">needs the agreed shape</span></td></tr>
+        <tr><td>Attack graph, video shot 0:00–0:15</td><td>Anjali, Silenat</td><td><code>pets/reid_chain.py</code> + presenter page</td><td><span class="pill done">working in Streamlit</span></td></tr>
+        <tr><td>Plan B "if screens take too long"</td><td>everyone</td><td>Streamlit app with three pages</td><td><span class="pill done">ready</span></td></tr>
+        <tr><td><code>detection.json</code>, format checkers, unseen HR file</td><td>Hari</td><td><code>pets/detect.py</code> is a stub</td><td><span class="pill gap">to do</span></td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>problems_demo.html vs our "From one post" page</h2>
+    <p>The two pages tell the same story, but they prove different things.</p>
+    <div class="tbl"><table>
+      <thead><tr><th></th><th>problems_demo.html (Mosaic Attack Walkthrough)</th><th>Our From one post page</th></tr></thead>
+      <tbody>
+        <tr><td>Purpose</td><td>Explains the problem: why names removed is not enough</td><td>Problem and fix: the same attack against our release</td></tr>
+        <tr><td>Cases</td><td>2 hand-picked: a named post (Riitta) and an unnamed news clip (a man of 57)</td><td>Any of 948 posts; 263 resolve to one verified patient</td></tr>
+        <tr><td>Attacker uses</td><td>Raw files with names (post, ED, directory, leaked list, bank, employer IT logs, telecom)</td><td>Names-removed releases only, pivoting on birth date + postcode (ED, bank, energy, transport, school, directory)</td></tr>
+        <tr><td>Clues</td><td>Time, town, sex, age, injury type and the "3 hours" in the post</td><td>Time, town, sex from first name, symptoms → diagnosis group, directory postcode</td></tr>
+        <tr><td>"Protected" comparison</td><td>Toolkit quickstart release: still <b>1 of 46,398</b>, and the pseudonym exposes other visits</td><td>Our HEALTH-S1 release: <b>5,555</b> left for Riitta's post, <b>199</b> for Jesse's, nothing to join</td></tr>
+        <tr><td>Built with</td><td>Static HTML from <code>demo/mosaic_attack.py</code> (not in our repo)</td><td>Live Python in the Streamlit app</td></tr>
+      </tbody>
+    </table></div>
+    <div class="callout">
+      <b>How close are they?</b>
+      <p>About 70%. Same thesis, same dataset and the same "one scrap → full profile" arc. The lead's page is stronger on storytelling (two cases, more datasets, masked IDs, raw data). Ours is stronger on proof: it covers all 948 posts and runs the attack on our own protected output. Together they make the video's first shot: their chain, then "Press Protect" with our numbers.</p>
+    </div>
+    <ul>
+      <li><b>Gap in ours:</b> we don't read "Spent 3 hours" as length of stay, and our first-name list misses names like Riitta. So case 1 stops at 2 candidates in our chain, while the demo reaches 1. Both are small fixes.</li>
+      <li><b>Gap in theirs:</b> it never shows a release that holds. The quickstart is "names removed" in their framing, and the page has no "after" from our tool.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Proposed way forward</h2>
+    <ol>
+      <li><b>Switch to my role: Detection, starting now.</b> Format checkers for HETU (checksum), IBAN (mod 97) and Finnish phones. A rules-based column detector on hospital data, scored with <code>pets-eval detect</code>. Then all datasets plus the unseen HR file, with the local model (Ollama qwen2.5:7b) only for columns the rules are unsure about. Output <code>detection.json</code> in the agreed shape.</li>
+      <li><b>Hand the HEALTH-S1 release to Aman.</b> It already beats both hospital goals, so he can adopt it as the research-case baseline and spend his hours on S2 differential privacy and the API. It answers the arrival-hour risk with numbers.</li>
+      <li><b>Give the chain to Anjali and Silenat as data.</b> Export the chain as JSON in the same shape as the demo's <code>CASES</code> (steps, funnel, revealed). The React attack graph can then draw it, and every number comes from code, as the plan requires.</li>
+      <li><b>Align the stack.</b> The plan says local AI only, so I drop the Claude API from detection. Streamlit stays as plan B and as our internal check, not the main screen.</li>
+      <li><b>Agree on one team repo.</b> Ours clones and sets up in 20 seconds. Ask Aman whether it becomes the team repo or merges into his. Ask for <code>demo/mosaic_attack.py</code> so both demos live together.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Questions for Aman</h2>
+    <ul>
+      <li>Is our HEALTH-S1 release useful to you as a baseline, or are you building the research case from scratch?</li>
+      <li>Which repo is the team repo? Should <code>problems_demo.html</code> and <code>mosaic_attack.py</code> go in <code>docs/</code> and <code>demo/</code>?</li>
+      <li>What exact shape should <code>detection.json</code> have: the "role · sure" example from the plan, plus the toolkit's subtype field for scoring?</li>
+    </ul>
+  </section>
+</div>
