@@ -8,6 +8,7 @@ import hashlib
 import hmac
 import os
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Protocol
 
 MIN_MASTER_KEY_CHARS = 32
@@ -46,3 +47,14 @@ class DerivedKeyProvider:
         if not domain:
             raise ValueError("key domain must not be empty")
         return hmac.new(self._master, b"pets-transformer/" + domain.encode("utf-8"), hashlib.sha256).digest()
+
+
+@dataclass(frozen=True)
+class KeyScope:
+    """The keys for one receiver and release: a provider plus the domain name that selects the derived key."""
+
+    keys: KeyProvider
+    domain: str
+
+    def key(self) -> bytes:
+        return self.keys.key_for(self.domain)

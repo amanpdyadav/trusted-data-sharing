@@ -38,7 +38,9 @@ class Plan(Contract):
     created_at: datetime
     k_target: int = Field(default=5, ge=2)
     epsilon: float | None = Field(default=None, gt=0)
-    quasi_identifiers: dict[str, list[str]] = Field(default_factory=dict)  # table -> columns checked together
+    # table -> released column names checked together for k, most important first (suppression blanks from the end)
+    quasi_identifiers: dict[str, list[str]] = Field(default_factory=dict)
+    record_keys: dict[str, str] = Field(default_factory=dict)  # table -> source row-id column, for private row maps
     actions: list[ColumnAction]
     approved: bool = False
     approved_by: str | None = None
@@ -58,6 +60,11 @@ class Plan(Contract):
                 raise ValueError(f"two actions for {a.table}.{a.column}")
             seen.add(key)
         return self
+
+    @property
+    def tables(self) -> list[str]:
+        """Tables the plan releases, in first-mentioned order. Tables not named here are withheld."""
+        return list(dict.fromkeys(a.table for a in self.actions))
 
     def action_for(self, table: str, column: str) -> ColumnAction | None:
         return next((a for a in self.actions if a.table == table and a.column == column), None)
