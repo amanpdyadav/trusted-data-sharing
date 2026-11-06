@@ -6,6 +6,7 @@ One technique, several named strategies chosen by `params["to"]`:
     time       timestamp -> "2025-W04" (week) | "2025-01" (month) | "2025-01-22" (day) | "2025-01-22 20:00" (hour)
                | "20:00" (time_of_day: hour of the day only, no date)
     truncate   keep the first n characters, e.g. ICD-10 "S52.5" -> "S52"
+    code_group map codes to groups by longest matching prefix, e.g. {"J10": "ILI", "S": "injury"} (a code list)
 
 Missing or unparseable values stay empty; they are never invented. Add a strategy by registering a function.
 """
@@ -84,7 +85,21 @@ def truncate(values: pd.Series, params: Mapping[str, Any], _: TransformContext) 
     return values.fillna("").astype(str).str.replace(".", "", regex=False).str[:n]
 
 
-for _name, _fn in (("age_band", age_band), ("time", time), ("truncate", truncate)):
+def code_group(values: pd.Series, params: Mapping[str, Any], _: TransformContext) -> pd.Series:
+    groups = {str(k).replace(".", "").upper(): str(v) for k, v in dict(params["groups"]).items()}
+    default = str(params.get("default", "other"))
+    lengths = sorted({len(k) for k in groups}, reverse=True)
+
+    def one(code: str) -> str:
+        c = code.replace(".", "").strip().upper()
+        if not c:
+            return ""
+        return next((groups[c[:n]] for n in lengths if c[:n] in groups), default)
+
+    return values.fillna("").astype(str).map(one)
+
+
+for _name, _fn in (("age_band", age_band), ("time", time), ("truncate", truncate), ("code_group", code_group)):
     STRATEGIES.register(_name, _fn)
 
 

@@ -79,3 +79,10 @@ def test_input_is_never_modified() -> None:
     s = pd.Series(["S52.5"])
     G.apply(s, {"to": "truncate", "length": 3}, _ctx())
     assert s.tolist() == ["S52.5"]
+
+
+def test_code_group_uses_the_longest_matching_prefix() -> None:
+    params = {"to": "code_group", "groups": {"J10": "ILI", "J": "respiratory", "R07": "cardiovascular"}}
+    codes = pd.Series(["J10.1", "j18.9", "R07.4", "Z03.9", ""])
+    out = TRANSFORMS.get(Technique.GENERALISE).apply(codes, params, _ctx())
+    assert out.tolist() == ["ILI", "respiratory", "cardiovascular", "other", ""]
