@@ -10,10 +10,13 @@ Requirements and decisions: [`NOTES_requirements.md`](NOTES_requirements.md).
 uv venv .venv -p 3.11            # once
 make install                     # package + dev tools (ruff, mypy, pytest)
 cp .env.example .env             # then set PETS_MASTER_KEY; never commit .env
-set -a; source .env; set +a
-.venv/bin/pets-transformer doctor
+.venv/bin/pets-transformer doctor   # loads .env automatically; shows which file it used
 make check                       # lint + types + fast tests: run before every push
 ```
+
+The command line loads the nearest `.env` (current folder, then parents). Variables already set in your shell or
+on a server always win over the file. Use `--env-file path` for another file or `--no-env-file` to skip it.
+Library code never reads `.env` itself; only entry points do.
 
 The local AI (Ollama) is **optional** and off by default (`PETS_LLM_ENABLED=false`). Everything must work
 without it.

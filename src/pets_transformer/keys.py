@@ -37,7 +37,9 @@ class DerivedKeyProvider:
         e = os.environ if env is None else env
         value = e.get(ENV_VAR, "")
         if not value:
-            raise MissingKeyError(f"set {ENV_VAR} (see .env.example); refusing to pseudonymise without a key")
+            raise MissingKeyError(
+                f"{ENV_VAR} is not set: add it to .env (see .env.example) or `export` it in your shell"
+            )
         return cls(value.encode("utf-8"))
 
     def key_for(self, domain: str) -> bytes:

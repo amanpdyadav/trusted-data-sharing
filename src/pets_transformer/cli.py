@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from pets_transformer import __version__
 from pets_transformer.config import Settings
 from pets_transformer.contracts import CONTRACTS, Contract, RecordSpans
+from pets_transformer.envfile import load_env_file
 from pets_transformer.keys import DerivedKeyProvider, MissingKeyError
 from pets_transformer.llm import LlmUnavailableError, build_llm
 from pets_transformer.plan.scenario import Scenario, load_scenarios
@@ -42,9 +43,11 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_doctor(_: argparse.Namespace) -> int:
+def cmd_doctor(args: argparse.Namespace) -> int:
     s = Settings.from_env()
     lines = [f"pets-transformer {__version__}"]
+    env_file: Path | None = args.env_file_loaded
+    lines.append(f"env file       : {env_file} (loaded; shell variables win)" if env_file else "env file       : none")
     lines.append(f"data package   : {s.package_root} ({'found' if s.package_root.is_dir() else 'NOT FOUND'})")
     try:
         DerivedKeyProvider.from_env()
@@ -69,6 +72,9 @@ def cmd_doctor(_: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="pets-transformer", description=__doc__.splitlines()[0])
     p.add_argument("--version", action="version", version=__version__)
+    env = p.add_mutually_exclusive_group()
+    env.add_argument("--env-file", help="load this .env instead of the nearest one from the current folder up")
+    env.add_argument("--no-env-file", action="store_true", help="do not load any .env file")
     sub = p.add_subparsers(dest="command", required=True)
 
     def add(name: str, func: Callable[[argparse.Namespace], int], help_: str) -> argparse.ArgumentParser:
@@ -87,6 +93,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        args.env_file_loaded = None if args.no_env_file else load_env_file(args.env_file)
         code: int = args.func(args)
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
