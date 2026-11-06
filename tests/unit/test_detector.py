@@ -113,3 +113,36 @@ def test_every_decision_carries_evidence_and_art9_flag() -> None:
     icd = next(c for c in found if c.column == "icd")
     assert icd.special_category
     assert icd.evidence[0].kind is EvidenceKind.VALIDATOR
+
+
+class TestExportsWithoutMeaningfulHeaders:
+    """Production rule 1: company exports often arrive as c01..c26; values alone must do."""
+
+    people = tuple(f"{s} {g}" for s in ("Virtanen", "Korhonen", "Nieminen", "Mäkinen", "Hämäläinen") for g in (
+        "Aino", "Eetu", "Mika Matias", "Tiina Orvokki", "Oskari", "Sara", "Pekka", "Riitta", "Jari", "Laura",
+        "Ville", "Anna", "Juha", "Emma", "Timo", "Elina", "Antti", "Noora", "Kalle", "Inka", "Olli", "Satu",
+    ))  # fmt: skip
+
+    def test_many_name_shaped_values_are_person_names(self) -> None:
+        assert len(set(self.people)) >= 100
+        assert _classify("c04", list(self.people)) == (R.DIRECT_IDENTIFIER, S.PERSON_NAME)
+
+    def test_few_name_shaped_values_are_a_category(self) -> None:
+        workplaces = _many("Kotihoito Runosmäki", "Kaarna Care toimisto", "Aallonhuippu palvelutalo") * 3
+        assert _classify("c21", workplaces)[0] is R.NON_SENSITIVE
+
+    def test_addresses_by_shape(self) -> None:
+        addresses = [f"Mäntypolku {i}, 2{i:04d} Turku" for i in range(1, N + 1)]
+        assert _classify("c07", addresses) == (R.DIRECT_IDENTIFIER, S.STREET_ADDRESS)
+
+    def test_codes_repeated_per_person_are_still_identifiers(self) -> None:
+        codes = [f"KC-{1000 + i % 150}" for i in range(600)]  # 150 people, 4 rows each
+        assert _classify("c02", codes) == (R.TECHNICAL_IDENTIFIER, S.RECORD_ID)
+
+    def test_hashes_are_treated_as_hashed_identifiers(self) -> None:
+        hashes = [f"{i:064X}" for i in range(N)]
+        assert _classify("c20", hashes) == (R.TECHNICAL_IDENTIFIER, S.RECORD_ID)
+
+    def test_labelled_and_separator_less_id_codes(self) -> None:
+        codes = _many("HETU 131052-308T", "200278907W", "070889-9652")
+        assert _classify("c05", codes) == (R.DIRECT_IDENTIFIER, S.NATIONAL_ID)

@@ -16,14 +16,15 @@ VALIDATORS: Registry[str, Validator] = Registry("validator")
 
 
 # ---------------------------------------------------------------- Finnish personal identity code (HETU)
-_HETU_RE = re.compile(r"^(\d{2})(\d{2})(\d{2})([-+A-FU-Y])(\d{3})([0-9A-Y])$")
+_HETU_RE = re.compile(r"^(\d{2})(\d{2})(\d{2})([-+A-FU-Y]?)(\d{3})([0-9A-Y])$")  # separator may be missing in exports
+_HETU_LABEL = re.compile(r"^(hetu|henkilötunnus|henkilotunnus|htun|ssn)[\s:]+", re.IGNORECASE)  # "HETU 011180-941H"
 _HETU_CHECK = "0123456789ABCDEFHJKLMNPRSTUVWXY"
 _HETU_CENTURY = {"+": 1800, **dict.fromkeys("-UVWXY", 1900), **dict.fromkeys("ABCDEF", 2000)}
 
 
 @dataclass(frozen=True)
 class HetuValidator:
-    """DDMMYYCZZZQ: real birth date, century sign, individual number 002-999, mod-31 check character.
+    """DDMMYYCZZZQ: real birth date, century sign (may be missing in exports), number 002-999, mod-31 check.
 
     The 900-999 range (temporary codes, used by the synthetic data) is accepted: it is still a valid format.
     """
@@ -32,17 +33,24 @@ class HetuValidator:
     subtype: Subtype = Subtype.NATIONAL_ID
 
     def is_valid(self, value: str) -> bool:
-        m = _HETU_RE.match(value.strip().upper())
+        m = _HETU_RE.match(_HETU_LABEL.sub("", value.strip()).upper())
         if not m:
             return False
         dd, mm, yy, sign, individual, check = m.groups()
         if int(individual) < 2:
             return False
-        try:
-            date(_HETU_CENTURY[sign] + int(yy), int(mm), int(dd))
-        except ValueError:
+        centuries = [_HETU_CENTURY[sign]] if sign else [1900, 2000]
+        if not any(_valid_date(c + int(yy), int(mm), int(dd)) for c in centuries):
             return False
         return _HETU_CHECK[int(dd + mm + yy + individual) % 31] == check
+
+
+def _valid_date(year: int, month: int, day: int) -> bool:
+    try:
+        date(year, month, day)
+    except ValueError:
+        return False
+    return True
 
 
 # ---------------------------------------------------------------- IBAN (ISO 13616, mod-97)
@@ -149,6 +157,11 @@ PATTERNS = (
     ),
     PatternValidator("hex_digest", Subtype.OTHER, re.compile(r"^([0-9a-fA-F]{32}|[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$")),
     PatternValidator("fi_property_id", Subtype.PROPERTY_ID, re.compile(r"^\d{1,3}-\d{1,3}-\d{1,4}-\d{1,4}$")),
+    PatternValidator(
+        "fi_street_address",
+        Subtype.STREET_ADDRESS,
+        re.compile(r"^[^\W\d_][\w\-]+( [\w\-]+)* \d{1,4}( ?[A-Za-z])?( \d{1,3})?(, ?\d{5} [^\W\d_][\w\- ]*)?$"),
+    ),
     PatternValidator("icd10", Subtype.DIAGNOSIS_CODE, re.compile(r"^[A-TV-Z]\d{2}(\.\d{1,2})?$")),
     PatternValidator("url", Subtype.URL, re.compile(r"^https?://\S+$")),
 )

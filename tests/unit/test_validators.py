@@ -16,6 +16,8 @@ class TestHetu:
             "271206A922C",  # 2000s century sign
             "200564-966L",
             " 220468-9631 ",  # surrounding spaces are tolerated
+            "200278907W",  # separator dropped by an export
+            "HETU 011180-941H",  # labelled value
         ],
     )
     def test_accepts_valid_codes(self, value: str) -> None:

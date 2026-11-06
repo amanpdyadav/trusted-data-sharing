@@ -40,13 +40,16 @@ FORMATS: dict[str, tuple[PrivacyRole, Subtype, float]] = {
     "icd10": (R.SENSITIVE_ATTRIBUTE, S.DIAGNOSIS_CODE, 0.8),
     "url": (R.FREE_TEXT, S.URL, 0.8),
     "phone": (R.DIRECT_IDENTIFIER, S.PHONE, 0.6),
-    "hex_digest": (R.NON_SENSITIVE, S.OTHER, 0.8),
+    "fi_street_address": (R.DIRECT_IDENTIFIER, S.STREET_ADDRESS, 0.8),
+    # a column of hashes is treated as hashed identifiers: they reverse by hashing guesses (privacy-safe default)
+    "hex_digest": (R.TECHNICAL_IDENTIFIER, S.RECORD_ID, 0.8),
 }
 SEX_VALUES = frozenset(("m", "f", "male", "female", "mies", "nainen", "man", "kvinna", "x", "u", "other", "muu"))
 LANGUAGE_CODES = frozenset(("fi", "sv", "en", "ru", "et", "de", "fr", "es", "ar", "so", "fa", "zh", "se"))
 SINGLE_NAME_WORDS = frozenset(("surname", "lastname", "firstname", "given", "first", "last", "sukunimi", "etunimi"))
 ICD_MIN_CHAPTERS = 3  # real diagnosis columns use several ICD chapters; 'S01, S08' are school codes
-LABEL_MAX_DISTINCT = 20  # an "id" column with this few values is a label (campaign, sensor), not a link to people
+LABEL_MAX_DISTINCT = 20  # an "id" column with this few values is a label (campaign, sensor), not a link
+MANY_DISTINCT = 100  # this many different names or codes means people or records, not categories
 PERSON_LEVEL = frozenset({R.DIRECT_IDENTIFIER, R.TECHNICAL_IDENTIFIER, R.FREE_TEXT})
 REFERENCE_DEMOTE = frozenset({S.GPS_COORDINATE, S.LOCATION_NAME, S.MUNICIPALITY, S.POSTCODE, S.TIMESTAMP, S.DATE})
 
@@ -118,6 +121,14 @@ def by_name_hint(p: ColumnProfile, _: bool) -> Decision | None:
     return hint.role, hint.subtype, 0.7, evidence
 
 
+def by_person_values(p: ColumnProfile, _: bool) -> Decision | None:
+    """Exports without meaningful headers: many different values shaped like personal names."""
+    if p.person_name_share < 0.8 or p.distinct < MANY_DISTINCT:
+        return None
+    why = f"{p.person_name_share:.0%} of {p.distinct} distinct values are shaped like personal names"
+    return R.DIRECT_IDENTIFIER, S.PERSON_NAME, 0.6, [_ev(E.STATISTICS, why)]
+
+
 # ---------------------------------------------------------------- step 5: value shape
 def as_datetime(p: ColumnProfile, _: bool) -> Decision | None:
     if p.datetime_share < 0.8:
@@ -155,14 +166,16 @@ def as_category(p: ColumnProfile, _: bool) -> Decision | None:
 
 
 def as_short_code(p: ColumnProfile, _: bool) -> Decision | None:
-    if p.space_share >= 0.1 or p.avg_len >= 30 or p.unique_ratio <= 0.3:
+    if p.space_share >= 0.1 or p.avg_len >= 30 or p.numeric_share >= 0.9:
         return None
+    if p.unique_ratio <= 0.3 and p.distinct < MANY_DISTINCT:
+        return None  # few codes: a category; many codes repeated over rows: people with several records
     why = f"{p.distinct} distinct short codes without spaces: likely an identifier"
     return R.TECHNICAL_IDENTIFIER, S.RECORD_ID, 0.45, [_ev(E.STATISTICS, why)]
 
 
 STEPS: tuple[Step, ...] = (
-    by_format, by_text, by_identifier_name, by_name_hint,
+    by_format, by_text, by_identifier_name, by_name_hint, by_person_values,
     as_datetime, as_code_set, as_row_key, as_number, as_category, as_short_code,
 )  # fmt: skip
 
