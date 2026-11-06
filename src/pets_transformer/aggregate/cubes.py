@@ -33,6 +33,8 @@ def noisy_table(
     frame: pd.DataFrame, spec: Aggregate, dp: DifferentialPrivacy, ctx: TransformContext, rng: np.random.Generator
 ) -> pd.DataFrame:
     """The published table for `spec` from contribution-bounded rows."""
+    for column, values in spec.exclude.items():
+        frame = frame[~frame[column].astype(str).isin(values)]
     names = [d.output_name for d in spec.dimensions]
     dims = pd.DataFrame({d.output_name: dimension_values(frame, d, ctx) for d in spec.dimensions}, index=frame.index)
     grid = _grid(dims, spec)

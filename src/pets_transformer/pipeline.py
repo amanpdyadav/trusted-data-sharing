@@ -138,7 +138,8 @@ def publish_aggregates(plan: Plan, inputs: Mapping[str, pd.DataFrame], scope: Ke
     out = []
     for a in plan.aggregates:
         frame = inputs[a.table]
-        needed = {dp.unit, *(d.column for d in a.dimensions), *([a.measure.column] if a.measure.column else [])}
+        measured = [a.measure.column] if a.measure.column else []
+        needed = {dp.unit, *(d.column for d in a.dimensions), *measured, *a.exclude}
         missing = sorted(needed - set(frame.columns))
         if missing:
             raise PlanError(f"aggregate {a.name}: {a.table} has no columns {missing}")

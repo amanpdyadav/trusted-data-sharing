@@ -79,6 +79,7 @@ class Aggregate(BaseModel):
     table: str
     dimensions: list[Dimension] = Field(min_length=1)
     measure: Measure = Field(default_factory=Measure)
+    exclude: dict[str, list[str]] = Field(default_factory=dict)  # rows not counted, e.g. cancelled duplicates
     epsilon: float = Field(gt=0)  # this table's share of the release budget (sequential composition)
     reason: str = Field(min_length=3)
 
@@ -92,6 +93,7 @@ class DifferentialPrivacy(BaseModel):
     max_rows_per_unit: int = Field(ge=1)  # contribution bound: extra rows of one person are left out at random
     mechanism: Literal["discrete_laplace"] = "discrete_laplace"
     delta: Literal[0] = 0
+    budget_cap: float | None = Field(default=None, gt=0)  # most epsilon this receiver may get over all releases
 
 
 class Plan(Contract):

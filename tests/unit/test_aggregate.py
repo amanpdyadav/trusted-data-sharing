@@ -134,3 +134,12 @@ class TestLedger:
         with pytest.raises(BudgetExceededError, match="above the cap 2"):
             ledger.record("r4", "S2/public/w3", 0.5, NOW)
         assert [e.release_id for e in ledger.entries()] == ["r1", "r2", "r3"]
+
+
+def test_excluded_rows_are_not_counted() -> None:
+    spec = Aggregate(
+        name="t", table="v", epsilon=1000.0, reason="test", dimensions=[Dimension(column="town", domain=["Salo"])],
+        exclude={"dispo": ["ward"]},
+    )  # fmt: skip
+    frame = _visits()
+    assert noisy_table(frame, spec, DP, _ctx(frame), np.random.default_rng(0))["value"].tolist() == [1]
