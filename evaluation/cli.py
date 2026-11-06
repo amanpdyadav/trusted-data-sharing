@@ -18,7 +18,7 @@ from pathlib import Path
 from evaluation import detection
 from evaluation.attack_cases import DEMO_CASES
 from evaluation.attacks import ReplayResult, replay
-from evaluation.history import append_history, history_row
+from evaluation.history import append_history, ensure_new_run_id, history_row
 from evaluation.scorecard import Run, rowmaps_in, run_pets_eval, to_metrics
 from evaluation.targets import Gate, detection_gates, load_targets, release_gates
 from pets_transformer.config import Settings
@@ -79,6 +79,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
         rowmap_dir=Path(args.rowmaps) if args.rowmaps else release,
         out_dir=RESULTS / "runs" / run_id,
     )
+    ensure_new_run_id(RESULTS / "history.csv", run_id)  # fail before the slow scoring, not after
     pairs = demo_replays(run)
     metrics = to_metrics(run_pets_eval(run), run, pairs)
     metrics.save(run.out_dir / "metrics.json")

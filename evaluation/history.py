@@ -36,7 +36,16 @@ def history_row(metrics: Metrics, gates: Sequence[Gate], git_commit: str) -> dic
     }
 
 
+def ensure_new_run_id(path: Path, run_id: str) -> None:
+    """The history is a ledger keyed by run id; a repeated id would make the before/after record ambiguous."""
+    if path.exists():
+        with path.open(newline="", encoding="utf-8") as f:
+            if any(r.get("run_id") == run_id for r in csv.DictReader(f)):
+                raise ValueError(f"run id {run_id!r} is already in {path}; pass a new --run-id")
+
+
 def append_history(path: Path, row: dict[str, object]) -> Path:
+    ensure_new_run_id(path, str(row["run_id"]))
     path.parent.mkdir(parents=True, exist_ok=True)
     new = not path.exists()
     with path.open("a", newline="", encoding="utf-8") as f:

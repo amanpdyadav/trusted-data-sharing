@@ -92,7 +92,7 @@ def test_history_appends_rows_with_one_header(tmp_path: Path) -> None:
     path = tmp_path / "history.csv"
     row = history_row(m, release_gates(m, [], load_targets()), "abc123")
     append_history(path, row)
-    append_history(path, row)
+    append_history(path, row | {"run_id": "r2"})
     rows = list(csv.DictReader(path.open()))
     assert len(rows) == 2
     assert b"\r\n" not in path.read_bytes()  # Unix line endings: clean diffs in git
@@ -106,3 +106,12 @@ def test_history_appends_rows_with_one_header(tmp_path: Path) -> None:
 def test_partial_reports_do_not_crash(missing: str) -> None:
     report = {k: v for k, v in REPORT.items() if k != missing}
     assert to_metrics(report, RUN).run_id == "r1"
+
+
+def test_history_refuses_a_repeated_run_id(tmp_path: Path) -> None:
+    m = to_metrics(REPORT, RUN)
+    path = tmp_path / "history.csv"
+    append_history(path, history_row(m, [], "abc123"))
+    with pytest.raises(ValueError, match="already in"):
+        append_history(path, history_row(m, [], "def456"))
+    assert len(list(csv.DictReader(path.open()))) == 1
