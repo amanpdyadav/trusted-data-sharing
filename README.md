@@ -55,6 +55,31 @@ again with `--confirm-review`.
 
 Use `--source csv:path/to/folder` with `detect` and `run` to read your own CSV folder instead of the example data.
 
+## Proving it on the challenge data
+
+These use the organisers' toolkit and answer files, so they live in `evaluation/`, never in the tool.
+
+```bash
+make release validate          # protect HEALTH-S1 and check every gate (score, k, demo attacks, post and news sweep)
+make sweep                     # replay all 1,050 public posts and news clips on the release; lists anyone exposed
+make detect-all                # score column detection on every labelled dataset
+.venv/bin/python -m evaluation experiment stay-length        # compare plan variants side by side
+.venv/bin/python -m evaluation screens --release out/health-s1/release --rowmaps out/health-s1/private --plan plans/health-s1.yaml
+```
+
+The last command writes the data for the web app's **Mosaic attack** and **Release audit** screens (sidebar, under
+"Show the risk"): one public post followed across datasets with raw data, with names removed, and with our release;
+and every check, decision and file fingerprint of the release.
+
+| HEALTH-S1 (self-assessed) | Combined score | Usefulness | Post and news sweep |
+|---|---|---|---|
+| Package quickstart ("before") | 0.49 | 0.79 | – |
+| Plan version 2 | 0.998 | 0.995 | 8 of 1,050 scraps expose someone |
+| **Plan version 3** (stay bands, sex dropped, 8 largest towns) | **0.991** | **0.980** | **0** |
+
+Column detection (organisers' scorer, 9 datasets): macro-F1 0.930, sensitive attributes found 88 %
+(baseline 0.646 and 10 %). See `docs/detection/`.
+
 ## What leaves, and what never leaves
 
 | Leaves (in the release ZIP) | Never leaves (stays in the local folder) |
@@ -69,6 +94,7 @@ Use `--source csv:path/to/folder` with `detect` and `run` to read your own CSV f
 - [How it works](docs/HOW_IT_WORKS.md): the pipeline, the protections, the checks and the safety rules.
 - [Contributing](CONTRIBUTING.md): code layout, tests and how to add a new protection or detector.
 - [Requirements notes](NOTES_requirements.md): what the challenge asks for and the decisions we made.
+- [Detection](docs/detection/README.md): the two detectors, the laws and standards behind each label, every score.
 
 ## Folders
 

@@ -65,3 +65,13 @@ One entry per decision: what we chose, what else we considered, why, and the sou
 - **Why:** the two demo attacks pass easily (240 candidates), but the sweep found 8 exposed people in the HEALTH-S1
   release, 3 narrowed to a single visit, all through exact length of stay plus town, sex from the first name and
   symptoms. Two hand-picked cases cannot show that; the whole attacker file can.
+
+## D9 · HEALTH-S1 plan version 3: pass the sweep with the least usefulness lost (7 Nov)
+- **Decision:** length of stay in 30-minute bands with 12 h or more as "720+"; sex dropped (not in the research data
+  request); only the eight largest municipalities kept, the rest merged ("other"). Committed **not approved**: it
+  changes Aman's approved version 2.
+- **Options measured** (`python -m evaluation experiment stay-length`): exact stay (0.998, fails the sweep), 30- and
+  60-minute bands (0.990 / 0.980, still fail: rare long stays stay rare), top-coding at 12 h, dropping sex
+  (down to 1 exposed scrap), and finally the eight largest towns: 0.991, usefulness 0.980, all 5 gates pass.
+- **Why:** every exposing scrap combined exact stay, town and sex from the first name. Each change removes one of
+  those without breaking a research question (H-U2 median stay, H-U4 covers the eight largest towns).

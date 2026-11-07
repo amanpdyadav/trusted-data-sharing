@@ -24,3 +24,10 @@ Dev = health, finance, cyber, customer_service, education. Held out = mobility, 
 | 5 | 7 Nov | Combined, `python -m evaluation detect-all` | dev 8 / education | 0.934 / 0.899 | 0.90 / 0.80 | 0.88 / 0.75 | Education was in the layered detector's dev set |
 
 Team plan targets: macro-F1 ≥ 0.85, sensitive found ≥ 70 %.
+
+## HEALTH-S1 release (combine branch)
+
+| Plan | Combined | Usefulness | Demo attacks (candidates) | Post and news sweep (exposed of 1,050) | Gates |
+|---|---|---|---|---|---|
+| Version 2 (Aman) | 0.998 | 0.995 | 568 / 240 | 8 | 4/5 |
+| Version 3 | 0.991 | 0.980 | 1,172 / 367 | 0 | 5/5 |
