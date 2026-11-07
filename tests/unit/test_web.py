@@ -190,3 +190,34 @@ def test_every_release_is_kept_compared_and_survives_a_restart(
     assert not any("rowmap" in n for n in zipfile.ZipFile(io.BytesIO(z.content)).namelist())
     assert restarted.get(f"/api/sessions/{sid}/releases/..%2Fplan").status_code in {400, 404}  # no path tricks
     assert restarted.get(f"/api/sessions/{sid}/releases/nope").status_code == 400
+
+
+def test_tables_can_be_added_and_removed_until_the_dataset_is_released(client: TestClient, sid: str) -> None:
+    _ok(client.post(f"/api/sessions/{sid}/scan"))
+    extra = [("files", ("notes.csv", b"note_id,visit_id,text\nN1,V001,hello\n", "text/csv"))]
+    added = _ok(client.post(f"/api/sessions/{sid}/tables", files=extra))
+    assert sorted(t["name"] for t in added["tables"]) == ["labs", "notes", "visits"]
+    assert not added["steps"]["scanned"]  # new data needs a new scan
+    removed = _ok(client.delete(f"/api/sessions/{sid}/tables/notes"))
+    assert sorted(t["name"] for t in removed["tables"]) == ["labs", "visits"]
+    assert client.delete(f"/api/sessions/{sid}/tables/..%2Fvisits").status_code >= 400  # no path tricks
+    assert client.delete(f"/api/sessions/{sid}/tables/missing").status_code == 400
+    assert "visits" in [t["name"] for t in _ok(client.get(f"/api/sessions/{sid}"))["tables"]]
+
+    _ok(client.post(f"/api/sessions/{sid}/scan"))
+    _ok(client.post(f"/api/sessions/{sid}/plan", json={"custom": RECEIVER}))
+    _ok(client.post(f"/api/sessions/{sid}/approve", json={"by": "Test Steward", "confirm_review": True}))
+    _ok(client.post(f"/api/sessions/{sid}/run", json={"receiver": "uni"}))
+    frozen = client.post(f"/api/sessions/{sid}/tables", files=extra)
+    assert frozen.status_code == 400
+    assert "duplicate" in frozen.json()["error"]
+    assert client.delete(f"/api/sessions/{sid}").status_code == 400  # a released dataset stays as the record
+
+    copy = _ok(client.post(f"/api/sessions/{sid}/duplicate", json={"name": "clinic v2"}))
+    assert copy["name"] == "clinic_v2"
+    assert not copy["released"]
+    assert sorted(t["name"] for t in copy["tables"]) == ["labs", "visits"]
+    assert _ok(client.post(f"/api/sessions/{copy['id']}/scan"))["detections"]  # corrections came along; scan works
+    _ok(client.post(f"/api/sessions/{copy['id']}/rename", json={"name": "clinic final"}))
+    assert _ok(client.delete(f"/api/sessions/{copy['id']}")) == {"deleted": copy["id"]}
+    assert [x["id"] for x in _ok(client.get("/api/sessions"))] == [sid]

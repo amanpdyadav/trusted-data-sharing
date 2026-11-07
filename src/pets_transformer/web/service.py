@@ -117,6 +117,7 @@ class App:
             ],
             "steps": {"scanned": s.detections is not None, "planned": s.plan is not None,
                       "approved": bool(s.plan and s.plan.approved), "released": s.outcome is not None},
+            "released": s.released,  # released data is frozen: duplicate to change it
         }  # fmt: skip
 
     # ------------------------------------------------------------ scan
@@ -396,6 +397,7 @@ class App:
                 "steps": {"scanned": x.detections is not None, "planned": x.plan is not None,
                           "approved": bool(x.plan and x.plan.approved)},
                 "releases": len(releases), "last_release": releases[0] if releases else None,
+                "released": bool(releases),
             })  # fmt: skip
         return out
 

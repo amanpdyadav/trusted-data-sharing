@@ -3,6 +3,7 @@
 Run with `pets-transformer web`. It listens on 127.0.0.1 only: the data never leaves this machine.
 """
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -15,7 +16,7 @@ from pets_transformer.config import Settings
 from pets_transformer.contracts import PrivacyRole, Subtype, TrustLevel
 from pets_transformer.keys import MissingKeyError
 from pets_transformer.web.service import ActionEdit, App, Override
-from pets_transformer.web.workspace import Workspace, WorkspaceError
+from pets_transformer.web.workspace import Session, Workspace, WorkspaceError
 
 STATIC = Path(__file__).with_name("static")
 
@@ -30,6 +31,10 @@ class OverrideRequest(BaseModel):
     privacy_role: str
     subtype: str
     by: str = ""
+
+
+class NameRequest(BaseModel):
+    name: str = ""
 
 
 class SeedRequest(BaseModel):
@@ -69,6 +74,37 @@ def _attachment(filename: str) -> dict[str, str]:
     return {"Content-Disposition": f'attachment; filename="{filename}"'}
 
 
+def _dataset_routes(api: FastAPI, svc: App, session: Callable[[str], Session]) -> None:
+    """Managing a dataset: add or remove tables (until it is released), duplicate, rename, delete."""
+
+    @api.post("/api/sessions/{sid}/tables")
+    async def add_tables(sid: str, files: Annotated[list[UploadFile], File()]) -> dict[str, Any]:
+        s = session(sid)
+        svc.workspace.add_tables(s, [(f.filename or "table.csv", await f.read()) for f in files])
+        return svc.overview(s)
+
+    @api.delete("/api/sessions/{sid}/tables/{table}")
+    def remove_table(sid: str, table: str) -> dict[str, Any]:
+        s = session(sid)
+        svc.workspace.remove_table(s, table)
+        return svc.overview(s)
+
+    @api.post("/api/sessions/{sid}/duplicate")
+    def duplicate(sid: str, req: NameRequest) -> dict[str, Any]:
+        return svc.overview(svc.workspace.duplicate(session(sid), req.name))
+
+    @api.post("/api/sessions/{sid}/rename")
+    def rename(sid: str, req: NameRequest) -> dict[str, Any]:
+        s = session(sid)
+        svc.workspace.rename(s, req.name)
+        return svc.overview(s)
+
+    @api.delete("/api/sessions/{sid}")
+    def delete(sid: str) -> dict[str, str]:
+        svc.workspace.delete(session(sid))
+        return {"deleted": sid}
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
     svc = App(settings, Workspace(settings.out_dir / "web"))
@@ -86,7 +122,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def _bad_value(_: Request, exc: ValueError) -> JSONResponse:
         return JSONResponse({"error": str(exc)}, status_code=400)
 
-    def session(sid: str) -> Any:
+    def session(sid: str) -> Session:
         return svc.workspace.get(sid)
 
     @api.get("/api/catalogue")
@@ -111,6 +147,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ) -> dict[str, Any]:
         contents = [(f.filename or "table.csv", await f.read()) for f in files]
         return svc.overview(svc.workspace.from_uploads(name, contents))
+
+    _dataset_routes(api, svc, session)
 
     @api.get("/api/sessions/{sid}")
     def overview(sid: str) -> dict[str, Any]:
