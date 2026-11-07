@@ -96,6 +96,20 @@ class DifferentialPrivacy(BaseModel):
     budget_cap: float | None = Field(default=None, gt=0)  # most epsilon this receiver may get over all releases
 
 
+class ColumnName(BaseModel):
+    """A name given to a column that had none (blank header, a code like c07, or no header row), confirmed by a
+    person. The release uses the new name; the original stays here so the release can be traced to the input."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    table: str
+    original: str
+    name: str = Field(pattern=r"^[a-z][a-z0-9_]{0,62}$")
+    suggested_by: Literal["rules", "ai", "person"] = "person"  # who proposed the name the person kept
+    model: str | None = None  # the local AI model, when suggested_by is "ai"
+    meaning: str = ""
+
+
 class Plan(Contract):
     schema_version: Literal["1"] = SCHEMA_VERSION
     dataset: str
@@ -109,6 +123,7 @@ class Plan(Contract):
     actions: list[ColumnAction] = Field(default_factory=list)
     aggregates: list[Aggregate] = Field(default_factory=list)  # published noisy statistics (public dashboards)
     differential_privacy: DifferentialPrivacy | None = None
+    column_names: list[ColumnName] = Field(default_factory=list)  # unnamed input columns and the names they got
     approved: bool = False
     approved_by: str | None = None
 

@@ -1,0 +1,106 @@
+# CYBER-S1: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: CYBER-S1
+dataset: cyber
+title: Outsource 24/7 monitoring to an external MSSP
+recipient: Managed security service provider under a data processing agreement
+purpose: Detect and investigate threats across sign-in, VPN, proxy, DNS, EDR and e-mail telemetry
+trust_level: contractual
+threat_model: Curious MSSP analyst with company_website_staff.csv (public) and general OSINT; may try to learn who
+  is who or what employees browse.
+legal_context: Processor under GDPR Art. 28; pseudonymised data is still personal data. Employee monitoring must
+  be proportionate (in Finland, the Act on the Protection of Privacy in Working Life).
+utility_requirements:
+- CYBER-U1
+- CYBER-U2
+- CYBER-U3
+- CYBER-U4
+- CYBER-U5
+- CYBER-U6
+- CYBER-U7
+- CYBER-U9
+- CYBER-U10
+- CYBER-U11
+needs:
+- table: signin_logs
+  column: upn
+- table: signin_logs
+  column: ts_utc
+  detail: hour
+- table: signin_logs
+  column: result
+- table: signin_logs
+  column: geo_lat
+- table: signin_logs
+  column: geo_lon
+- table: signin_logs
+  column: mfa_result
+- table: signin_logs
+  column: src_ip
+- table: proxy_logs
+  column: src_ip
+- table: proxy_logs
+  column: domain
+- table: proxy_logs
+  column: ts_utc
+  detail: hour
+- table: proxy_logs
+  column: bytes_sent
+- table: email_gateway
+  column: sender
+- table: email_gateway
+  column: recipients
+- table: email_gateway
+  column: ts_utc
+  detail: hour
+- table: proxy_logs
+  column: upn
+- table: vpn_logs
+  column: upn
+- table: vpn_logs
+  column: ts_utc
+  detail: hour
+- table: vpn_logs
+  column: geo_country
+- table: edr_alerts
+  column: hostname
+- table: edr_alerts
+  column: severity
+- table: edr_alerts
+  column: ts_utc
+  detail: hour
+- table: proxy_logs
+  column: method
+- table: edr_alerts
+  column: rule_name
+- table: edr_alerts
+  column: upn
+- table: incident_tickets
+  column: reporter_upn
+- table: edr_alerts
+  column: analyst_verdict
+- table: signin_logs
+  column: campaign_id
+- table: proxy_logs
+  column: campaign_id
+- table: signin_logs
+  column: event_id
+- table: proxy_logs
+  column: event_id
+- table: email_gateway
+  column: campaign_id
+- table: vpn_logs
+  column: campaign_id
+- table: vpn_logs
+  column: event_id
+- table: edr_alerts
+  column: campaign_id
+- table: incident_tickets
+  column: campaign_id
+targets:
+  notes: Keyed (HMAC) pseudonyms for users, hosts and internal IPs, consistent across all tables; secrets and e-mails
+    removed from URLs and command lines; sensitive web categories generalised; re-identification only by the company
+    holding the key.
+  k: 5
+notes: Random per-row tokens look safer but make every cross-log detection impossible. Generated from metadata/scenarios.json
+  and the organisers' utility tasks by `python -m evaluation scenarios`; review the data request before use.

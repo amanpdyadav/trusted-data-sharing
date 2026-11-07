@@ -14,7 +14,7 @@ export function NameDialog({ open, onOpenChange, title, label, initial, hint, in
 }) {
   const [name, setName] = useState(initial), busy = useApp(s => s.busy === busyKey);
   useEffect(() => { if (open) setName(initial); }, [open, initial]);
-  const submit = async () => { if (await onSubmit(name.trim())) onOpenChange(false); };
+  const submit = async () => { if (busy || !name.trim()) return; if (await onSubmit(name.trim())) onOpenChange(false); };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>

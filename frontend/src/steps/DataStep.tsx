@@ -1,7 +1,8 @@
 // Step 1: bring the data. Upload or pick an example, see what is inside, manage earlier datasets.
 import { Copy, Lock, MoreHorizontal, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import { useRef, useState } from "react";
-import { Guide, PageHead, ProgressCard, Section, useRole, useShown } from "@/components/common";
+import { NamingNote } from "@/components/ColumnNames";
+import { Guide, PageHead, ProgressCard, Section, useRole } from "@/components/common";
 import { ConfirmDialog, NameDialog } from "@/components/dialogs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Input, Label } from "@/components/ui/form";
 import { TableWrap, Td, Th, Tip } from "@/components/ui/misc";
 import type { SessionListItem } from "@/lib/api";
-import { ROLE_TONE, clip, fmt, mb, pct, plural, when } from "@/lib/format";
+import { ROLE_TONE, clip, fmt, mb, pct, plural, text, when, words } from "@/lib/format";
 import {
   addTables, deleteDataset, duplicateDataset, go, openSample, removeTable, renameDataset, reopen, runScan, uploadFiles, useApp,
 } from "@/lib/store";
@@ -21,7 +22,7 @@ export const openPicker = () => document.getElementById("files")?.click();
 const WORKSPACE_SHOWN = 6;  // newest first; the rest behind "Show all" or a search
 
 export function DataStep() {
-  const session = useApp(s => s.session), scan = useApp(s => s.scan), progress = useApp(s => s.progress);
+  const session = useApp(s => s.session), scan = useApp(s => s.scan), progress = useApp(s => s.progress), datasets = useApp(s => s.sessions.length);
   if (progress) return <><PageHead title="Bring the data you want to share" /><ProgressCard /></>;
   const guide = <Guide steps={["Upload your files or pick an example", "Look at what is inside", "Scan for risks"]} done={[!!session, !!session, !!scan]} />;
   if (session) return (
@@ -32,7 +33,7 @@ export function DataStep() {
       <details className="group rounded-2xl border bg-card">
         <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 px-5 py-4 font-semibold">
           <span className="flex items-center gap-2"><Plus className="size-4 text-safe transition-transform group-open:rotate-45" /> Load different data or reopen earlier work</span>
-          <span className="text-sm font-normal text-muted-foreground">{plural(useApp.getState().sessions.length, "dataset")} in your workspace</span>
+          <span className="text-sm font-normal text-muted-foreground">{plural(datasets, "dataset")} in your workspace</span>
         </summary>
         <div className="flex flex-col gap-5 px-5 pb-5"><Loaders /><Workspace /></div>
       </details>
@@ -70,9 +71,9 @@ function Loaders() {
         <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,210px),1fr))] gap-2.5">
           {samples.map(s => (
             <button key={s.name} onClick={() => openSample(s.name)} className="flex flex-col gap-1 rounded-xl border bg-card p-3.5 text-left shadow-sm transition-colors hover:border-input hover:bg-muted">
-              <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">{s.tables.length} tables</span>
-              <b>{s.name.replace(/_/g, " ")}</b>
-              <span className="line-clamp-2 text-[13px] text-muted-foreground">{s.tables.join(", ")}</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{s.tables.length} tables</span>
+              <b>{words(s.name)}</b>
+              <span className="line-clamp-2 text-sm text-muted-foreground">{s.tables.join(", ")}</span>
             </button>
           ))}
           {!samples.length && <p className="text-sm text-muted-foreground">No sample folder found (set PETS_PACKAGE_ROOT).</p>}
@@ -113,15 +114,15 @@ function Ready() {
 }
 
 function Inside() {
-  const session = useApp(s => s.session)!, scan = useApp(s => s.scan), mask = useApp(s => s.mask);
+  const session = useApp(s => s.session)!, scan = useApp(s => s.scan);
   const [current, setCurrent] = useState(session.tables[0]?.name), [removing, setRemoving] = useState(""), [dup, setDup] = useState(false);
-  const shown = useShown(), role = useRole(), add = useRef<HTMLInputElement>(null);
+  const role = useRole(), add = useRef<HTMLInputElement>(null);
   const t = session.tables.find(x => x.name === current) ?? session.tables[0];
   const frozen = session.released, removable = !frozen && session.tables.length > 1;
   return (
     <Section title="What is inside" right={!frozen && <><Button variant="outline" onClick={() => add.current?.click()}><Plus /> Add tables</Button>
       <input ref={add} type="file" accept=".csv,.zip" multiple hidden onChange={e => e.target.files?.length && addTables(e.target.files)} /></>}>
-      <p className="-mt-2 text-sm text-muted-foreground">{plural(session.tables.length, "table")} · first rows of each{mask && !scan ? " · text hidden until the scan knows which columns are personal" : ""}</p>
+      <p className="-mt-2 text-sm text-muted-foreground">{plural(session.tables.length, "table")} · first rows of each</p>
       {frozen && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-safe/40 bg-safe-soft px-4 py-3 text-sm">
           <Lock className="size-4 text-safe" /><span className="flex-1">This dataset has releases, so its tables are frozen: each release must stay traceable to exactly this data.</span>
@@ -136,9 +137,11 @@ function Inside() {
           </span>
         ))}
       </div>
+      <NamingNote table={t} frozen={frozen} />
       <TableWrap>
-        <table className="w-full border-collapse"><thead><tr>{t.columns.map(c => <Th key={c}>{c}</Th>)}</tr></thead>
-          <tbody>{t.preview.map((r, i) => <tr key={i}>{t.columns.map(c => { const v = shown(t.name, c, r[c]); return <Td key={c} className={ROLE_TONE[role(t.name, c)]} title={clip(v, 600)}>{clip(v)}</Td>; })}</tr>)}</tbody></table>
+        <table className="w-full border-collapse"><thead><tr>{t.columns.map(c => { const was = t.naming.unnamed.find(u => u.name === c)?.original;
+          return <Th key={c} title={was ? `was ${was}` : undefined}>{c}{was && <span className="block font-normal normal-case text-muted-foreground">was {was}</span>}</Th>; })}</tr></thead>
+          <tbody>{t.preview.map((r, i) => <tr key={i}>{t.columns.map(c => { const v = text(r[c]); return <Td key={c} className={ROLE_TONE[role(t.name, c)]} title={clip(v, 600)}>{clip(v)}</Td>; })}</tr>)}</tbody></table>
       </TableWrap>
       <ConfirmDialog open={!!removing} onOpenChange={o => !o && setRemoving("")} title={`Remove ${removing}?`} action="Remove the table" danger
         onConfirm={() => removeTable(removing)}>
@@ -190,12 +193,12 @@ function Workspace() {
           const stage = x.releases ? plural(x.releases, "release") : st.approved ? "approved" : st.planned ? "planned" : st.scanned ? "scanned" : "new";
           return (
             <div key={x.id} className={cn("grid items-center gap-x-4 gap-y-2 border-b px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1.4fr)_auto_minmax(0,1.2fr)_auto]", isCurrent && "bg-safe-soft")}>
-              <div className="min-w-0"><b className="block truncate">{x.name}</b><span className="text-[13px] text-muted-foreground">{plural(x.tables.length, "table")} · {mb(x.bytes)} MB · {when(x.created_at)}</span></div>
+              <div className="min-w-0"><b className="block truncate">{x.name}</b><span className="text-sm text-muted-foreground">{plural(x.tables.length, "table")} · {mb(x.bytes)} MB · {when(x.created_at)}</span></div>
               <div className="flex items-center gap-1.5">
                 {[st.scanned, st.planned, st.approved, x.releases > 0].map((on, i) => <span key={i} className={cn("size-2 rounded-full bg-input", on && "bg-ok")} />)}
                 <Badge variant={x.released ? "ok" : "outline"} className="ml-1">{x.released && <Lock className="size-3" />}{stage}</Badge>
               </div>
-              <div className="truncate text-[13px] text-muted-foreground">
+              <div className="truncate text-sm text-muted-foreground">
                 {r ? <>Last for <b className="text-foreground">{r.recipient}</b>{r.singled_out_after != null ? <> · singled out {pct(r.singled_out_before)} → <b className="text-safe">{pct(r.singled_out_after)}</b></> : r.epsilon != null ? <> · statistics, ε {r.epsilon}</> : null}</> : x.receiver}
               </div>
               <div className="flex items-center justify-end gap-1">

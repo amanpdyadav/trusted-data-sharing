@@ -1,0 +1,34 @@
+# CS-S2: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: CS-S2
+dataset: customer_service
+title: Train an internal intent model / chatbot
+recipient: Aallokko data science team (internal)
+purpose: Train an intent classifier and response suggestions.
+trust_level: internal
+threat_model: 'Model memorisation: verbatim identifiers in training text can be regurgitated by a generative model.'
+legal_context: Compatible further processing (Art. 6(4)); data minimisation (Art. 5(1)(c)).
+utility_requirements:
+- CS-U1
+- CS-U2
+- CS-U5
+needs:
+- table: turns
+  column: text
+- table: conversations
+  column: intent
+- table: conversations
+  column: sentiment
+- table: conversations
+  column: csat
+- table: turns
+  column: conversation_id
+- table: conversations
+  column: conversation_id
+targets:
+  notes: Replace identifiers with typed placeholders or realistic surrogates; no secrets or card numbers anywhere;
+    free text k-anonymised for rare phrases optional.
+  k: 5
+  text_recall: 0.95
+notes: Surrogates (fake names) preserve fluency better than [REDACTED]. Generated from metadata/scenarios.json and
+  the organisers' utility tasks by `python -m evaluation scenarios`; review the data request before use.

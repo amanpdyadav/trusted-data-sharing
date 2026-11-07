@@ -1,0 +1,34 @@
+# ENERGY-S3: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: ENERGY-S3
+dataset: energy
+title: Energy-poverty research dataset
+recipient: University research group (controlled research environment)
+purpose: Relate heating type, payment problems and winter consumption.
+trust_level: controlled_research
+threat_model: 'Researcher with public_directory; private: broker_profiles.'
+legal_context: Scientific research (GDPR Art. 89) with safeguards; health flag needs special care (Art. 9).
+utility_requirements:
+- ENERGY-U3
+- ENERGY-U4
+- ENERGY-U7
+needs:
+- table: meter_readings_hourly
+  column: ts
+  detail: hour
+- table: meter_readings_hourly
+  column: kwh
+- table: customers
+  column: heating_type
+- table: meter_readings_hourly
+  column: metering_point_id
+- table: customers
+  column: late_payment_count
+- table: customers
+  column: metering_point_id
+targets:
+  notes: k≥5 on {postcode area, heating_type, floor area band, ev, solar}; remove or noise medical flag; daily rather
+    than hourly values may suffice.
+  k: 5
+notes: Generated from metadata/scenarios.json and the organisers' utility tasks by `python -m evaluation scenarios`;
+  review the data request before use.

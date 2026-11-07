@@ -1,8 +1,8 @@
 // Step 4: check what leaves, then sign it off. Tables on the left, their fields and what happens to each on the
 // right; then plain checks and a name. Nothing is shared until a named person approves.
 import { CheckCircle2, Search } from "lucide-react";
-import { useMemo, useState } from "react";
-import { Guide, PageHead, Section } from "@/components/common";
+import { useMemo, useState, type ReactNode } from "react";
+import { PageHead, Section } from "@/components/common";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,10 +11,9 @@ import { Checkbox, Input, Label } from "@/components/ui/form";
 import { Spinner } from "@/components/ui/misc";
 import type { Plan } from "@/lib/api";
 import { plural } from "@/lib/format";
-import { laneOf } from "@/lib/lanes";
+import { laneOf, planTables } from "@/lib/lanes";
 import { approve, go, useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { planTables } from "@/steps/PlanStep";
 
 type Kind = "shared" | "counts" | "stays";
 type Field = { column: string; cls: string; icon: string; fate: string; why: string };
@@ -58,9 +57,7 @@ export function Approve() {
   const [again, setAgain] = useState(false), signed = P.approved && !again;
   return (
     <>
-      <PageHead title="Check what leaves, then sign it off" lede="Nothing is shared until a named person approves. Your name is written into the plan and into the release." />
-      <Guide steps={["Check what leaves and what stays", "Tick the checks", "Type your name and approve"]} done={[signed, signed, signed]} />
-      <LeavesStays recipient={recipient} />
+      <PageHead title="Check what leaves, then sign it off" lede="Nothing is shared until someone approves. Use a role (for example Data steward), not a personal name." />
       {signed ? (
         <Card className="flex flex-wrap items-center justify-between gap-4 border-ok/40 bg-ok-soft/40 p-5">
           <div className="flex items-center gap-3"><CheckCircle2 className="size-8 text-ok" />
@@ -68,6 +65,10 @@ export function Approve() {
           <div className="flex gap-2"><Button variant="outline" onClick={() => setAgain(true)}>Change approval</Button><Button size="lg" onClick={() => go("release")}>Create the release →</Button></div>
         </Card>
       ) : <SignOff recipient={recipient} onDone={() => setAgain(false)} />}
+      <details className="rounded-2xl border bg-card px-5 py-3">
+        <summary className="cursor-pointer font-medium text-muted-foreground">Inspect every field (what leaves / what stays)</summary>
+        <div className="mt-3"><LeavesStays recipient={recipient} /></div>
+      </details>
     </>
   );
 }
@@ -83,16 +84,16 @@ function LeavesStays({ recipient }: { recipient: string }) {
   const shown = all.filter(x => sel.has(x.table));
   const badge = (x: TableFate) => x.kind === "shared" ? <Badge variant="safe">{x.out} of {x.fields.length} shared</Badge> : x.kind === "counts" ? <Badge variant="ok">counts only</Badge> : <Badge>🏠 0 of {x.fields.length} shared</Badge>;
   const toggle = (t: string, on: boolean) => { const s = new Set(sel); on ? s.add(t) : s.delete(t); setSelected(s); };
-  const [openTables, setOpenTables] = useState<string[] | null>(null);
-  const open = openTables ?? shown.filter(x => x.kind !== "stays").map(x => x.table);
+  const [openTables, setOpenTables] = useState<string[]>([]);
+  const open = openTables;
   return (
     <>
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="flex flex-col gap-1 border-l-[5px] border-l-safe p-4"><span className="eyebrow text-safe">↗ Leaves your organisation</span>
-          <b className="font-display text-[22px] font-extrabold">{plural(leaving.length, "table")}{view.plan.aggregates.length && !planTables(view.plan).length ? " as counts" : ""}, {plural(fieldsOut, "field")}</b>
+          <b className="font-display text-[22px] font-bold">{plural(leaving.length, "table")}{view.plan.aggregates.length && !planTables(view.plan).length ? " as counts" : ""}, {plural(fieldsOut, "field")}</b>
           <span className="text-sm text-muted-foreground">to {recipient}{view.scenario?.purpose ? ` · ${view.scenario.purpose}` : ""}</span></Card>
         <Card className="flex flex-col gap-1 border-l-[5px] border-l-ok p-4"><span className="eyebrow text-ok">🏠 Stays on this computer</span>
-          <b className="font-display text-[22px] font-extrabold">{plural(staying.length, "table")} not shared{removed ? `, ${plural(removed, "field")} removed` : ""}</b>
+          <b className="font-display text-[22px] font-bold">{plural(staying.length, "table")} not shared{removed ? `, ${plural(removed, "field")} removed` : ""}</b>
           <span className="text-sm text-muted-foreground">plus the original data, the row maps and the secret key</span></Card>
       </div>
       <div className="grid items-start gap-4 md:grid-cols-[minmax(240px,320px)_minmax(0,1fr)]">
@@ -148,7 +149,7 @@ function SignOff({ recipient, onDone }: { recipient: string; onDone: () => void 
   const [checks, setChecks] = useState({ need: false, review: reviews.length === 0, allowed: false }), [name, setName] = useState("");
   const ready = checks.need && checks.review && checks.allowed && name.trim().length > 1;
   const purpose = view.scenario?.purpose ? view.scenario.purpose.toLowerCase() : "the agreed purpose";
-  const check = (key: keyof typeof checks, body: React.ReactNode) => (
+  const check = (key: keyof typeof checks, body: ReactNode) => (
     <label className={cn("flex cursor-pointer items-start gap-3 rounded-xl border bg-muted px-4 py-3 text-[14.5px]", checks[key] && "border-ok bg-ok-soft")}>
       <Checkbox className="mt-0.5" checked={checks[key]} onCheckedChange={v => setChecks({ ...checks, [key]: !!v })} /><span>{body}</span>
     </label>
@@ -162,7 +163,7 @@ function SignOff({ recipient, onDone }: { recipient: string; onDone: () => void 
         {check("allowed", <><b>I am allowed to approve</b> sharing this data with {recipient}.</>)}
       </div>
       <div className="flex flex-wrap items-end gap-3">
-        <div className="flex min-w-[260px] flex-1 flex-col gap-1.5"><Label htmlFor="approver">Your full name</Label><Input id="approver" value={name} placeholder="e.g. Maria Virtanen" onChange={e => setName(e.target.value)} /></div>
+        <div className="flex min-w-[260px] flex-1 flex-col gap-1.5"><Label htmlFor="approver">Approver (role or team)</Label><Input id="approver" value={name} placeholder="e.g. Data steward" onChange={e => setName(e.target.value)} /></div>
         <Button size="lg" disabled={!ready || busy} onClick={async () => { if (await approve(name.trim(), reviews.length > 0)) onDone(); }}>{busy && <Spinner className="text-current" />}Approve and continue</Button>
       </div>
     </Section>

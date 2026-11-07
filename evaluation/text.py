@@ -20,7 +20,7 @@ import pandas as pd
 from pets_eval.text import IDENTIFYING, redaction_leakage, span_scores
 
 from pets_transformer.contracts import Subtype
-from pets_transformer.detect.rules import detect_source
+from pets_transformer.detect.source import detect_source
 from pets_transformer.io import read_table
 from pets_transformer.sources import open_source
 from pets_transformer.text.redactor import Redactor, build_redactor

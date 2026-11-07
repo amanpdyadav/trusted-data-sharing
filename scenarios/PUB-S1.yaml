@@ -1,0 +1,44 @@
+# PUB-S1: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: PUB-S1
+dataset: public_admin
+title: Open data publication of citizen feedback
+recipient: Public (open data portal, CC BY)
+purpose: Publish requests with category, time, area, status and the text so residents and journalists can follow
+  service quality.
+trust_level: public
+threat_model: 'Anyone: neighbours, forum users (public adversary: neighbourhood_forum_posts), permit registry (public).'
+legal_context: Published data must be anonymous; free text needs redaction of all personal data including third
+  parties.
+utility_requirements:
+- PUB-U1
+- PUB-U2
+- PUB-U3
+- PUB-U4
+statistics:
+- name: pub_u1_request_counts_by_area_3_digit_postcode_x
+  table: service_requests
+  by:
+  - column: ts_created
+    detail: week
+  - column: category
+  - column: postcode
+- name: pub_u2_median_resolution_time_by_category
+  table: service_requests
+  by:
+  - column: ts_created
+    detail: week
+  - column: category
+- name: pub_u4_category_classifier_trained_on_protected
+  table: service_requests
+  by:
+  - column: category
+targets:
+  notes: No direct identifiers in any column or text; locations coarsened (e.g. 250 m grid or street level without
+    house numbers); time to the hour or day; no account ids.
+  epsilon: 1.0
+  epsilon_cap: 4.0
+  rows_per_person: 3
+notes: Several cities publish feedback like this. The text is where most of the value and most of the risk is. Generated
+  from metadata/scenarios.json and the organisers' utility tasks by `python -m evaluation scenarios`; review the
+  data request before use.

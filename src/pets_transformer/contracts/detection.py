@@ -38,6 +38,9 @@ class ColumnDetection(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     special_category: bool = False  # GDPR Art. 9: health, union membership, religion ...
     evidence: list[Evidence] = Field(default_factory=list)
+    basis: list[str] = Field(default_factory=list)  # IDs of the laws and standards behind the label (docs/SOURCES.md)
+    needed_by: list[str] = Field(default_factory=list)  # scenarios whose data request includes this column
+    source_column: str | None = None  # the input header, when the column had no name and a person named it
 
 
 class DetectionReport(Contract):

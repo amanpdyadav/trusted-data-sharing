@@ -79,6 +79,12 @@ class StatisticsPlanner:
 
     def _unit(self, table: str) -> tuple[str, str]:
         cols = self._columns(table)
+        if not cols:
+            raise ValueError(
+                f"receiver {self.scenario.id} publishes statistics from table '{table}' "
+                f"({self.scenario.dataset} data), which this dataset ({self.detections.dataset}) does not have. "
+                "Pick a receiver made for this data, or describe your own."
+            )
         person = next((c for c in cols if c.subtype in PERSON_KEYS), None)
         if person is not None:
             return person.column, f"one person = one {person.column}"

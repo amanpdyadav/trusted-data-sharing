@@ -20,6 +20,18 @@ def test_same_value_same_code_so_joins_survive(ctx: TransformContext) -> None:
     out = T.apply(VALUES, {}, ctx)
     assert out[0] == out[1] != out[2]
     assert len(out[0]) == 16
+    assert out[0][0].isalpha()  # letter prefix: residual scanners must not treat codes as phones/cards
+
+
+def test_custom_prefix(ctx: TransformContext) -> None:
+    out = T.apply(VALUES, {"prefix": "pt", "length": 16}, ctx)
+    assert out[0].startswith("pt")
+    assert len(out[0]) == 16
+
+
+def test_prefix_must_start_with_a_letter(ctx: TransformContext) -> None:
+    with pytest.raises(ValueError, match="prefix"):
+        T.apply(VALUES, {"prefix": "9"}, ctx)
 
 
 def test_missing_stays_missing(ctx: TransformContext) -> None:

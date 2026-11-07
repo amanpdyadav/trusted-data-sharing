@@ -1,8 +1,7 @@
-// Small form controls: Input, Label, Checkbox, Switch, Slider (Radix underneath).
+// Small form controls: Input, Select, Label, Checkbox, Slider (Radix underneath).
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
 import * as LabelPrimitive from "@radix-ui/react-label";
 import * as SliderPrimitive from "@radix-ui/react-slider";
-import * as SwitchPrimitive from "@radix-ui/react-switch";
 import { Check } from "lucide-react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
@@ -11,6 +10,11 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
   <input ref={ref} className={cn("flex h-9 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", className)} {...p} />
 ));
 Input.displayName = "Input";
+
+/** A native drop-down styled like Input. */
+export const Select = ({ className, ...p }: React.SelectHTMLAttributes<HTMLSelectElement>) => (
+  <select className={cn("h-9 rounded-lg border border-input bg-card px-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", className)} {...p} />
+);
 
 export const Label = ({ className, ...p }: React.ComponentPropsWithoutRef<typeof LabelPrimitive.Root>) => (
   <LabelPrimitive.Root className={cn("text-sm font-medium", className)} {...p} />
@@ -23,15 +27,6 @@ export const Checkbox = ({ className, ...p }: React.ComponentPropsWithoutRef<typ
   >
     <CheckboxPrimitive.Indicator className="flex items-center justify-center"><Check className="size-3.5" strokeWidth={3} /></CheckboxPrimitive.Indicator>
   </CheckboxPrimitive.Root>
-);
-
-export const Switch = ({ className, ...p }: React.ComponentPropsWithoutRef<typeof SwitchPrimitive.Root>) => (
-  <SwitchPrimitive.Root
-    className={cn("inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent bg-input transition-colors data-[state=checked]:bg-safe", className)}
-    {...p}
-  >
-    <SwitchPrimitive.Thumb className="block size-4 rounded-full bg-white shadow transition-transform data-[state=checked]:translate-x-4" />
-  </SwitchPrimitive.Root>
 );
 
 export const Slider = ({ className, ...p }: React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root>) => (

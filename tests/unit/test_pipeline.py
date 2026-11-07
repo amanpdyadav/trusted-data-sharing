@@ -86,7 +86,7 @@ def _plan(**kw: object) -> Plan:
         "record_keys": {"visits": "visit_id"},
         "actions": actions,
         "approved": True,
-        "approved_by": "Aman Yadav",
+        "approved_by": "Data steward",
     }
     return Plan.model_validate(base | kw)
 
@@ -216,7 +216,7 @@ def _dashboard() -> Plan:
     return Plan(
         dataset="toy", scenario_id="TOY-S2", created_at=NOW, epsilon=1.0, aggregates=[weekly],
         differential_privacy=DifferentialPrivacy(unit="hetu", max_rows_per_unit=2),
-        approved=True, approved_by="Aman Yadav",
+        approved=True, approved_by="Data steward",
     )  # fmt: skip
 
 

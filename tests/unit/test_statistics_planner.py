@@ -100,6 +100,15 @@ def test_unknown_column_is_an_error() -> None:
         RulePolicy(CODES).plan(_detections(), _scenario(statistics=[bad]))
 
 
+def test_a_receiver_for_other_data_says_so() -> None:
+    """A public-dashboard receiver for hospital data, picked for a dataset without that table."""
+    other = Statistic(name="x", table="ed_visits", by=[Need(column="arrived")])
+    with pytest.raises(
+        ValueError, match=r"publishes statistics from table 'ed_visits'.*Pick a receiver made for this data"
+    ):
+        RulePolicy(CODES).plan(_detections(), _scenario(statistics=[other]))
+
+
 def test_code_lists_load_by_file_name(tmp_path: Path) -> None:
     (tmp_path / "diagnosis_group.yaml").write_text("default: other\ngroups: {J10: ILI}\n", encoding="utf-8")
     assert load_codelists(tmp_path) == {"diagnosis_group": {"default": "other", "groups": {"J10": "ILI"}}}

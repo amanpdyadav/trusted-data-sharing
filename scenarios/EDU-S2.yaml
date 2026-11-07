@@ -1,0 +1,29 @@
+# EDU-S2: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: EDU-S2
+dataset: education
+title: Ed-tech vendor training a drop-out early-warning model
+recipient: External ed-tech company under a data processing agreement
+purpose: Train a model that predicts drop-out risk from grades and absences.
+trust_level: contractual
+threat_model: Vendor staff with classmate-level knowledge (private adversary) and public lists.
+legal_context: Pseudonymised data is still personal data; minimise fields; special categories (religion, health)
+  need a separate legal basis.
+utility_requirements:
+- EDU-U2
+- EDU-U4
+needs:
+- table: course_grades
+  column: student_id
+- table: absences
+  column: student_id
+- table: absences
+  column: unexcused_hours
+- table: course_grades
+  column: grade
+targets:
+  notes: No direct identifiers or free text; religion/S2/support removed or justified; k>=5 on (school, programme,
+    start year, sex, birth year).
+  k: 5
+notes: Keyed pseudonyms must keep the student_id join across tables. Generated from metadata/scenarios.json and
+  the organisers' utility tasks by `python -m evaluation scenarios`; review the data request before use.

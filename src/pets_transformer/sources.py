@@ -25,8 +25,9 @@ class TableSource(Protocol):
 class CsvFolderSource:
     """Every *.csv in one folder is a table; values are read as text."""
 
-    def __init__(self, folder: str | Path) -> None:
+    def __init__(self, folder: str | Path, headerless: frozenset[str] = frozenset()) -> None:
         self._folder = Path(folder)
+        self._headerless = headerless  # tables whose files have no header row
         if not self._folder.is_dir():
             raise FileNotFoundError(f"no such folder: {self._folder}")
         self.name = self._folder.name
@@ -38,7 +39,7 @@ class CsvFolderSource:
         paths = list_tables(self._folder)
         if table not in paths:
             raise KeyError(f"table {table!r} not in {self._folder}")
-        return read_table(paths[table])
+        return read_table(paths[table], header=table not in self._headerless)
 
 
 SOURCES: Registry[str, Callable[[str], TableSource]] = Registry("table source")

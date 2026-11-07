@@ -1,6 +1,7 @@
 """Sessions of the local web app: one folder per piece of work, under the output directory, never uploaded anywhere.
 
 <out>/web/<session>/session.json, detection.json, plan.json, scenario.json   the work so far (reloaded on start)
+<out>/web/<session>/columns.json   names a person gave to unnamed columns, and tables read without a header row
 <out>/web/<session>/scan.json   the last risk scan (slow on large data), dropped when a detection changes
 <out>/web/<session>/plan_versions/v001.json ...   every version of the plan, to compare and to go back to
 <out>/web/<session>/data/      the tables the user uploaded or picked (CSV)
@@ -25,7 +26,9 @@ from typing import Any, TypeVar
 import pandas as pd
 from pydantic import BaseModel
 
-from pets_transformer.contracts import DetectionReport, Plan
+from pets_transformer.columns import NamedSource
+from pets_transformer.contracts import ColumnName, DetectionReport, Plan
+from pets_transformer.io import list_tables, positional_names, read_header
 from pets_transformer.pipeline import OutputLayout, RunOutcome
 from pets_transformer.plan.scenario import Scenario
 from pets_transformer.sources import CsvFolderSource
@@ -54,6 +57,8 @@ class Session:
     frames: dict[str, pd.DataFrame] = field(default_factory=dict)
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds"))
     plan_version: int = 0  # the version the current plan is (0: no plan yet)
+    column_names: list[ColumnName] = field(default_factory=list)  # names given to columns that had none
+    headerless: set[str] = field(default_factory=set)  # tables whose files have no header row
 
     @property
     def data(self) -> Path:
@@ -63,8 +68,34 @@ class Session:
     def layout(self) -> OutputLayout:
         return OutputLayout(self.root)
 
-    def source(self) -> CsvFolderSource:
-        return CsvFolderSource(self.data)
+    def raw_source(self) -> CsvFolderSource:
+        """The tables as uploaded (a file without a header row reads as col_01, col_02 ...), before any naming."""
+        return CsvFolderSource(self.data, frozenset(self.headerless))
+
+    def source(self) -> NamedSource:
+        """The tables every step works on: unnamed columns carry the names a person confirmed."""
+        return NamedSource(self.raw_source(), self.column_names)
+
+    def raw_columns(self, table: str) -> list[str]:
+        """A table's input column names, read from the header row only (cheap, also for big files)."""
+        path = list_tables(self.data)[table]
+        if table in self.headerless:
+            return positional_names(pd.read_csv(path, dtype=str, header=None, nrows=1).shape[1])
+        return read_header(path)
+
+    def set_columns(self, table: str, names: list[ColumnName] | None = None, headerless: bool | None = None) -> None:
+        """Replace one table's column names (and its header-row setting). The scan and plan start over."""
+        if headerless is not None:
+            self.headerless = (self.headerless | {table}) if headerless else (self.headerless - {table})
+            names = names or []
+        if names is not None:
+            self.column_names = [c for c in self.column_names if c.table != table] + names
+        self.start_over()
+
+    def forget_table(self, table: str) -> None:
+        """A table was removed or replaced: names given to its old columns no longer apply."""
+        self.column_names = [c for c in self.column_names if c.table != table]
+        self.headerless.discard(table)
 
     def tables(self) -> dict[str, pd.DataFrame]:
         """All input tables, read once per session (as text, like every other reader in the tool)."""
@@ -83,6 +114,8 @@ class Session:
                 path.unlink(missing_ok=True)
             else:
                 path.write_text(model.model_dump_json(), encoding="utf-8")
+        columns = {"headerless": sorted(self.headerless), "names": [c.model_dump() for c in self.column_names]}
+        (self.root / "columns.json").write_text(json.dumps(columns), encoding="utf-8")
 
     @classmethod
     def load(cls, root: Path) -> "Session":
@@ -92,10 +125,13 @@ class Session:
             path = root / f"{name}.json"
             return model.model_validate_json(path.read_text(encoding="utf-8")) if path.exists() else None
 
+        columns = json.loads((root / "columns.json").read_text()) if (root / "columns.json").exists() else {}
         return cls(
             meta["id"], meta["name"], root, detections=read("detection", DetectionReport),
             scenario=read("scenario", Scenario), plan=read("plan", Plan), created_at=meta["created_at"],
             plan_version=meta.get("plan_version", 0),
+            column_names=[ColumnName.model_validate(c) for c in columns.get("names", [])],
+            headerless=set(columns.get("headerless", [])),
         )  # fmt: skip
 
     # -------------------------------------------------------- plan versions
@@ -251,6 +287,7 @@ class Workspace:
         tables = _read_uploads(files)
         for table, content in tables.items():
             (session.data / f"{table}.csv").write_bytes(content)
+            session.forget_table(table)
         session.start_over()
         return sorted(tables)
 
@@ -262,6 +299,7 @@ class Workspace:
         if len(list(session.data.glob("*.csv"))) == 1:
             raise WorkspaceError("a dataset needs at least one table; start a new dataset instead")
         path.unlink()
+        session.forget_table(table)
         session.start_over()
 
     def duplicate(self, session: Session, name: str = "") -> Session:
@@ -270,6 +308,7 @@ class Workspace:
         for path in sorted(session.data.glob("*.csv")):
             shutil.copy2(path, copy.data / path.name)
         copy.detections = session.detections
+        copy.column_names, copy.headerless = list(session.column_names), set(session.headerless)
         copy.save()
         return copy
 

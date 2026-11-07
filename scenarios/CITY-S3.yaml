@@ -1,0 +1,26 @@
+# CITY-S3: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: CITY-S3
+dataset: smart_city
+title: Request from police / parking enforcement
+recipient: Police or parking enforcement unit
+purpose: A request for all plates and payment details at P-Riverside over two weeks, 'for an investigation'.
+trust_level: internal
+threat_model: 'Function creep: data collected for parking fees reused for surveillance.'
+legal_context: Purpose limitation (GDPR Art. 5(1)(b)); disclosures to authorities need a specific legal basis and
+  are assessed case by case (Law Enforcement Directive). Not legal advice.
+utility_requirements:
+- CITY-U3
+needs:
+- table: anpr_parking
+  column: car_park
+- table: anpr_parking
+  column: entry_ts
+- table: anpr_parking
+  column: exit_ts
+targets:
+  notes: Show what a minimal, case-specific disclosure would contain versus the bulk request; log the disclosure.
+  k: 5
+notes: A good demo explains why the PET answer here is mostly 'share less', not 'transform more'. Generated from
+  metadata/scenarios.json and the organisers' utility tasks by `python -m evaluation scenarios`; review the data
+  request before use.

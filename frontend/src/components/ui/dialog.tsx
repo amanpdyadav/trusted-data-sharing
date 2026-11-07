@@ -4,8 +4,6 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export const Dialog = DialogPrimitive.Root;
-export const DialogTrigger = DialogPrimitive.Trigger;
-export const DialogClose = DialogPrimitive.Close;
 
 export const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
@@ -42,7 +40,6 @@ export const DialogFooter = ({ className, ...p }: React.HTMLAttributes<HTMLDivEl
   <div className={cn("flex flex-wrap justify-end gap-2 border-t bg-muted px-5 py-3", className)} {...p} />
 );
 export const DialogTitle = React.forwardRef<React.ElementRef<typeof DialogPrimitive.Title>, React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>>(
-  ({ className, ...p }, ref) => <DialogPrimitive.Title ref={ref} className={cn("font-display text-lg font-extrabold", className)} {...p} />,
+  ({ className, ...p }, ref) => <DialogPrimitive.Title ref={ref} className={cn("font-display text-lg font-bold", className)} {...p} />,
 );
 DialogTitle.displayName = "DialogTitle";
-export const DialogDescription = DialogPrimitive.Description;

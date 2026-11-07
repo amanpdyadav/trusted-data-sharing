@@ -3,13 +3,17 @@
 import { toast } from "sonner";
 import { create } from "zustand";
 import {
-  api, download, upload, type Attack, type Catalogue, type Compare, type Example, type PlanCompare, type PlanVersions, type PlanView, type ReleaseSummary,
+  api, download, upload, type Attack, type NameSource, type NameSuggestions, type Catalogue, type Compare, type Example, type PlanCompare, type PlanVersions, type PlanView, type ReleaseSummary,
   type Results, type Scan, type SessionListItem, type SessionOverview, type Tradeoff,
 } from "./api";
-import { fmt, mb, plural } from "./format";
+import { fmt, mb, plural, words } from "./format";
 
-export type Step = "data" | "scan" | "plan" | "approve" | "release";
+export type Step = "data" | "scan" | "plan" | "approve" | "release" | Screen;
 export const STEPS: [Step, string][] = [["data", "Data"], ["scan", "Risk scan"], ["plan", "Receiver & plan"], ["approve", "Review & approve"], ["release", "Release & proof"]];
+/** Presentation screens: always open, filled from `python -m evaluation screens`. */
+export type Screen = "mosaic" | "audit";
+export const SCREENS: [Screen, string][] = [["mosaic", "Mosaic attack"], ["audit", "Release audit"]];
+export const isScreen = (step: Step): step is Screen => step === "mosaic" || step === "audit";
 export type Progress = { title: string; detail: string; pct: number | null; started: number; checks?: string[] };
 export type Theme = "light" | "dark" | "system";
 
@@ -17,7 +21,7 @@ interface State {
   step: Step; cat: Catalogue | null; sessions: SessionListItem[]; session: SessionOverview | null;
   scan: Scan | null; plan: PlanView | null; results: Results | null; history: ReleaseSummary[]; viewing: string | null;
   tradeoff: Tradeoff | null; example: Example | null; compare: Compare | null; versions: PlanVersions | null;
-  busy: string; progress: Progress | null; play: "" | "scan" | "release"; mask: boolean; theme: Theme; receiverChoice: string | null;
+  busy: string; progress: Progress | null; play: "" | "scan" | "release"; theme: Theme; receiverChoice: string | null;
   publishAsk: boolean;  // a statistics download waits for a yes
 }
 
@@ -27,7 +31,7 @@ const remember = (id: string) => { try { localStorage.setItem("pets.session", id
 const set = (p: Partial<State>) => useApp.setState(p);
 
 export const useApp = create<State>(() => ({
-  step: "data", cat: null, sessions: [], ...empty, busy: "", progress: null, play: "", mask: true, publishAsk: false,
+  step: "data", cat: null, sessions: [], ...empty, busy: "", progress: null, play: "", publishAsk: false,
   theme: (() => { try { return (localStorage.getItem("pets.theme") as Theme) || "light"; } catch { return "light"; } })(),
 }));
 
@@ -50,12 +54,13 @@ export function play(which: "scan" | "release") {
 }
 
 export const can = (step: Step) => {
+  if (isScreen(step)) return true;
   const s = useApp.getState();
   return { data: true, scan: !!s.session, plan: !!s.scan, approve: !!s.plan, release: !!s.plan?.plan.approved || !!s.results }[step];
 };
 export function go(step: Step) { if (can(step)) { set({ step }); window.scrollTo(0, 0); } }
 
-// ---------------------------------------------------------------- start, theme, mask
+// ---------------------------------------------------------------- start, theme
 export async function init() {
   applyTheme(useApp.getState().theme);
   try { set({ cat: await api<Catalogue>("/api/catalogue"), sessions: await api<SessionListItem[]>("/api/sessions") }); }
@@ -69,7 +74,6 @@ export function applyTheme(theme: Theme) {
   try { localStorage.setItem("pets.theme", theme); } catch { /* storage off */ }
   set({ theme });
 }
-export const setMask = (mask: boolean) => set({ mask });
 
 // ---------------------------------------------------------------- datasets
 const refreshSessions = async () => set({ sessions: await api<SessionListItem[]>("/api/sessions") });
@@ -83,7 +87,7 @@ function opened(s: SessionOverview) {
 export function newDataset() { set({ ...empty, step: "data" }); remember(""); refreshSessions(); window.scrollTo(0, 0); }
 
 export const openSample = (name: string) =>
-  withProgress(`Opening the ${name.replace(/_/g, " ")} example`, "Copying the tables into your workspace and reading them…",
+  withProgress(`Opening the ${words(name)} example`, "Copying the tables into your workspace and reading them…",
     async () => opened(await api<SessionOverview>("/api/sessions/sample", { body: { name } })));
 
 function formOf(files: FileList | File[], name?: string) {
@@ -121,7 +125,22 @@ export function addTables(files: FileList) {
 export const removeTable = (table: string) => busy("confirm", async () =>
   dataChanged(await api<SessionOverview>(`/api/sessions/${sid()}/tables/${encodeURIComponent(table)}`, { method: "DELETE" }), `Removed ${table}.`));
 
-export const SCAN_CHECKS = [
+// ---------------------------------------------------------------- columns without a name
+/** Suggestions only: nothing changes until the names are confirmed with `saveNames`. */
+export const suggestNames = (table: string, columns?: string[], avoid?: Record<string, string[]>) =>
+  busy(columns ? `suggest:${columns.join(",")}` : "suggest", () =>
+    api<NameSuggestions>(`/api/sessions/${sid()}/columns/suggest`, { body: { table, columns: columns ?? null, avoid: avoid ?? {} } }));
+export const saveNames = (table: string, names: { original: string; name: string; suggested_by: NameSource; meaning: string }[]) =>
+  busy("names", async () => {
+    await dataChanged(await api<SessionOverview>(`/api/sessions/${sid()}/columns/names`, { body: { table, names } }),
+      `Named ${plural(names.length, "column")} in ${table}.`);
+    return true;
+  });
+export const setHeaderless = (table: string, headerless: boolean) =>
+  busy("headerless", async () => dataChanged(await api<SessionOverview>(`/api/sessions/${sid()}/columns/headerless`, { body: { table, headerless } }),
+    headerless ? `${table}: the first row is now read as data.` : `${table}: the first row is now read as column names.`));
+
+const SCAN_CHECKS = [
   "what each column holds: names, ID codes (with checksums), phones, addresses, dates, codes",
   "which facts an outsider could already know, and how many people they single out",
   "which keys join the tables, so one match unlocks the rest",
@@ -206,7 +225,7 @@ export const setK = (k: number) => busy("tradeoff", async () => {
 export const loadVersions = () => api<PlanVersions>(`/api/sessions/${sid()}/plan/versions`).then(versions => set({ versions })).catch(() => {});
 export const planYaml = (version?: number) => api<{ yaml: string }>(`/api/sessions/${sid()}/plan/yaml${version ? `?version=${version}` : ""}`).then(r => r.yaml);
 export const comparePlans = (a: number, b: number) => api<PlanCompare>(`/api/sessions/${sid()}/plan/compare?a=${a}&b=${b}`);
-export const useVersion = (version: number) => busy("plan", async () => {
+export const restoreVersion = (version: number) => busy("plan", async () => {
   set({ plan: await api<PlanView>(`/api/sessions/${sid()}/plan/versions/${version}/restore`, { method: "POST" }) }); planLoaded();
   const p = useApp.getState().plan!.plan;
   toast.success(`Version ${version} is the plan again.`, { description: p.approved ? `It was approved by ${p.approved_by}: you can create a release from it.` : "Approve it before releasing." });
@@ -231,7 +250,7 @@ export const viewRelease = (id: string) => busy("view", async () => {
   window.scrollTo(0, 0);
 });
 export const fetchRelease = (id: string) => api<Results>(`/api/sessions/${sid()}/releases/${encodeURIComponent(id)}`);
-export const releaseHref = (id: string) => `/api/sessions/${sid()}/releases/${encodeURIComponent(id)}/release.zip`;
+const releaseHref = (id: string) => `/api/sessions/${sid()}/releases/${encodeURIComponent(id)}/release.zip`;
 export const downloadRelease = (id: string) => busy("download", async () => {
   await download(releaseHref(id));
   const r = useApp.getState().results; if (r) set({ results: { ...r, published: true } });

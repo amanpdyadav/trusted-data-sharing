@@ -7,6 +7,8 @@
     python -m evaluation detect-all        # column detection on every dataset, held-out reported apart
     python -m evaluation text              # free-text redaction vs gold spans, quickstart regex as 'before'
     python -m evaluation redact-eval       # pets_submission/customer_service_eval_redacted.csv for the organisers
+    python -m evaluation receivers         # plan, release and score every receiver: results/receivers.csv
+    python -m evaluation baselines         # the organisers' B0/B2/B2-k per receiver: results/baselines.csv
 
 Each run writes results/runs/<run_id>/ (scorecard + metrics.json, not committed) and appends results/history.csv.
 `--gate` makes the command fail when a pass mark in evaluation/targets.yaml is missed (for CI or make).
@@ -21,11 +23,12 @@ from pathlib import Path
 from evaluation import dashboard, detection, text
 from evaluation.experiments import EXPERIMENTS, run_experiment
 from evaluation.runner import RESULTS, Scored, score_run
-from evaluation.scorecard import Run
+from evaluation.scorecard import Run, record_ids
 from evaluation.targets import Gate, detection_gates, load_targets, text_gates
 from pets_transformer.config import Settings
 from pets_transformer.contracts import DetectionReport, Plan
 from pets_transformer.envfile import load_env_file
+from pets_transformer.io import read_table
 from pets_transformer.keys import DerivedKeyProvider, KeyScope
 
 
@@ -42,6 +45,8 @@ def _print_scored(s: Scored) -> None:
     print(f"  privacy {m.privacy} · utility {m.utility} · combined {m.composite}")
     for before, after in s.replays:
         print(f"  demo attack {after.case_id}: {before.candidates_left} before -> {after.candidates_left} after")
+    if s.sweep is not None:
+        print(f"  post and news sweep: {s.sweep.summary()}")
     _print_gates(s.gates)
     print(f"  details: {s.run.out_dir}/scorecard.html · history: {RESULTS / 'history.csv'}")
 
@@ -68,6 +73,93 @@ def cmd_validate(args: argparse.Namespace) -> int:
     scored = score_run(run)
     _print_scored(scored)
     return 0 if scored.passed or not args.gate else 1
+
+
+def cmd_sweep(args: argparse.Namespace) -> int:
+    """Replay every public post and news clip on a release and list the scraps that still expose someone."""
+    from evaluation.scrap_sweep import sweep  # noqa: PLC0415  (slow import of the package data, only when asked)
+
+    release = Path(args.release)
+    rel = read_table(release / "ed_visits.csv")
+    ids = record_ids(Path(args.rowmaps or release), "ed_visits", len(rel))
+    result = sweep(Settings.from_env().package_root, rel, ids, k=args.k)
+    print(f"post and news sweep on {release}: {result.summary()}")
+    for r in result.worst[: args.show]:
+        print(f"  {r.case_id}: " + " -> ".join(f"{s.label} {s.candidates}" for s in r.funnel if s.applied))
+    return 0 if result.exposed == 0 or not args.gate else 1
+
+
+def cmd_screens(args: argparse.Namespace) -> int:
+    """Score a release and write the data for the web app's Mosaic attack and Release audit screens."""
+    from evaluation import screens  # noqa: PLC0415
+
+    settings = Settings.from_env()
+    root = settings.package_root
+    if args.release:
+        release, rowmaps = Path(args.release), Path(args.rowmaps or args.release)
+    else:
+        found = screens.latest_app_release(settings.out_dir / "web", args.scenario)
+        if found is None:
+            print(
+                f"no {args.scenario} release in the web app yet: release one there, or pass --release", file=sys.stderr
+            )
+            return 1
+        release, rowmaps = found
+        print(f"using the newest {args.scenario} release made in the app: {release}")
+    run_id = args.run_id or "screens-" + datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    run = Run(run_id=run_id, dataset="health", scenario_id=args.scenario, package_root=root, release=release,
+              rowmap_dir=rowmaps, out_dir=RESULTS / "runs" / run_id)  # fmt: skip
+    scored = score_run(run)
+    _print_scored(scored)
+    for name, data in (("audit", screens.audit(scored, Path(args.plan) if args.plan else None)),
+                       ("mosaic", screens.mosaic(root, release, rowmaps))):  # fmt: skip
+        print(f"  screen data: {screens.write(name, data)}")
+    return 0
+
+
+def cmd_scenarios(args: argparse.Namespace) -> int:
+    """Write scenario files for the package's sharing scenarios (keeps hand-written HEALTH-S1/S2)."""
+    from evaluation.scenarios_from_pack import write_all  # noqa: PLC0415
+
+    written = write_all(Settings.from_env().package_root, Path(args.out), force=args.force)
+    print(f"wrote {len(written)} scenario files to {args.out}" + ("" if written else " (all exist; --force rewrites)"))
+    return 0
+
+
+def cmd_receivers(args: argparse.Namespace) -> int:
+    """Benchmark the automatic planner on every receiver (or --only some) and update results/receivers.csv."""
+    from evaluation import receivers  # noqa: PLC0415
+    from pets_transformer.plan.scenario import load_scenarios  # noqa: PLC0415
+
+    settings = Settings.from_env()
+    found = load_scenarios(settings.scenario_dirs)
+    ids = args.only or sorted(found)
+    unknown = [i for i in ids if i not in found]
+    if unknown:
+        print(f"unknown receivers: {unknown}", file=sys.stderr)
+        return 1
+    keys = DerivedKeyProvider.from_env()
+    done = []
+    for i in ids:
+        r = receivers.benchmark(found[i], settings.package_root, lambda p: KeyScope(keys, f"benchmark/{p.scenario_id}"))
+        scores = (
+            f"privacy {r.privacy:.2f} · usefulness {r.utility:.2f} · combined {r.composite:.2f}"
+            if r.composite is not None
+            else ""
+        )
+        print(f"  {r.id:10} {r.status:13} {scores or r.why}", flush=True)
+        done.append(r)
+    print(f"wrote {receivers.write(done)}")
+    return 0
+
+
+def cmd_baselines(_: argparse.Namespace) -> int:
+    """Write the organisers' reference baselines per receiver (from the pack's results/benchmark.json)."""
+    from evaluation import baselines  # noqa: PLC0415
+
+    found = baselines.rows(Settings.from_env().package_root)
+    print(f"wrote {baselines.write(found)}: {len(found)} receivers with B0, B2 and B2-k")
+    return 0
 
 
 def cmd_baseline(args: argparse.Namespace) -> int:
@@ -172,6 +264,34 @@ def build_parser() -> argparse.ArgumentParser:
 
     b = sub.add_parser("baseline", help="score the package quickstart output as our 'before'")
     b.set_defaults(func=cmd_baseline)
+
+    sc = sub.add_parser("screens", help="score a release and write the web app's mosaic and audit screen data")
+    sc.add_argument("--release", help="release folder (default: the newest release of --scenario made in the web app)")
+    sc.add_argument("--rowmaps")
+    sc.add_argument("--plan", help="the plan YAML used for the release (shown as decisions)")
+    sc.add_argument("--scenario", default="HEALTH-S1")
+    sc.add_argument("--run-id")
+    sc.set_defaults(func=cmd_screens)
+
+    scn = sub.add_parser("scenarios", help="write scenario files for the package's 27 sharing scenarios")
+    scn.add_argument("--out", default="scenarios")
+    scn.add_argument("--force", action="store_true", help="rewrite generated files that already exist")
+    scn.set_defaults(func=cmd_scenarios)
+
+    rc = sub.add_parser("receivers", help="plan, release and score every receiver (results/receivers.csv)")
+    rc.add_argument("--only", nargs="+", help="receiver IDs to measure (default: all)")
+    rc.set_defaults(func=cmd_receivers)
+
+    bl = sub.add_parser("baselines", help="the organisers' B0/B2/B2-k per receiver (results/baselines.csv)")
+    bl.set_defaults(func=cmd_baselines)
+
+    sw = sub.add_parser("sweep", help="replay every public post and news clip on a release (health)")
+    sw.add_argument("--release", required=True)
+    sw.add_argument("--rowmaps", help="folder with rowmap_ed_visits.csv (default: the release folder)")
+    sw.add_argument("--k", type=int, default=5)
+    sw.add_argument("--show", type=int, default=5, help="list this many exposing scraps")
+    sw.add_argument("--gate", action="store_true", help="exit 1 if any scrap exposes someone")
+    sw.set_defaults(func=cmd_sweep)
 
     d = sub.add_parser("detect", help="score a detection.json")
     d.add_argument("--detection", required=True)

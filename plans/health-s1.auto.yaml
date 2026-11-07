@@ -218,4 +218,4 @@ actions:
   params: {}
   reason: Not in the data request (data minimisation).
 approved: true
-approved_by: 'Aman Yadav (reviewed: lab value is the measurement)'
+approved_by: 'Data steward (reviewed: lab value is the measurement)'

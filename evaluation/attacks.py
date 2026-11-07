@@ -8,7 +8,7 @@ a row stays a candidate if its value *could* match. A clue whose column was remo
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Any, Protocol
 
 import numpy as np
 import pandas as pd
@@ -208,3 +208,18 @@ def replay(case: AttackCase, frame: pd.DataFrame, record_ids: Sequence[str] | No
         ids = pd.Series(list(record_ids), index=frame.index).astype(str)
         target = bool((ids[mask] == case.target_record_id).any())
     return ReplayResult(case.id, steps, int(mask.sum()), target)
+
+
+def attack_defeated(r: ReplayResult, minimum: int = 5) -> bool:
+    """An attack is defeated if it ends with no candidates, misses the target, or leaves `minimum`+ candidates."""
+    return r.candidates_left == 0 or r.target_among_candidates is False or r.candidates_left >= minimum
+
+
+def replay_summary(r: ReplayResult, minimum: int = 5) -> dict[str, Any]:
+    """A replay as the web app's screens show it: the funnel, what is left, and whether the attack was defeated."""
+    return {
+        "funnel": [[s.label, s.candidates, s.applied] for s in r.funnel],
+        "candidates": r.candidates_left,
+        "target_in": r.target_among_candidates,
+        "holds": attack_defeated(r, minimum),
+    }

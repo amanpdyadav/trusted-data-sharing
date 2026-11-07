@@ -11,7 +11,7 @@
     --popover: 0 0% 100%; --popover-foreground: 207 44% 10%;
     --primary: 207 44% 10%; --primary-foreground: 0 0% 100%;
     --secondary: 210 20% 96%; --secondary-foreground: 207 44% 10%;
-    --muted: 210 20% 96%; --muted-foreground: 208 13% 38%;
+    --muted: 210 20% 96%; --muted-foreground: 208 14% 33%;
     --accent: 210 20% 93%; --accent-foreground: 207 44% 10%;
     --destructive: 21 88% 40%; --destructive-foreground: 0 0% 100%;
     --border: 210 18% 86%; --input: 210 18% 80%; --ring: 224 74% 49%;
@@ -28,7 +28,7 @@
     --popover: 207 33% 12%; --popover-foreground: 207 30% 92%;
     --primary: 207 30% 92%; --primary-foreground: 208 37% 7%;
     --secondary: 207 33% 14%; --secondary-foreground: 207 30% 92%;
-    --muted: 207 33% 14%; --muted-foreground: 208 15% 64%;
+    --muted: 207 33% 14%; --muted-foreground: 208 16% 70%;
     --accent: 207 30% 17%; --accent-foreground: 207 30% 92%;
     --destructive: 20 100% 66%; --destructive-foreground: 208 37% 7%;
     --border: 207 29% 19%; --input: 207 25% 26%; --ring: 222 100% 75%;
@@ -40,12 +40,13 @@
   }
   * { @apply border-border; }
   body { @apply bg-background text-foreground font-sans antialiased; font-size: 15px; }
-  h1, h2 { @apply font-display font-extrabold tracking-tight; font-stretch: 112%; text-wrap: balance; }
+  h1, h2 { @apply font-display font-bold tracking-tight; font-stretch: 104%; text-wrap: balance; }
+  h3 { @apply font-display font-bold tracking-tight; font-stretch: 102%; }
 }
 
 @layer components {
-  .eyebrow { @apply text-[11.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground; }
-  .big-number { @apply font-display font-extrabold tabular-nums; font-stretch: 112%; }
+  .eyebrow { @apply text-xs font-semibold uppercase tracking-[0.07em] text-muted-foreground; }
+  .big-number { @apply font-display font-bold tabular-nums; font-stretch: 104%; }
   /* the attack replay plays its stages one after another */
   .play .stage { @apply animate-reveal; }
   .play .stage:nth-child(2) { animation-delay: .7s; }

@@ -1,0 +1,43 @@
+# CITY-S1: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: CITY-S1
+dataset: smart_city
+title: 'Open data: city-centre footfall'
+recipient: Anyone (open data portal)
+purpose: Publish hourly footfall by zone for businesses, events and citizens.
+trust_level: public
+threat_model: Outsider with public plate_sightings and knowledge of when a neighbour walks home.
+legal_context: MAC addresses are personal data (online identifiers, GDPR Recital 30); only anonymous aggregates
+  can be open data.
+utility_requirements:
+- CITY-U1
+- CITY-U5
+statistics:
+- name: city_u1_footfall_by_zone_x_hour_x_weekday_weeken
+  table: footfall_15min
+  by:
+  - column: sensor_id
+  - column: interval_start
+    detail: time_of_day
+  measure:
+    kind: mean
+    column: device_count
+    lower: 0
+    upper: 56.0
+- name: city_u5_black_friday_uplift_vs_previous_friday
+  table: footfall_15min
+  by:
+  - column: interval_start
+    detail: week
+  measure:
+    kind: mean
+    column: device_count
+    lower: 0
+    upper: 56.0
+targets:
+  notes: Hourly zone-level counts only; suppress or noise counts < 5 (night-time); no MACs, no SSIDs.
+  epsilon: 1.0
+  epsilon_cap: 4.0
+  rows_per_person: 3
+notes: Counting distinct randomised MACs over-counts people; say so in the release notes. Generated from metadata/scenarios.json
+  and the organisers' utility tasks by `python -m evaluation scenarios`; review the data request before use.

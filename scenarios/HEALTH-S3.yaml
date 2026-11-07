@@ -1,0 +1,42 @@
+# HEALTH-S3: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: HEALTH-S3
+dataset: health
+title: AI vendor training a triage-support model
+recipient: External AI vendor under a data-processing agreement
+purpose: Train a model predicting admission from triage-time information
+trust_level: contractual
+threat_model: Vendor staff or a breach; membership inference on synthetic data; memorised rare patients.
+legal_context: Processor relationship; data minimisation; synthetic data must not reproduce real records (check
+  distance to closest record and membership inference).
+utility_requirements:
+- H-U3
+- H-U5
+- H-U2
+needs:
+- table: ed_visits
+  column: disposition
+- table: ed_visits
+  column: triage
+- table: ed_visits
+  column: sex
+- table: ed_visits
+  column: arrival_mode
+- table: ed_visits
+  column: icd10_primary
+- table: ed_visits
+  column: systolic_bp
+- table: ed_visits
+  column: heart_rate
+- table: ed_visits
+  column: temp_c
+- table: ed_visits
+  column: spo2
+- table: ed_visits
+  column: los_minutes
+targets:
+  notes: Fully synthetic or strongly generalised training table without free text; membership-inference AUC close
+    to 0.5 against holdout; no record closer to a real one than real records are to each other.
+  k: 5
+notes: Use holdout/health as non-members for membership-inference tests. Generated from metadata/scenarios.json
+  and the organisers' utility tasks by `python -m evaluation scenarios`; review the data request before use.

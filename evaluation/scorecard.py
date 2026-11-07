@@ -10,6 +10,7 @@ from pets_eval.scorecard import run_scorecard
 
 from evaluation.attacks import ReplayResult
 from pets_transformer.contracts import AttackResult, Metrics, MetricSource, RiskComponent, UtilityTaskScore
+from pets_transformer.io import read_table
 
 Report = dict[str, Any]
 
@@ -123,3 +124,13 @@ def to_metrics(
         ],
         notes="pets-eval scorecard (practice data) plus our demo-attack replay.",
     )
+
+
+def record_ids(rowmap_dir: Path | None, table: str, rows: int) -> list[str] | None:
+    """Original record id per release row, from the private row map; None when there is no usable map."""
+    maps = rowmaps_in(rowmap_dir)
+    if table not in maps:
+        return None
+    rm = read_table(maps[table]).astype({"protected_row": int}).sort_values("protected_row")
+    ids: list[str] = rm["original_record_id"].astype(str).tolist()
+    return ids if len(ids) == rows else None

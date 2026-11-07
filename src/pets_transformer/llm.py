@@ -127,6 +127,7 @@ class LocalLlm:
             "prompt": prompt,
             "format": schema,
             "stream": False,
+            "think": False,  # reasoning models answer straight away; the schema already shapes the answer
             "options": {"temperature": 0},
         }
         raw = self._transport.post_json(

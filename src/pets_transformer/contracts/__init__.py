@@ -13,6 +13,7 @@ from pets_transformer.contracts.metrics import (
 from pets_transformer.contracts.plan import (
     Aggregate,
     ColumnAction,
+    ColumnName,
     DifferentialPrivacy,
     Dimension,
     Measure,
@@ -35,6 +36,7 @@ __all__ = [
     "AttackResult",
     "ColumnAction",
     "ColumnDetection",
+    "ColumnName",
     "Contract",
     "DetectionReport",
     "DifferentialPrivacy",

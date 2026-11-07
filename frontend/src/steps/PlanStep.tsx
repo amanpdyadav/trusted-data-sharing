@@ -2,39 +2,53 @@
 // and shows the result (lanes, an example record, the protection level) before anything leaves.
 import { AlertTriangle, ArrowLeft, ArrowRight, FileCode2, LayoutGrid } from "lucide-react";
 import { useState } from "react";
-import { Guide, PageHead, Section, useRole, useShown } from "@/components/common";
+import { Guide, PageHead, Section, useRole } from "@/components/common";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Checkbox, Input, Label, Slider } from "@/components/ui/form";
+import { Slider } from "@/components/ui/form";
 import { Meter, Spinner, TableWrap, Td, Th } from "@/components/ui/misc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { Action, Column, Plan } from "@/lib/api";
-import { ROLE_LABEL, ROLE_TONE, clip, pct, plural } from "@/lib/format";
-import { LANES, RECEIVER_ICON, TIME_UNITS, laneOf } from "@/lib/lanes";
+import type { Action, Column, Receiver } from "@/lib/api";
+import { ROLE_LABEL, ROLE_TONE, clip, pct, plural, text, words } from "@/lib/format";
+import { LANES, RECEIVER_ICON, TIME_UNITS, laneOf, planTables, techniqueTone } from "@/lib/lanes";
 import { changeColumn, loadCompare, makePlan, setK, useApp } from "@/lib/store";
-import { PlanVersionsPanel, PlanYaml } from "@/steps/PlanVersions";
 import { cn } from "@/lib/utils";
+import { CustomReceiver } from "@/steps/CustomReceiver";
+import { PlanVersionsPanel, PlanYaml } from "@/steps/PlanVersions";
 
-export const planTables = (P: Plan) => [...new Set(P.actions.map(a => a.table))];
 const LANE_SHOWN = 6;
 
 export function PlanStep() {
   const cat = useApp(s => s.cat!), plan = useApp(s => s.plan), choice = useApp(s => s.receiverChoice), busy = useApp(s => s.busy === "plan");
+  const session = useApp(s => s.session);
   const [custom, setCustom] = useState(false);
+  // A receiver fits this data when every table it asks for is here (works for uploads too, not just by dataset name).
+  const have = new Set(session?.tables.map(t => t.name) ?? []);
+  const missing = (r: Receiver) => (r.tables ?? []).filter(t => !have.has(t));
+  const fitting = cat.receivers.filter(r => missing(r).length === 0), other = cat.receivers.filter(r => missing(r).length > 0);
+  const card = (r: Receiver, off = false) => (
+    <ReceiverCard key={r.id} icon={RECEIVER_ICON[r.trust_level] ?? "📦"} title={r.recipient} text={r.purpose} selected={choice === r.id} disabled={off}
+      note={off ? `Made for the ${words(r.dataset)} data · needs ${missing(r).join(", ")}` : `${r.id} · ${words(r.trust_level)}`}
+      gets={r.kind === "statistics" ? "Gets only counts, with a little noise" : "Gets individual records, protected"} stats={r.kind === "statistics"}
+      onClick={() => makePlan({ scenario_id: r.id }, r.id)} />
+  );
   return (
     <>
       <PageHead title="Who gets the data, and what will they see?" lede="Pick the receiver. The tool decides how each column is shared and shows you the result before anything leaves." />
       <Guide steps={["Pick who gets the data", "Check what they will receive", "Change anything that looks wrong, then continue"]} done={[!!plan, !!plan, false]} />
       <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,240px),1fr))] gap-3">
-        {cat.receivers.map(r => (
-          <ReceiverCard key={r.id} icon={RECEIVER_ICON[r.trust_level] ?? "📦"} title={r.recipient} text={r.purpose} selected={choice === r.id}
-            gets={r.kind === "statistics" ? "Gets only counts, with a little noise" : "Gets individual records, protected"} stats={r.kind === "statistics"}
-            onClick={() => makePlan({ scenario_id: r.id }, r.id)} />
-        ))}
-        <ReceiverCard icon="✏️" title="Someone else" text="Describe who they are and tick what they need." gets="You choose the columns" selected={choice === "custom"} onClick={() => setCustom(true)} />
+        {fitting.map(r => card(r))}
+        <ReceiverCard icon="✏️" title="Someone else" text={fitting.length ? "Describe who they are and tick what they need." : "No ready-made receiver fits this data: describe who gets it and tick what they need."}
+          gets="You choose the columns" selected={choice === "custom"} onClick={() => setCustom(true)} />
       </div>
+      {other.length > 0 && (
+        <details className="rounded-xl border bg-card p-3">
+          <summary className="cursor-pointer text-sm font-medium text-muted-foreground">Receivers made for other data ({other.length}): they ask for tables this dataset does not have</summary>
+          <div className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(min(100%,240px),1fr))] gap-3">{other.map(r => card(r, true))}</div>
+        </details>
+      )}
       {busy && !plan && <Spinner />}
       {plan && <PlanResult />}
       {custom && <CustomReceiver onClose={() => setCustom(false)} />}
@@ -42,34 +56,56 @@ export function PlanStep() {
   );
 }
 
-function ReceiverCard({ icon, title, text, gets, stats, selected, onClick }: { icon: string; title: string; text: string; gets: string; stats?: boolean; selected: boolean; onClick: () => void }) {
+function ReceiverCard({ icon, title, text, gets, stats, selected, onClick, disabled = false, note }: { icon: string; title: string; text: string; gets: string; stats?: boolean; selected: boolean; onClick: () => void; disabled?: boolean; note?: string }) {
   return (
-    <button onClick={onClick} aria-pressed={selected}
-      className={cn("flex flex-col gap-2 rounded-xl border bg-card p-4 text-left shadow-sm transition-colors hover:border-input", selected && "border-safe ring-1 ring-safe")}>
+    <button onClick={onClick} aria-pressed={selected} disabled={disabled} title={disabled ? note : undefined}
+      className={cn("flex flex-col gap-2 rounded-xl border bg-card p-4 text-left shadow-sm transition-colors hover:border-input disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border", selected && "border-safe ring-1 ring-safe")}>
       <span className="text-[26px] leading-none" aria-hidden>{icon}</span><b>{title}</b>
-      <span className="text-[13px] text-muted-foreground">{text}</span>
+      <span className="text-sm text-muted-foreground">{text}</span>
+      {note && <span className={cn("font-mono text-[11px]", disabled ? "text-warn" : "text-muted-foreground")}>{note}</span>}
       <span className={cn("mt-auto border-t border-dashed pt-2 text-[12.5px] font-semibold", stats ? "text-ok" : "text-safe")}>{gets}</span>
     </button>
   );
 }
 
 function PlanResult() {
-  const P = useApp(s => s.plan!.plan), compare = useApp(s => s.compare), busy = useApp(s => s.busy === "compare");
+  const view = useApp(s => s.plan!), P = view.plan, compare = useApp(s => s.compare), busy = useApp(s => s.busy === "compare");
+  const reviews = view.reviews.length;
   return (
     <>
-      {P.actions.length > 0 && <Board />}
-      {P.aggregates.length > 0 && <CountsBoard />}
       {P.actions.length > 0 && <ExampleRecord />}
       <ProtectionLevel />
-      <PlanVersionsPanel />
+      {reviews > 0 && (
+        <div className="flex items-center gap-2 rounded-xl border border-warn/45 bg-warn-soft px-4 py-3 text-sm">
+          <AlertTriangle className="size-4 text-warn" />
+          <span><b>{plural(reviews, "column")} need{reviews === 1 ? "s" : ""} a decision</b> — open “Adjust columns” below.</span>
+        </div>
+      )}
+      {P.aggregates.length > 0 && <CountsBoard />}
+      {P.actions.length > 0 && (
+        <details className="rounded-2xl border bg-card px-5 py-3" open={reviews > 0}>
+          <summary className="cursor-pointer font-medium text-muted-foreground">Adjust columns{reviews > 0 ? ` (${reviews} need a decision)` : ""}</summary>
+          <div className="mt-3"><Board /></div>
+        </details>
+      )}
+      <details className="rounded-2xl border bg-card px-5 py-3">
+        <summary className="cursor-pointer font-medium text-muted-foreground">Plan versions</summary>
+        <div className="mt-3"><PlanVersionsPanel /></div>
+      </details>
       <details className="rounded-2xl border bg-card px-5 py-3" onToggle={e => (e.target as HTMLDetailsElement).open && !compare && loadCompare()}>
         <summary className="cursor-pointer font-medium text-muted-foreground">Compare with other receivers</summary>
         <div className="mt-3 flex flex-col gap-3">
           {busy && <Spinner />}
+          {compare && compare.left_out.length > 0 && (
+            <details className="text-sm text-muted-foreground">
+              <summary className="cursor-pointer">{plural(compare.left_out.length, "receiver")} left out: made for other data or asking for what this data does not have</summary>
+              <ul className="mt-2 flex flex-col gap-1 pl-4">{compare.left_out.map(x => <li key={x.id} className="list-disc"><b className="font-medium text-foreground">{x.recipient}</b> ({x.id}): {x.reason}</li>)}</ul>
+            </details>
+          )}
           {compare && <TableWrap><table className="w-full border-collapse">
             <thead><tr><Th>Column</Th>{compare.receivers.map(r => <Th key={r.id}>{r.recipient}</Th>)}</tr></thead>
             <tbody>{compare.rows.filter(r => compare.receivers.some(x => r[x.id] !== "withheld")).map(r => (
-              <tr key={`${r.table}.${r.column}`}><Td className="font-mono">{r.table}.{r.column}</Td>{compare.receivers.map(x => <Td key={x.id}><Badge variant={r[x.id] === "drop" ? "risk" : r[x.id] === "keep" || r[x.id] === "withheld" ? "outline" : "safe"}>{r[x.id]}</Badge></Td>)}</tr>
+              <tr key={`${r.table}.${r.column}`}><Td className="font-mono">{r.table}.{r.column}</Td>{compare.receivers.map(x => <Td key={x.id}><Badge variant={techniqueTone(r[x.id])}>{r[x.id]}</Badge></Td>)}</tr>
             ))}</tbody></table></TableWrap>}
         </div>
       </details>
@@ -91,7 +127,7 @@ function Board() {
       <TabsContent value="board" className="flex flex-col gap-4">
       {view.reviews.length > 0 && <div className="flex items-center gap-2 rounded-xl border border-warn/45 bg-warn-soft px-4 py-3 text-sm"><AlertTriangle className="size-4 text-warn" />
         <span><b>{plural(view.reviews.length, "column")} need{view.reviews.length === 1 ? "s" : ""} a person's decision</b>: click {view.reviews.length === 1 ? "it" : "them"} below and choose.</span></div>}
-      <Accordion type="multiple" defaultValue={tables.filter((t, i) => i < 3 || flagged(t))} className="flex flex-col gap-2">
+      <Accordion type="multiple" defaultValue={tables.filter((t, i) => flagged(t) || i === 0)} className="flex flex-col gap-2">
         {tables.map(t => {
           const acts = P.actions.filter(a => a.table === t), shared = acts.filter(a => a.technique !== "drop").length;
           return (
@@ -112,7 +148,7 @@ function Board() {
                               l.technique === "drop" && "text-muted-foreground line-through decoration-risk/60", review && "border-warn bg-warn-soft font-semibold text-foreground no-underline")}>{review && "⚠ "}{a.column}</button>;
                         })}
                         {inLane.length > LANE_SHOWN && !all && <button onClick={() => setOpenLanes({ ...openLanes, [key]: true })} className="rounded-lg border border-dashed px-2 py-1 text-[12.5px] text-safe">+{inLane.length - LANE_SHOWN} more</button>}
-                        {!inLane.length && <span className="text-[13px] text-muted-foreground">none</span>}
+                        {!inLane.length && <span className="text-sm text-muted-foreground">none</span>}
                       </div>
                     );
                   })}
@@ -169,26 +205,26 @@ const current = (a: Action) => a.technique === "generalise"
 
 function ChangeDialog({ action, onClose }: { action: Action; onClose: () => void }) {
   const view = useApp(s => s.plan!), c = useApp(s => s.scan!.detections.columns.find(d => d.table === action.table && d.column === action.column));
-  const ex = useApp(s => s.example?.tables.find(x => x.table === action.table)?.rows[0]), busy = useApp(s => s.busy === "plan"), shown = useShown();
+  const ex = useApp(s => s.example?.tables.find(x => x.table === action.table)?.rows[0]), busy = useApp(s => s.busy === "plan");
   const a = view.plan.actions.find(x => x.table === action.table && x.column === action.column) ?? action, review = view.reviews.includes(`${a.table}.${a.column}`);
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent>
         <DialogHeader><DialogTitle className="font-mono">{a.table}.{a.column}</DialogTitle></DialogHeader>
         <DialogBody>
-          <p><b>What it is:</b> {ROLE_LABEL[c?.privacy_role ?? ""]}{ex && <> · for example <span className="font-mono">{clip(shown(a.table, a.column, ex.raw[a.column]), 50)}</span></>}</p>
+          <p><b>What it is:</b> {ROLE_LABEL[c?.privacy_role ?? ""]}{ex && <> · for example <span className="font-mono">{clip(text(ex.raw[a.column]), 50)}</span></>}</p>
           {review ? <>
             <div className="flex items-start gap-2 rounded-xl border border-warn/45 bg-warn-soft px-4 py-3 text-sm"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-warn" />The tool was not sure what this column holds, so a person should decide how it is shared.</div>
             <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">Details</summary>{a.reason.replace(/^REVIEW:?\s*/, "")}</details>
           </> : <p className="text-sm text-muted-foreground"><b>Why:</b> {a.reason}</p>}
           <div className="flex flex-col gap-2">
             {optionsFor(a, c).map(([key, params]) => {
-              const l = laneOf(key.split(":")[0]), detail = key.includes(":") ? key.split(":")[1].replace(/_/g, " ") : "", on = key === current(a);
+              const l = laneOf(key.split(":")[0]), detail = key.includes(":") ? words(key.split(":")[1]) : "", on = key === current(a);
               return (
                 <button key={key} onClick={() => changeColumn(a.table, a.column, key.split(":")[0], params)}
                   className={cn("flex items-center gap-3 rounded-xl border bg-card px-3.5 py-3 text-left hover:border-foreground", on && "border-safe bg-safe-soft ring-1 ring-safe")}>
                   <span className="w-7 text-center text-xl">{l.icon}</span>
-                  <span className="flex flex-1 flex-col"><b>{l.name}{detail && `: ${detail}`}</b><span className="text-[13px] text-muted-foreground">{l.help}</span></span>
+                  <span className="flex flex-1 flex-col"><b>{l.name}{detail && `: ${detail}`}</b><span className="text-sm text-muted-foreground">{l.help}</span></span>
                   {on && <Badge variant="ok">now</Badge>}
                 </button>
               );
@@ -211,8 +247,8 @@ function CountsBoard() {
       <TabsContent value="board" className="flex flex-col gap-4">
       <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] gap-3">
         {P.aggregates.map(a => (
-          <div key={a.name} className="flex flex-col gap-1.5 rounded-xl border bg-muted p-4"><span className="text-2xl">📊</span><b>{a.name.replace(/_/g, " ")}</b>
-            <span className="text-[13px] text-muted-foreground">Counted by {a.dimensions.map(d => (d.name ?? d.column).replace(/_/g, " ")).join(" and ")}, from <span className="font-mono">{a.table}</span></span></div>
+          <div key={a.name} className="flex flex-col gap-1.5 rounded-xl border bg-muted p-4"><span className="text-2xl" aria-hidden>📊</span><b>{words(a.name)}</b>
+            <span className="text-sm text-muted-foreground">Counted by {a.dimensions.map(d => words(d.name ?? d.column)).join(" and ")}, from <span className="font-mono">{a.table}</span></span></div>
         ))}
       </div>
       <p className="text-sm text-muted-foreground">A little random noise is added to every number, so nobody can tell whether one particular person is in the data.{P.differential_privacy && ` Each person is counted at most ${P.differential_privacy.max_rows_per_unit} times.`}</p>
@@ -228,7 +264,7 @@ function CountsBoard() {
 /** The attacked person's record (or the first rows), now and as the receiver will get it. */
 function ExampleRecord() {
   const E = useApp(s => s.example), P = useApp(s => s.plan!.plan), attackTable = useApp(s => s.scan?.attack?.before.table);
-  const [tableName, setTable] = useState<string>(), [row, setRow] = useState(0), shown = useShown(), role = useRole();
+  const [tableName, setTable] = useState<string>(), [row, setRow] = useState(0), role = useRole();
   if (!E) return <Section title="One record, now and as they will see it"><span className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner /> Preparing an example…</span></Section>;
   const T = E.tables.find(x => x.table === tableName) ?? E.tables[0];
   if (!T?.rows.length) return null;
@@ -252,12 +288,12 @@ function ExampleRecord() {
             return (
               <tr key={c} className="max-sm:grid max-sm:grid-cols-[1fr_auto] max-sm:gap-x-3 max-sm:border-b max-sm:px-3 max-sm:py-2.5">
                 <Td className="font-mono max-sm:border-0 max-sm:p-0 max-sm:font-semibold">{c}</Td>
-                <Td className={cn(ROLE_TONE[role(T.table, c)], "max-sm:col-span-2 max-sm:row-start-2 max-sm:border-0 max-sm:p-0")}>{clip(shown(T.table, c, r.raw[c]), 60)}</Td>
+                <Td className={cn(ROLE_TONE[role(T.table, c)], "max-sm:col-span-2 max-sm:row-start-2 max-sm:border-0 max-sm:p-0")}>{clip(text(r.raw[c]), 60)}</Td>
                 <Td className="text-muted-foreground max-sm:hidden">→</Td>
                 <Td className={cn("font-semibold max-sm:col-span-2 max-sm:row-start-3 max-sm:border-0 max-sm:p-0 max-sm:before:content-['→_']",
                   tech === "keep" && "font-medium text-muted-foreground", ["generalise", "pseudonymise", "redact_text"].includes(tech) && "text-safe", tech === "pseudonymise" && "font-mono text-xs")}>
                   {tech === "drop" ? <span className="font-mono text-xs text-risk">removed</span> : after}</Td>
-                <Td className="text-[13px] text-muted-foreground max-sm:col-start-2 max-sm:row-start-1 max-sm:border-0 max-sm:p-0 max-sm:text-right">{l.icon} {l.name}</Td>
+                <Td className="text-sm text-muted-foreground max-sm:col-start-2 max-sm:row-start-1 max-sm:border-0 max-sm:p-0 max-sm:text-right">{l.icon} {l.name}</Td>
               </tr>
             );
           })}</tbody>
@@ -275,7 +311,7 @@ function ProtectionLevel() {
   if (!P.actions.length && !P.aggregates.length) return null;
   if (!T) return <Section title="How strong is the protection?"><span className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner /> Working it out on your data…</span></Section>;
   if (T.k.length) {
-    const cur = Math.max(T.k.findIndex(p => p.current), 0), i = pick ?? cur, p = T.k[i];
+    const cur = Math.max(T.k.findIndex(p => p.current), 0), i = pick != null && pick < T.k.length ? pick : cur, p = T.k[i];
     return (
       <Section eyebrow="Protection level" title={<>Each person hides among at least <span className="text-safe">{p.k}</span> people</>}
         right={i !== cur ? <Button disabled={busy} onClick={async () => { await setK(p.k); setPick(null); }}>{busy && <Spinner className="text-current" />}Use this level</Button> : <Badge variant="ok">current plan</Badge>}>
@@ -312,71 +348,3 @@ const Gauge = ({ tone, label, value, meter }: { tone: "risk" | "safe"; label: st
 );
 
 /** A receiver that is not a preset: who, why, how far trusted, and which columns (or, for the public, which counts). */
-function CustomReceiver({ onClose }: { onClose: () => void }) {
-  const cat = useApp(s => s.cat!), columns = useApp(s => s.scan!.detections.columns), busy = useApp(s => s.busy === "plan");
-  const det = columns.filter(c => c.privacy_role !== "record_key");
-  const [C, setC] = useState({ recipient: "Partner organisation", purpose: "Analysis agreed in the data-sharing contract", trust_level: "contractual", k: 5, epsilon: 1, rows_per_person: 3 });
-  const [needs, setNeeds] = useState<Record<string, string>>({}), [stats, setStats] = useState<string[][]>([["", "", ""]]), [error, setError] = useState("");
-  const pub = C.trust_level === "public";
-  const detail = (c: Column, forStats: boolean) => ["TIMESTAMP", "DATE"].includes(c.subtype) ? TIME_UNITS : c.subtype === "BIRTH_DATE" ? ["age_band"]
-    : forStats && c.subtype === "DIAGNOSIS_CODE" && cat.codelists.includes("diagnosis_group") ? ["diagnosis_group"] : [""];
-  const find = (key: string) => det.find(c => `${c.table}.${c.column}` === key)!;
-  const submit = async () => {
-    const id = "CUSTOM-" + (C.recipient.toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24) || "RECEIVER");
-    const base = { id, title: C.purpose, recipient: C.recipient, purpose: C.purpose, trust_level: C.trust_level, threat_model: "Outsider linking with public, social and leaked sources" };
-    let custom;
-    if (pub) {
-      const statistics = stats.map(s => s.filter(Boolean)).filter(s => s.length).map((s, i) => {
-        const by = s.map(key => { const c = find(key); return { table: c.table, column: c.column, detail: detail(c, true)[0] || null }; });
-        return { name: `table_${i + 1}_by_${by.map(b => b.column.toLowerCase().replace(/[^a-z0-9]+/g, "_")).join("_")}`, table: by[0].table, by: by.map(({ column, detail }) => ({ column, detail })) };
-      });
-      if (!statistics.length) return setError("Choose at least one column to count by.");
-      custom = { ...base, statistics, targets: { epsilon: +C.epsilon, rows_per_person: +C.rows_per_person } };
-    } else {
-      const list = Object.entries(needs).map(([key, d]) => { const c = find(key); return { table: c.table, column: c.column, detail: d || null }; });
-      if (!list.length) return setError("Tick at least one column the receiver needs.");
-      custom = { ...base, needs: list, targets: { k: +C.k } };
-    }
-    if (await makePlan({ custom }, "custom")) onClose();
-  };
-  const field = (label: string, key: "recipient" | "purpose") => <div className="flex flex-col gap-1.5"><Label>{label}</Label><Input value={C[key]} onChange={e => setC({ ...C, [key]: e.target.value })} /></div>;
-  const select = "h-9 rounded-lg border border-input bg-card px-2.5 text-sm";
-  const usable = det.filter(c => ["quasi_identifier", "sensitive_attribute", "non_sensitive"].includes(c.privacy_role));
-  return (
-    <Dialog open onOpenChange={o => !o && onClose()}>
-      <DialogContent wide>
-        <DialogHeader><DialogTitle>Describe the receiver</DialogTitle></DialogHeader>
-        <DialogBody>
-          <div className="grid gap-3 md:grid-cols-3">{field("Receiver", "recipient")}{field("Purpose", "purpose")}
-            <div className="flex flex-col gap-1.5"><Label>How far they are trusted</Label>
-              <select className={select} value={C.trust_level} onChange={e => setC({ ...C, trust_level: e.target.value })}>{cat.trust_levels.map(t => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}</select></div>
-          </div>
-          {pub ? <>
-            <p className="text-sm text-muted-foreground">Public receivers get counts only, with noise added (differential privacy). No rows leave.</p>
-            <div className="flex flex-wrap items-center gap-2 text-sm">Budget ε <Input className="w-20" value={C.epsilon} onChange={e => setC({ ...C, epsilon: +e.target.value })} />
-              count each person at most <Input className="w-16" value={C.rows_per_person} onChange={e => setC({ ...C, rows_per_person: +e.target.value })} /> times</div>
-            {stats.map((s, i) => (
-              <div key={i} className="flex flex-wrap items-center gap-2 text-sm">Table {i + 1}: count by
-                {[0, 1, 2].map(j => <select key={j} className={select} value={s[j]} onChange={e => setStats(stats.map((x, k) => k === i ? x.map((y, m) => m === j ? e.target.value : y) : x))}>
-                  <option value="">—</option>{usable.map(c => <option key={`${c.table}.${c.column}`} value={`${c.table}.${c.column}`}>{c.table}.{c.column}</option>)}</select>)}</div>
-            ))}
-            <div><Button size="sm" variant="outline" onClick={() => setStats([...stats, ["", "", ""]])}>Add a table</Button></div>
-          </> : <>
-            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">Tick what they need; everything else stays here. Each person must look like at least
-              <Input className="w-16" value={C.k} onChange={e => setC({ ...C, k: +e.target.value })} /> others.</div>
-            <TableWrap><table className="w-full border-collapse"><thead><tr><Th /><Th>Column</Th><Th>What it is</Th><Th>Detail</Th></tr></thead>
-              <tbody>{det.map(c => {
-                const key = `${c.table}.${c.column}`, opts = detail(c, false), on = key in needs;
-                return <tr key={key}><Td><Checkbox checked={on} onCheckedChange={v => { const n = { ...needs }; if (v) n[key] = opts[0]; else delete n[key]; setNeeds(n); }} aria-label={`Needs ${key}`} /></Td>
-                  <Td className="font-mono">{key}</Td><Td className={ROLE_TONE[c.privacy_role]}>{ROLE_LABEL[c.privacy_role]}</Td>
-                  <Td>{opts[0] && <select className={select} value={needs[key] ?? opts[0]} onChange={e => on && setNeeds({ ...needs, [key]: e.target.value })}>{opts.map(o => <option key={o}>{o}</option>)}</select>}</Td></tr>;
-              })}</tbody></table></TableWrap>
-          </>}
-          {error && <p className="text-sm font-medium text-risk">{error}</p>}
-        </DialogBody>
-        <DialogFooter><Button variant="outline" onClick={onClose}>Cancel</Button><Button disabled={busy} onClick={submit}>{busy && <Spinner className="text-current" />}Make the plan</Button></DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-

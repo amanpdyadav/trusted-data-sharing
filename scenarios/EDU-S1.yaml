@@ -1,0 +1,36 @@
+# EDU-S1: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: EDU-S1
+dataset: education
+title: Statistics publication for the education authority
+recipient: Public (published statistics tables)
+purpose: Publish grade, completion and drop-out statistics by school, programme, sex and language group.
+trust_level: public
+threat_model: Anyone, with graduation lists and sports rosters (public adversary files); differencing between tables.
+legal_context: Output must be anonymous (GDPR Recital 26). Traditional practice is suppressing cells with n<5; compare
+  with differential privacy.
+utility_requirements:
+- EDU-U1
+- EDU-U5
+- EDU-U6
+- EDU-U3
+statistics:
+- name: edu_u1_mean_grade_4_10_scale_by_school_x_subject
+  table: course_grades
+  by:
+  - column: school_code
+  - column: course_code
+  - column: grade
+  - column: grade_scale
+- name: edu_u3_gender_gap_in_maths_module_grades
+  table: course_grades
+  by:
+  - column: course_code
+  - column: grade
+targets:
+  notes: No cell below 5 unless noise-protected; no microdata; state ε if DP is used; consistent totals across tables.
+  epsilon: 1.0
+  epsilon_cap: 4.0
+  rows_per_person: 3
+notes: Small schools and programmes are the hard part. Generated from metadata/scenarios.json and the organisers'
+  utility tasks by `python -m evaluation scenarios`; review the data request before use.

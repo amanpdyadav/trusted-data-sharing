@@ -7,6 +7,8 @@ One technique, several named strategies chosen by `params["to"]`:
                | "20:00" (time_of_day: hour of the day only, no date)
     truncate   keep the first n characters, e.g. ICD-10 "S52.5" -> "S52"
     code_group map codes to groups by longest matching prefix, e.g. {"J10": "ILI", "S": "injury"} (a code list)
+    number_band  number -> band of a fixed width, e.g. 190 minutes -> "180-209", top-coded "1440+"
+    keep_values  keep the listed values, merge every other one, e.g. eight largest municipalities, rest -> "other"
 
 Missing or unparseable values stay empty; they are never invented. Add a strategy by registering a function.
 """
@@ -99,7 +101,39 @@ def code_group(values: pd.Series, params: Mapping[str, Any], _: TransformContext
     return values.fillna("").astype(str).map(one)
 
 
-for _name, _fn in (("age_band", age_band), ("time", time), ("truncate", truncate), ("code_group", code_group)):
+def number_band(values: pd.Series, params: Mapping[str, Any], _: TransformContext) -> pd.Series:
+    """Fixed-width bands for a measurement such as length of stay: exact values link to a post that states them."""
+    width = int(params["width"])
+    top = params.get("top")
+    nums = pd.to_numeric(values.fillna("").astype(str).str.replace(",", ".", regex=False), errors="coerce")
+
+    def one(x: float) -> str:
+        if pd.isna(x):
+            return ""
+        if top is not None and x >= float(top):
+            return f"{int(top)}+"
+        low = int(x // width * width)
+        return f"{low}-{low + width - 1}"
+
+    return nums.map(one)
+
+
+def keep_values(values: pd.Series, params: Mapping[str, Any], _: TransformContext) -> pd.Series:
+    """Keep the values an analysis needs (e.g. the eight largest towns); small groups single people out."""
+    keep = {str(v) for v in params["keep"]}
+    other = str(params.get("other", "other"))
+    v = values.fillna("").astype(str)
+    return v.where(v.isin(keep) | (v == ""), other)
+
+
+for _name, _fn in (
+    ("keep_values", keep_values),
+    ("age_band", age_band),
+    ("time", time),
+    ("truncate", truncate),
+    ("code_group", code_group),
+    ("number_band", number_band),
+):
     STRATEGIES.register(_name, _fn)
 
 

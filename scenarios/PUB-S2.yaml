@@ -1,0 +1,38 @@
+# PUB-S2: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: PUB-S2
+dataset: public_admin
+title: Internal analytics team
+recipient: Service centre's own analysts
+purpose: Dashboards on workload, response times and repeat issues.
+trust_level: internal
+threat_model: Curious colleague with insider knowledge (private adversary).
+legal_context: Same controller; data minimisation and pseudonymisation still expected (GDPR Art. 5, 25).
+utility_requirements:
+- PUB-U1
+- PUB-U2
+- PUB-U5
+- PUB-U6
+needs:
+- table: service_requests
+  column: ts_created
+- table: service_requests
+  column: category
+- table: service_requests
+  column: postcode
+- table: service_requests
+  column: ts_closed
+- table: service_requests
+  column: reporter_account_id
+- table: building_permits
+  column: submitted_date
+- table: building_permits
+  column: municipality
+- table: building_permits
+  column: project_type
+targets:
+  notes: Keyed pseudonyms for reporters (stable, so repeat reporting can be analysed); no contact details; text
+    redacted.
+  k: 5
+notes: Generated from metadata/scenarios.json and the organisers' utility tasks by `python -m evaluation scenarios`;
+  review the data request before use.

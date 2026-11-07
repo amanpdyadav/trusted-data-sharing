@@ -261,4 +261,4 @@ differential_privacy:
   delta: 0
   budget_cap: 4.0
 approved: true
-approved_by: Aman Yadav
+approved_by: Data steward

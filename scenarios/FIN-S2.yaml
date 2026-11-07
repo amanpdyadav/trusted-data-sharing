@@ -1,0 +1,42 @@
+# FIN-S2: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: FIN-S2
+dataset: finance
+title: External AI vendor builds a fraud / spending model
+recipient: AI vendor (processor)
+purpose: Train and evaluate a fraud model and a spending-category model.
+trust_level: contractual
+threat_model: 'Vendor staff with public receipts and directory; private: merchant_knowledge, broker_profiles.'
+legal_context: Processor under Art. 28; minimisation; special-category inferences must not be exposed.
+utility_requirements:
+- FIN-U1
+- FIN-U4
+- FIN-U6
+needs:
+- table: card_transactions
+  column: ts
+  detail: hour
+- table: card_transactions
+  column: amount_eur
+- table: card_transactions
+  column: mcc
+- table: card_transactions
+  column: channel
+- table: card_transactions
+  column: merchant_country
+- table: card_transactions
+  column: card_pan
+- table: card_transactions
+  column: is_fraud
+- table: customers
+  column: income_band
+- table: customers
+  column: birth_date
+- table: customers
+  column: customer_id
+targets:
+  notes: No direct identifiers; tokenised card; generalise merchant to MCC group for sensitive MCCs; k-anonymity
+    on customer profile; consider synthetic data with DCR/MIA checks.
+  k: 5
+notes: Generated from metadata/scenarios.json and the organisers' utility tasks by `python -m evaluation scenarios`;
+  review the data request before use.

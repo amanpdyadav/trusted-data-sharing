@@ -1,7 +1,8 @@
 """Format validators. Each is small, pure and unit-tested. Add new ones with `VALIDATORS.register(...)`.
 
-Finnish ID code (HETU), IBAN, e-mail, phone, payment card (Luhn, masked), IPv4, MAC, Finnish plate, UUID,
-hex digest, Finnish property ID, ICD-10 code, URL.
+Finnish ID code (HETU), IBAN, e-mail, phone, payment card (issuer prefix + Luhn, masked), IPv4, IPv6, MAC,
+Finnish plate, UUID, hex digest, Finnish property ID, Finnish Business ID, GS1 service relation number (meter IDs),
+ICD-10 code, URL, internet domain, device hostname, user agent.
 """
 
 import re
@@ -106,6 +107,9 @@ class PhoneValidator:
 
 # ---------------------------------------------------------------- payment cards (Luhn), also masked first6+last4
 _MASKED_CARD = re.compile(r"^\d{4,6}[*xX\s]{4,}\d{4}$|^[*xX]{4}[\s*xX]*\d{4}$")
+# Card-network issuer prefixes (ISO/IEC 7812 IIN): Visa 4, Mastercard 51-55 and 2221-2720, Amex 34/37, JCB 35,
+# Discover 6011/65/644-649, UnionPay 62. Travel and loyalty card numbers pass Luhn too, but not this.
+_CARD_IIN = re.compile(r"^(4|5[1-5]|2(2[2-9]|[3-6]\d|7[01]|720)|3[47]|35|6(011|5|4[4-9]|2))")
 
 
 @dataclass(frozen=True)
@@ -118,7 +122,7 @@ class PaymentCardValidator:
         if _MASKED_CARD.match(v):
             return True
         digits = re.sub(r"[\s-]", "", v)
-        if not digits.isdigit() or not 13 <= len(digits) <= 19:
+        if not digits.isdigit() or not 13 <= len(digits) <= 19 or not _CARD_IIN.match(digits):
             return False
         total = 0
         for i, ch in enumerate(reversed(digits)):
@@ -136,6 +140,53 @@ class Ipv4Validator:
     def is_valid(self, value: str) -> bool:
         parts = value.strip().split(".")
         return len(parts) == 4 and all(p.isdigit() and int(p) <= 255 and str(int(p)) == p for p in parts)
+
+
+# ---------------------------------------------------------------- Finnish Business ID (Y-tunnus), mod-11
+@dataclass(frozen=True)
+class BusinessIdValidator:
+    """1234567-8: seven digits, a hyphen and a check digit (weights 7,9,10,5,8,4,2; remainder 1 is never issued)."""
+
+    name: str = "fi_business_id"
+    subtype: Subtype = Subtype.ORG_NAME
+
+    def is_valid(self, value: str) -> bool:
+        m = re.match(r"^(\d{7})-(\d)$", value.strip())
+        if not m:
+            return False
+        r = sum(int(d) * w for d, w in zip(m.group(1), (7, 9, 10, 5, 8, 4, 2), strict=True)) % 11
+        return r != 1 and (0 if r == 0 else 11 - r) == int(m.group(2))
+
+
+# ---------------------------------------------------------------- GS1 service relation number (metering points)
+@dataclass(frozen=True)
+class GsrnValidator:
+    """18 digits with the GS1 mod-10 check digit, e.g. electricity metering point IDs (643...)."""
+
+    name: str = "gs1_gsrn"
+    subtype: Subtype = Subtype.METER_ID
+
+    def is_valid(self, value: str) -> bool:
+        s = value.strip()
+        if not (s.isdigit() and len(s) == 18):
+            return False
+        total = sum(int(d) * (3 if i % 2 == 0 else 1) for i, d in enumerate(reversed(s[:-1])))
+        return (10 - total % 10) % 10 == int(s[-1])
+
+
+# ---------------------------------------------------------------- internet domains (visited sites reveal interests)
+_DOMAIN_RE = re.compile(r"^([a-z0-9-]+\.)+[a-z]{2,}$")
+_FILE_EXT = re.compile(r"\.(exe|dll|ps1|bat|cmd|sh|py|msi|sys|bin|tmp|log|docx?|xlsx?|pdf|zip)$")
+
+
+@dataclass(frozen=True)
+class DomainValidator:
+    name: str = "domain"
+    subtype: Subtype = Subtype.URL
+
+    def is_valid(self, value: str) -> bool:
+        s = value.strip().lower()
+        return bool(_DOMAIN_RE.match(s)) and not _FILE_EXT.search(s) and "@" not in s
 
 
 # ---------------------------------------------------------------- simple pattern checks (one class, many formats: DRY)
@@ -164,6 +215,19 @@ PATTERNS = (
     ),
     PatternValidator("icd10", Subtype.DIAGNOSIS_CODE, re.compile(r"^[A-TV-Z]\d{2}(\.\d{1,2})?$")),
     PatternValidator("url", Subtype.URL, re.compile(r"^https?://\S+$")),
+    PatternValidator(
+        "ipv6",
+        Subtype.IP_ADDRESS,
+        re.compile(r"^(?=.*:.*:)(?!([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$)[0-9A-Fa-f:]{2,39}$"),
+    ),
+    PatternValidator(
+        "hostname",
+        Subtype.HOSTNAME,
+        re.compile(
+            r"^[A-Za-z]{2,4}-[A-Za-z]{4,}[A-Za-z0-9]*(-[A-Za-z0-9]+)*$|^[a-z0-9-]+(\.[a-z0-9-]+)*\.(local|corp|lan|internal)$"
+        ),
+    ),
+    PatternValidator("user_agent", Subtype.USER_AGENT, re.compile(r"^[A-Za-z][\w.\-]*/\d[\w.]*( \(.+\))?( \S+)*$")),
 )
 
 for _v in (
@@ -173,6 +237,9 @@ for _v in (
     PhoneValidator(),
     PaymentCardValidator(),
     Ipv4Validator(),
+    BusinessIdValidator(),
+    GsrnValidator(),
+    DomainValidator(),
     *PATTERNS,
 ):
     VALIDATORS.register(_v.name, _v)

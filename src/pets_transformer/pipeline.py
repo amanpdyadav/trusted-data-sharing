@@ -19,7 +19,9 @@ import pandas as pd
 from pets_transformer import __version__
 from pets_transformer.aggregate import EpsilonLedger, bound_contributions, noisy_table
 from pets_transformer.assess.kanon import KAnonymityResult
+from pets_transformer.columns import NamedSource
 from pets_transformer.contracts import (
+    LlmUsage,
     Metrics,
     MetricSource,
     Plan,
@@ -234,6 +236,15 @@ def _residual_risks(plan: Plan, tables: list[ProtectedTable], withheld: list[str
     return risks
 
 
+def _llm_usage(plan: Plan) -> LlmUsage | None:
+    """The local AI's only part in a release: names it suggested for unnamed columns, each confirmed by a person."""
+    by_ai = [c for c in plan.column_names if c.suggested_by == "ai"]
+    if not by_ai:
+        return None
+    model = next((c.model for c in by_ai if c.model), "local model")
+    return LlmUsage(model=model, used_for=[f"suggested names for {len(by_ai)} unnamed columns, confirmed by a person"])
+
+
 def run_release(
     source: TableSource,
     plan: Plan,
@@ -245,6 +256,8 @@ def run_release(
         raise PlanError("the plan is not approved; a person must approve it before anything is released")
     created = settings.clock()
     ledger = settings.ledger
+    if plan.column_names:  # columns that had no name are read under the names a person confirmed
+        source = NamedSource(source, plan.column_names)
     available = source.table_names()
     lookups = {t for a in plan.actions for t in known_from_tables(a.params)} | {a.table for a in plan.aggregates}
     reads = [*plan.tables, *sorted(lookups - set(plan.tables))]  # lookups are read, never released as rows
@@ -293,6 +306,7 @@ def run_release(
         files=files,
         residual_risks=_dp_statement(plan, total) + _residual_risks(plan, protected, withheld),
         limitations=["Quasi-identifiers are those named in the plan; detection of further ones is not automated yet."],
+        llm=_llm_usage(plan),
     )
     manifest.save(layout.release / "manifest.json")
     return RunOutcome(layout, manifest, protected, aggregates, total)

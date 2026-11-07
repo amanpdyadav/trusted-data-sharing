@@ -15,8 +15,8 @@ from pydantic import BaseModel, Field
 from pets_transformer.config import Settings
 from pets_transformer.contracts import PrivacyRole, Subtype, TrustLevel
 from pets_transformer.keys import MissingKeyError
-from pets_transformer.web.service import ActionEdit, App, Override
-from pets_transformer.web.workspace import Session, Workspace, WorkspaceError
+from pets_transformer.web.service import ActionEdit, App, NewName, Override
+from pets_transformer.web.workspace import Session, Workspace
 
 STATIC = Path(__file__).with_name("static")
 
@@ -51,6 +51,29 @@ class ActionRequest(BaseModel):
     column: str
     technique: str
     params: dict[str, Any] = Field(default_factory=dict)
+
+
+class SuggestRequest(BaseModel):
+    table: str
+    columns: list[str] | None = None  # None: every unnamed column of the table
+    avoid: dict[str, list[str]] = Field(default_factory=dict)  # "suggest again": names not to give again
+
+
+class NewNameItem(BaseModel):
+    original: str
+    name: str
+    suggested_by: str = Field(default="person", pattern="^(rules|ai|person)$")
+    meaning: str = ""
+
+
+class NamesRequest(BaseModel):
+    table: str
+    names: list[NewNameItem]
+
+
+class HeaderlessRequest(BaseModel):
+    table: str
+    headerless: bool
 
 
 class KRequest(BaseModel):
@@ -99,20 +122,57 @@ def _dataset_routes(api: FastAPI, svc: App, session: Callable[[str], Session]) -
         svc.workspace.rename(s, req.name)
         return svc.overview(s)
 
+    @api.post("/api/sessions/{sid}/columns/suggest")
+    def suggest_names(sid: str, req: SuggestRequest) -> dict[str, Any]:
+        """Suggested names for unnamed columns (rules, then the local AI if on). Nothing changes until confirmed."""
+        return svc.suggest_names(session(sid), req.table, req.columns, req.avoid)
+
+    @api.post("/api/sessions/{sid}/columns/names")
+    def set_names(sid: str, req: NamesRequest) -> dict[str, Any]:
+        names = [NewName(n.original, n.name, n.suggested_by, n.meaning) for n in req.names]
+        return svc.set_names(session(sid), req.table, names)
+
+    @api.post("/api/sessions/{sid}/columns/headerless")
+    def set_headerless(sid: str, req: HeaderlessRequest) -> dict[str, Any]:
+        return svc.set_headerless(session(sid), req.table, req.headerless)
+
     @api.delete("/api/sessions/{sid}")
     def delete(sid: str) -> dict[str, str]:
         svc.workspace.delete(session(sid))
         return {"deleted": sid}
 
 
+def _audit_routes(api: FastAPI, svc: App, session: Callable[[str], Session]) -> None:
+    """The Release audit page: every release made here, one release's record, and the receivers benchmark."""
+
+    @api.get("/api/audit/releases")
+    def audit_releases() -> list[dict[str, Any]]:
+        return svc.audit_releases()
+
+    @api.get("/api/audit/releases/{sid}/{rid}")
+    def audit_release(sid: str, rid: str) -> dict[str, Any]:
+        return svc.audit_release(session(sid), rid)
+
+    @api.get("/api/audit/receivers")
+    def receivers_benchmark() -> dict[str, Any]:
+        return svc.receivers_benchmark()
+
+
+def _screen_routes(api: FastAPI, svc: App) -> None:
+    """The presentation screens' data, written by `make screens` (outside the tool)."""
+
+    @api.get("/api/screens/{name}")
+    def screen(name: str) -> dict[str, Any]:
+        data = svc.screen(name)
+        if data is None:
+            raise HTTPException(404, f"no {name} screen data yet: run `make screens`")
+        return data
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
     svc = App(settings, Workspace(settings.out_dir / "web"))
     api = FastAPI(title="PETs Transformer", docs_url="/api/docs", redoc_url=None)
-
-    @api.exception_handler(WorkspaceError)
-    async def _user_error(_: Request, exc: WorkspaceError) -> JSONResponse:
-        return JSONResponse({"error": str(exc)}, status_code=400)
 
     @api.exception_handler(MissingKeyError)
     async def _no_key(_: Request, exc: MissingKeyError) -> JSONResponse:
@@ -131,7 +191,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "samples": svc.samples(), "receivers": svc.scenarios(),
             "roles": [r.value for r in PrivacyRole], "subtypes": [x.value for x in Subtype],
             "trust_levels": [t.value for t in TrustLevel], "codelists": sorted(svc.policy().codelists),
+            "screens": svc.screens(),
         }  # fmt: skip
+
+    _audit_routes(api, svc, session)
 
     @api.get("/api/sessions")
     def sessions() -> list[dict[str, Any]]:
@@ -250,6 +313,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def detection_json(sid: str) -> PlainTextResponse:
         body = svc.detection_json(session(sid))
         return PlainTextResponse(body, media_type="application/json", headers=_attachment("detection.json"))
+
+    _screen_routes(api, svc)
 
     @api.get("/api/{rest:path}")
     def unknown(rest: str) -> None:
