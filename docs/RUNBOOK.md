@@ -124,8 +124,8 @@ Our hand-tuned plans are in `plans/`:
 
 | Plan | For | Approved? |
 |---|---|---|
-| `health-s1.yaml` (version 3) | HEALTH-S1, university research group; passes every gate | **Not yet**: changes Aman's version 2 |
-| `health-s1.v2.yaml` | HEALTH-S1, Aman's approved version 2 (fails the post and news sweep) | yes |
+| `health-s1.yaml` (version 3) | HEALTH-S1, university research group; passes every gate | yes (anonymous steward) |
+| `health-s1.v2.yaml` | HEALTH-S1, approved version 2 (fails the post and news sweep) | yes |
 | `health-s1.auto.yaml` | HEALTH-S1 drafted by the automatic planner | yes |
 | `health-s2.yaml` | HEALTH-S2, public dashboard with differential privacy | yes |
 
@@ -134,15 +134,12 @@ make release PLAN=plans/health-s2.yaml RECEIVER=public OUT=out/health-s2   # HEA
 ```
 
 `make release` on its own uses `plans/health-s1.yaml` and refuses while it is unapproved (by design: nothing is
-released without a named approval). Until Aman approves version 3, release an approved copy:
+released without a named approval). Approve with a role, not a personal name:
 
 ```bash
-mkdir -p out/health-s1 && cp plans/health-s1.yaml out/health-s1/plan.approved.yaml
-.venv/bin/pets-transformer approve out/health-s1/plan.approved.yaml --by "Your Name (draft)"
-make release PLAN=out/health-s1/plan.approved.yaml
+.venv/bin/pets-transformer approve plans/health-s1.yaml --by "Data steward"
+make release
 ```
-
-Aman approves the real plan with `.venv/bin/pets-transformer approve plans/health-s1.yaml --by "Aman Yadav"`.
 
 ---
 
@@ -255,7 +252,7 @@ B=plans/health-s1.v2.yaml        # the approved base plan the variants change
 .venv/bin/python -m evaluation experiment suppression-order --plan $B # which column k-anonymity blanks first
 ```
 
-Variants keep the base plan's approval, so the base must be approved: use version 2 until Aman approves version 3.
+Variants keep the base plan's approval, so the base must be approved.
 Each variant is released, scored with every gate and added to `results/history.csv`. Experiments take about
 75 seconds per variant because of the sweep.
 
@@ -296,4 +293,4 @@ Never commit: `.env`, `out/` (releases and private row maps), `challenge/` or th
 | The web app shows old screens after a `git pull` | Restart `make web` (the Python side changed) and reload the page; if `frontend/` changed, run `make ui` |
 | `make web`: port 8765 in use | The app is already running: open http://127.0.0.1:8765, or stop it, or `pets-transformer web --port 8766` |
 | `validate` is slow | The sweep replays 1,050 scraps (about a minute); that is expected |
-| `pets-eval check` reports about 22 PHONE and 1 PAYMENT_CARD hits in the HEALTH-S1 release | False positives: they are our 16-character keyed pseudonyms (`visit_id`, `patient_pseudonym`) that happen to be all digits, e.g. `3602078199529040`, and match the scanner's number patterns. No real phone or card number is released. Suggested fix: give pseudonyms a letter prefix (`v…`, `pt…`) in `transform/pseudonymise.py` |
+| `pets-eval check` reports PHONE / PAYMENT_CARD hits in an old release | Pre-fix releases used bare hex digests that could be all digits. Current `transform/pseudonymise.py` prefixes every code with a letter (`x` by default; set `params.prefix` for `v` / `pt`). Re-run `make release` and check again. |

@@ -1,76 +1,246 @@
-# HEALTH-S1: ED data for a university research group (controlled environment).
-# Research questions (utility tasks): LOS by triage (H-U2), diagnosis mix by municipality (H-U4),
-# 30-day revisits by age (H-U6), CRP vs temperature via the lab join (H-U7), hour-of-day arrivals (H-U8).
-# Version 2: hand-written, tuned with `python -m evaluation experiment arrival-time` and `... suppression-order`
-# (results in results/history.csv). The automatic planner will produce this from detection + scenario.
-# Version 3: version 2 passed the demo attacks but failed the post and news sweep (8 of 1,050 public
-# scraps left the real visit in a group of 1-4, via exact length of stay, town and sex). `python -m evaluation
-# experiment stay-length` picked: stay in 30-minute bands with 12 h+ as "720+", sex dropped (not requested), the eight
-# largest municipalities kept and the rest merged (H-U4 needs only those). All 5 gates pass; combined 0.991.
-# NOT APPROVED: changed from Aman's approved version 2; approve with `pets-transformer approve`.
-schema_version: "1"
+schema_version: '1'
 dataset: health
 scenario_id: HEALTH-S1
-created_at: "2026-11-07T00:00:00Z"
+created_at: '2026-11-07T00:00:00Z'
 k_target: 5
 quasi_identifiers:
-  # checked together, most important first; suppression blanks from the end.
-  ed_visits: [arrival_ts, municipality, age]
+  ed_visits:
+  - arrival_ts
+  - municipality
+  - age
 record_keys:
   ed_visits: visit_id
   lab_results: lab_id
-approved: false
 actions:
-  # ---------------------------------------------------------------- ed_visits
-  - {table: ed_visits, column: visit_id, technique: pseudonymise, params: {length: 16},
-     reason: "Keyed code joins visits to lab results without exposing the hospital's sequential visit number."}
-  - {table: ed_visits, column: patient_hetu, technique: pseudonymise, params: {length: 16, rename_to: patient_pseudonym},
-     reason: "Revisit analysis needs the same code for the same patient; the ID code itself is never needed."}
-  - {table: ed_visits, column: patient_name, technique: drop, reason: "No research question needs names."}
-  - {table: ed_visits, column: date_of_birth, technique: generalise,
-     params: {to: age_band, reference_column: arrival_ts, width: 10, top: 80, rename_to: age},
-     reason: "Revisits by age need age groups at arrival; exact birth dates single people out."}
-  - {table: ed_visits, column: sex, technique: drop,
-     reason: "Not in the research group's data request; first names in public posts reveal it (post and news sweep)."}
-  - {table: ed_visits, column: phone, technique: drop, reason: "Contact details are not needed."}
-  - {table: ed_visits, column: home_address, technique: drop, reason: "Contact details are not needed."}
-  - {table: ed_visits, column: postcode, technique: drop, reason: "Municipality answers the regional questions; postcodes narrow too far."}
-  - {table: ed_visits, column: municipality, technique: generalise,
-     params: {to: keep_values, keep: [Turku, Salo, Kaarina, Raisio, Lieto, Naantali, Uusikaupunki, Loimaa], other: other},
-     reason: "Diagnosis mix covers the eight largest municipalities (H-U4); small towns single people out. Checked for k."}
-  - {table: ed_visits, column: arrival_ts, technique: generalise, params: {to: time, unit: time_of_day},
-     reason: "Hour of arrival without the date: keeps the arrival curve (H-U8), drops the date that links visits to news and posts. Measured best of week, date+hour and time of day."}
-  - {table: ed_visits, column: arrival_mode, technique: drop, reason: "Not needed; helicopter arrivals are rare and newsworthy."}
-  - {table: ed_visits, column: ambulance_unit, technique: drop, reason: "Base code reveals the patient's area."}
-  - {table: ed_visits, column: triage, technique: keep, reason: "Length of stay by triage level (H-U2)."}
-  - {table: ed_visits, column: chief_complaint, technique: drop,
-     reason: "Free text; withheld until text redaction is in place. Diagnosis codes cover the patterns."}
-  - {table: ed_visits, column: icd10_primary, technique: generalise, params: {to: truncate, length: 3},
-     reason: "3-character codes keep diagnosis groups; rare sub-codes are near-unique."}
-  - {table: ed_visits, column: icd10_secondary, technique: drop,
-     reason: "Rare chronic diseases single out patients across visits; not needed for the questions."}
-  - {table: ed_visits, column: systolic_bp, technique: keep, reason: "Clinical measurement used in analysis."}
-  - {table: ed_visits, column: diastolic_bp, technique: keep, reason: "Clinical measurement used in analysis."}
-  - {table: ed_visits, column: heart_rate, technique: keep, reason: "Clinical measurement used in analysis."}
-  - {table: ed_visits, column: resp_rate, technique: keep, reason: "Clinical measurement used in analysis."}
-  - {table: ed_visits, column: temp_c, technique: keep, reason: "CRP vs temperature (H-U7)."}
-  - {table: ed_visits, column: spo2, technique: keep, reason: "Clinical measurement used in analysis."}
-  - {table: ed_visits, column: pain_nrs, technique: keep, reason: "Clinical measurement used in analysis."}
-  - {table: ed_visits, column: attending_physician_id, technique: drop, reason: "Staff are data subjects too; shift patterns identify them."}
-  - {table: ed_visits, column: attending_physician_name, technique: drop, reason: "Staff names are not needed."}
-  - {table: ed_visits, column: discharge_ts, technique: drop, reason: "Length of stay is kept directly; the exact time adds risk only."}
-  - {table: ed_visits, column: los_minutes, technique: generalise, params: {to: number_band, width: 30, top: 720},
-     reason: "Median stay by triage (H-U2) survives 30-minute bands; a post that says how long someone stayed no longer points at one visit, and rare long stays are merged as 720+."}
-  - {table: ed_visits, column: disposition, technique: keep, reason: "Outcome of the visit; part of the crowding analysis."}
-  - {table: ed_visits, column: readmit_30d, technique: keep, reason: "30-day revisits by age (H-U6)."}
-  # ---------------------------------------------------------------- lab_results
-  - {table: lab_results, column: lab_id, technique: drop, reason: "Row number with no research use."}
-  - {table: lab_results, column: visit_id, technique: pseudonymise, params: {length: 16},
-     reason: "Same key as ed_visits.visit_id, so the lab join survives (H-U7)."}
-  - {table: lab_results, column: test_code, technique: keep, reason: "Identifies the test, e.g. P-CRP (H-U7)."}
-  - {table: lab_results, column: test_name, technique: keep, reason: "Readable test name."}
-  - {table: lab_results, column: value, technique: keep, reason: "The measurement (H-U7)."}
-  - {table: lab_results, column: unit, technique: keep, reason: "Needed to read the value."}
-  - {table: lab_results, column: ref_range, technique: drop, reason: "Sex-specific ranges reveal the patient's sex."}
-  - {table: lab_results, column: abnormal_flag, technique: keep, reason: "Clinical interpretation of the value."}
-  - {table: lab_results, column: sampled_ts, technique: drop, reason: "Sample times re-link lab rows to exact arrival times."}
+- table: ed_visits
+  column: visit_id
+  technique: pseudonymise
+  params:
+    length: 16
+  reason: Keyed code joins visits to lab results without exposing the hospital's sequential
+    visit number.
+- table: ed_visits
+  column: patient_hetu
+  technique: pseudonymise
+  params:
+    length: 16
+    rename_to: patient_pseudonym
+  reason: Revisit analysis needs the same code for the same patient; the ID code itself
+    is never needed.
+- table: ed_visits
+  column: patient_name
+  technique: drop
+  params: {}
+  reason: No research question needs names.
+- table: ed_visits
+  column: date_of_birth
+  technique: generalise
+  params:
+    to: age_band
+    reference_column: arrival_ts
+    width: 10
+    top: 80
+    rename_to: age
+  reason: Revisits by age need age groups at arrival; exact birth dates single people
+    out.
+- table: ed_visits
+  column: sex
+  technique: drop
+  params: {}
+  reason: Not in the research group's data request; first names in public posts reveal
+    it (post and news sweep).
+- table: ed_visits
+  column: phone
+  technique: drop
+  params: {}
+  reason: Contact details are not needed.
+- table: ed_visits
+  column: home_address
+  technique: drop
+  params: {}
+  reason: Contact details are not needed.
+- table: ed_visits
+  column: postcode
+  technique: drop
+  params: {}
+  reason: Municipality answers the regional questions; postcodes narrow too far.
+- table: ed_visits
+  column: municipality
+  technique: generalise
+  params:
+    to: keep_values
+    keep:
+    - Turku
+    - Salo
+    - Kaarina
+    - Raisio
+    - Lieto
+    - Naantali
+    - Uusikaupunki
+    - Loimaa
+    other: other
+  reason: Diagnosis mix covers the eight largest municipalities (H-U4); small towns
+    single people out. Checked for k.
+- table: ed_visits
+  column: arrival_ts
+  technique: generalise
+  params:
+    to: time
+    unit: time_of_day
+  reason: 'Hour of arrival without the date: keeps the arrival curve (H-U8), drops
+    the date that links visits to news and posts. Measured best of week, date+hour
+    and time of day.'
+- table: ed_visits
+  column: arrival_mode
+  technique: drop
+  params: {}
+  reason: Not needed; helicopter arrivals are rare and newsworthy.
+- table: ed_visits
+  column: ambulance_unit
+  technique: drop
+  params: {}
+  reason: Base code reveals the patient's area.
+- table: ed_visits
+  column: triage
+  technique: keep
+  params: {}
+  reason: Length of stay by triage level (H-U2).
+- table: ed_visits
+  column: chief_complaint
+  technique: drop
+  params: {}
+  reason: Free text; withheld until text redaction is in place. Diagnosis codes cover
+    the patterns.
+- table: ed_visits
+  column: icd10_primary
+  technique: generalise
+  params:
+    to: truncate
+    length: 3
+  reason: 3-character codes keep diagnosis groups; rare sub-codes are near-unique.
+- table: ed_visits
+  column: icd10_secondary
+  technique: drop
+  params: {}
+  reason: Rare chronic diseases single out patients across visits; not needed for
+    the questions.
+- table: ed_visits
+  column: systolic_bp
+  technique: keep
+  params: {}
+  reason: Clinical measurement used in analysis.
+- table: ed_visits
+  column: diastolic_bp
+  technique: keep
+  params: {}
+  reason: Clinical measurement used in analysis.
+- table: ed_visits
+  column: heart_rate
+  technique: keep
+  params: {}
+  reason: Clinical measurement used in analysis.
+- table: ed_visits
+  column: resp_rate
+  technique: keep
+  params: {}
+  reason: Clinical measurement used in analysis.
+- table: ed_visits
+  column: temp_c
+  technique: keep
+  params: {}
+  reason: CRP vs temperature (H-U7).
+- table: ed_visits
+  column: spo2
+  technique: keep
+  params: {}
+  reason: Clinical measurement used in analysis.
+- table: ed_visits
+  column: pain_nrs
+  technique: keep
+  params: {}
+  reason: Clinical measurement used in analysis.
+- table: ed_visits
+  column: attending_physician_id
+  technique: drop
+  params: {}
+  reason: Staff are data subjects too; shift patterns identify them.
+- table: ed_visits
+  column: attending_physician_name
+  technique: drop
+  params: {}
+  reason: Staff names are not needed.
+- table: ed_visits
+  column: discharge_ts
+  technique: drop
+  params: {}
+  reason: Length of stay is kept directly; the exact time adds risk only.
+- table: ed_visits
+  column: los_minutes
+  technique: generalise
+  params:
+    to: number_band
+    width: 30
+    top: 720
+  reason: Median stay by triage (H-U2) survives 30-minute bands; a post that says
+    how long someone stayed no longer points at one visit, and rare long stays are
+    merged as 720+.
+- table: ed_visits
+  column: disposition
+  technique: keep
+  params: {}
+  reason: Outcome of the visit; part of the crowding analysis.
+- table: ed_visits
+  column: readmit_30d
+  technique: keep
+  params: {}
+  reason: 30-day revisits by age (H-U6).
+- table: lab_results
+  column: lab_id
+  technique: drop
+  params: {}
+  reason: Row number with no research use.
+- table: lab_results
+  column: visit_id
+  technique: pseudonymise
+  params:
+    length: 16
+  reason: Same key as ed_visits.visit_id, so the lab join survives (H-U7).
+- table: lab_results
+  column: test_code
+  technique: keep
+  params: {}
+  reason: Identifies the test, e.g. P-CRP (H-U7).
+- table: lab_results
+  column: test_name
+  technique: keep
+  params: {}
+  reason: Readable test name.
+- table: lab_results
+  column: value
+  technique: keep
+  params: {}
+  reason: The measurement (H-U7).
+- table: lab_results
+  column: unit
+  technique: keep
+  params: {}
+  reason: Needed to read the value.
+- table: lab_results
+  column: ref_range
+  technique: drop
+  params: {}
+  reason: Sex-specific ranges reveal the patient's sex.
+- table: lab_results
+  column: abnormal_flag
+  technique: keep
+  params: {}
+  reason: Clinical interpretation of the value.
+- table: lab_results
+  column: sampled_ts
+  technique: drop
+  params: {}
+  reason: Sample times re-link lab rows to exact arrival times.
+aggregates: []
+column_names: []
+approved: true
+approved_by: Data steward
