@@ -7,7 +7,7 @@ export interface SessionOverview {
   steps: { scanned: boolean; planned: boolean; approved: boolean; released: boolean };
 }
 export interface ReleaseSummary {
-  release_id: string; created_at: string; receiver: string; scenario_id: string; recipient: string; approved_by: string | null;
+  release_id: string; created_at: string; receiver: string; scenario_id: string; recipient: string; approved_by: string | null; plan_version?: number;
   k: number | null; epsilon: number | null; budget_cap: number | null; key_domain: string; files: string[];
   singled_out_before: number | null; singled_out_after: number | null; guess_chance_after: number | null;
   attack_outcome: string | null; attack_matches: number | null;
@@ -37,6 +37,9 @@ export interface Plan {
   epsilon: number | null; approved: boolean; approved_by: string | null; differential_privacy: { unit: string; max_rows_per_unit: number } | null;
 }
 export interface PlanView { plan: Plan; scenario: (Receiver & { purpose: string }) | null; reviews: string[]; withheld_tables: string[] }
+export interface PlanVersion { version: number; created_at: string; note: string; approved: boolean; approved_by: string | null; recipient: string; released_as: string | null }
+export interface PlanVersions { current: number; versions: PlanVersion[] }
+export interface PlanCompare { changes: { what: string; before: string; after: string }[]; yaml_a: string; yaml_b: string }
 export interface Tradeoff { k: { k: number; guess_chance: number; cells_kept: number; current: boolean }[]; epsilon: { epsilon: number; mean_error: number | null; current: boolean }[] }
 export interface Example { tables: { table: string; renamed: Dict; rows: { raw: Dict; after: Dict }[] }[] }
 export interface Compare { receivers: Receiver[]; rows: ({ table: string; column: string; role: string } & Dict)[] }

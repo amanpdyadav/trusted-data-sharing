@@ -314,7 +314,7 @@ function History() {
       <div className="overflow-hidden rounded-xl border">{history.map(h => (
         <div key={h.release_id} className={cn("grid items-center gap-x-4 gap-y-1 border-b px-4 py-3 last:border-b-0 md:grid-cols-[minmax(0,1.5fr)_auto_minmax(0,1.2fr)_auto]", h.release_id === current && "bg-safe-soft")}>
           <div className="min-w-0"><b className="block truncate font-mono text-sm">{h.release_id}</b><span className="text-[13px] text-muted-foreground">{when(h.created_at)} · for {h.recipient} · approved by {h.approved_by ?? "–"}</span></div>
-          <span className="text-[13px] text-muted-foreground">{h.k != null && `k ${h.k}`}{h.epsilon != null && ` ε ${h.epsilon}`} · {plural(h.files.length, "file")}</span>
+          <span className="text-[13px] text-muted-foreground">{h.plan_version ? `plan v${h.plan_version} · ` : ""}{h.k != null && `k ${h.k}`}{h.epsilon != null && ` ε ${h.epsilon}`} · {plural(h.files.length, "file")}</span>
           <span className="text-[13px] text-muted-foreground">{h.singled_out_after != null ? <>singled out {pct(h.singled_out_before)} → <b className="text-safe">{pct(h.singled_out_after)}</b>, guess {pct(h.guess_chance_after, 1)}</> : "statistics only"}</span>
           <div className="flex items-center justify-end gap-2">
             <label className="flex cursor-pointer items-center gap-1.5 text-[13px]"><Checkbox checked={picked.includes(h.release_id)} onCheckedChange={v => pick(h.release_id, !!v)} /> compare</label>

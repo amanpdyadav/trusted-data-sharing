@@ -3,7 +3,7 @@
 import { toast } from "sonner";
 import { create } from "zustand";
 import {
-  api, download, upload, type Attack, type Catalogue, type Compare, type Example, type PlanView, type ReleaseSummary,
+  api, download, upload, type Attack, type Catalogue, type Compare, type Example, type PlanCompare, type PlanVersions, type PlanView, type ReleaseSummary,
   type Results, type Scan, type SessionListItem, type SessionOverview, type Tradeoff,
 } from "./api";
 import { fmt, mb, plural } from "./format";
@@ -16,12 +16,12 @@ export type Theme = "light" | "dark" | "system";
 interface State {
   step: Step; cat: Catalogue | null; sessions: SessionListItem[]; session: SessionOverview | null;
   scan: Scan | null; plan: PlanView | null; results: Results | null; history: ReleaseSummary[]; viewing: string | null;
-  tradeoff: Tradeoff | null; example: Example | null; compare: Compare | null;
+  tradeoff: Tradeoff | null; example: Example | null; compare: Compare | null; versions: PlanVersions | null;
   busy: string; progress: Progress | null; play: "" | "scan" | "release"; mask: boolean; theme: Theme; receiverChoice: string | null;
   publishAsk: boolean;  // a statistics download waits for a yes
 }
 
-const empty = { session: null, scan: null, plan: null, results: null, history: [], viewing: null, tradeoff: null, example: null, compare: null, receiverChoice: null };
+const empty = { session: null, scan: null, plan: null, results: null, history: [], viewing: null, tradeoff: null, example: null, compare: null, versions: null, receiverChoice: null };
 const sid = () => useApp.getState().session!.id;
 const remember = (id: string) => { try { localStorage.setItem("pets.session", id); } catch { /* storage off */ } };
 const set = (p: Partial<State>) => useApp.setState(p);
@@ -182,12 +182,15 @@ export const correctColumn = (i: number, field: "privacy_role" | "subtype", valu
 });
 
 // ---------------------------------------------------------------- plan
-/** A new or changed plan: the example record and the trade-off load by themselves. */
+/** A new or changed plan: the example record and the trade-off load by themselves. A later change wins; approving
+ *  does not count as a change (it alters nothing the example or the trade-off depend on). */
+let planRevision = 0;
 function planLoaded() {
-  const plan = useApp.getState().plan;
+  const mine = ++planRevision, current = () => planRevision === mine;
   set({ results: null, viewing: null, tradeoff: null, example: null });
-  api<Example>(`/api/sessions/${sid()}/plan/example`).then(e => useApp.getState().plan === plan && set({ example: e })).catch(() => {});
-  api<Tradeoff>(`/api/sessions/${sid()}/tradeoff`).then(t => useApp.getState().plan === plan && set({ tradeoff: t })).catch(() => {});
+  loadVersions();
+  api<Example>(`/api/sessions/${sid()}/plan/example`).then(e => current() && set({ example: e })).catch(() => {});
+  api<Tradeoff>(`/api/sessions/${sid()}/tradeoff`).then(t => current() && set({ tradeoff: t })).catch(() => {});
 }
 export const makePlan = (body: { scenario_id?: string; custom?: unknown }, choice: string) => busy("plan", async () => {
   set({ receiverChoice: choice, compare: null });
@@ -199,18 +202,28 @@ export const changeColumn = (table: string, column: string, technique: string, p
 export const setK = (k: number) => busy("tradeoff", async () => {
   set({ plan: await api<PlanView>(`/api/sessions/${sid()}/plan/k`, { body: { k } }) }); planLoaded();
 });
+// ---------------------------------------------------------------- plan versions
+export const loadVersions = () => api<PlanVersions>(`/api/sessions/${sid()}/plan/versions`).then(versions => set({ versions })).catch(() => {});
+export const planYaml = (version?: number) => api<{ yaml: string }>(`/api/sessions/${sid()}/plan/yaml${version ? `?version=${version}` : ""}`).then(r => r.yaml);
+export const comparePlans = (a: number, b: number) => api<PlanCompare>(`/api/sessions/${sid()}/plan/compare?a=${a}&b=${b}`);
+export const useVersion = (version: number) => busy("plan", async () => {
+  set({ plan: await api<PlanView>(`/api/sessions/${sid()}/plan/versions/${version}/restore`, { method: "POST" }) }); planLoaded();
+  const p = useApp.getState().plan!.plan;
+  toast.success(`Version ${version} is the plan again.`, { description: p.approved ? `It was approved by ${p.approved_by}: you can create a release from it.` : "Approve it before releasing." });
+  return true;
+});
 export const loadCompare = () => busy("compare", async () => {
   set({ compare: await api<Compare>(`/api/sessions/${sid()}/compare`, { body: { scenario_ids: useApp.getState().cat!.receivers.map(r => r.id) } }) });
 });
 
 // ---------------------------------------------------------------- approve and release
 export const approve = (by: string, confirmReview: boolean) => busy("approve", async () => {
-  set({ plan: await api<PlanView>(`/api/sessions/${sid()}/approve`, { body: { by, confirm_review: confirmReview } }) });
+  set({ plan: await api<PlanView>(`/api/sessions/${sid()}/approve`, { body: { by, confirm_review: confirmReview } }) }); loadVersions();
   toast.success(`Approved by ${useApp.getState().plan!.plan.approved_by}.`); return true;
 });
 export const createRelease = (receiver: string) => busy("run", async () => {
   set({ results: await api<Results>(`/api/sessions/${sid()}/run`, { body: { receiver } }), viewing: null, step: "release" });
-  await refreshHistory(); await refreshSessions(); play("release");
+  await refreshHistory(); await refreshSessions(); loadVersions(); play("release");
   toast.success(`Release ${useApp.getState().results!.release_id} created.`); return true;
 });
 export const viewRelease = (id: string) => busy("view", async () => {

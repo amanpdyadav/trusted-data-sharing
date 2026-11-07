@@ -1,6 +1,6 @@
 // Step 3: who gets the data, and what will they see. Pick a receiver; the tool decides how each column is shared
 // and shows the result (lanes, an example record, the protection level) before anything leaves.
-import { AlertTriangle, ArrowLeft, ArrowRight, Download } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, FileCode2, LayoutGrid } from "lucide-react";
 import { useState } from "react";
 import { Guide, PageHead, Section, useRole, useShown } from "@/components/common";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -9,10 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox, Input, Label, Slider } from "@/components/ui/form";
 import { Meter, Spinner, TableWrap, Td, Th } from "@/components/ui/misc";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Action, Column, Plan } from "@/lib/api";
 import { ROLE_LABEL, ROLE_TONE, clip, pct, plural } from "@/lib/format";
 import { LANES, RECEIVER_ICON, TIME_UNITS, laneOf } from "@/lib/lanes";
-import { changeColumn, loadCompare, makePlan, planHref, setK, useApp } from "@/lib/store";
+import { changeColumn, loadCompare, makePlan, setK, useApp } from "@/lib/store";
+import { PlanVersionsPanel, PlanYaml } from "@/steps/PlanVersions";
 import { cn } from "@/lib/utils";
 
 export const planTables = (P: Plan) => [...new Set(P.actions.map(a => a.table))];
@@ -59,10 +61,10 @@ function PlanResult() {
       {P.aggregates.length > 0 && <CountsBoard />}
       {P.actions.length > 0 && <ExampleRecord />}
       <ProtectionLevel />
+      <PlanVersionsPanel />
       <details className="rounded-2xl border bg-card px-5 py-3" onToggle={e => (e.target as HTMLDetailsElement).open && !compare && loadCompare()}>
-        <summary className="cursor-pointer font-medium text-muted-foreground">Compare with other receivers, or download the plan file</summary>
+        <summary className="cursor-pointer font-medium text-muted-foreground">Compare with other receivers</summary>
         <div className="mt-3 flex flex-col gap-3">
-          <div><Button size="sm" variant="outline" asChild><a href={planHref()}><Download /> plan.yaml</a></Button></div>
           {busy && <Spinner />}
           {compare && <TableWrap><table className="w-full border-collapse">
             <thead><tr><Th>Column</Th>{compare.receivers.map(r => <Th key={r.id}>{r.recipient}</Th>)}</tr></thead>
@@ -83,6 +85,10 @@ function Board() {
   return (
     <Section eyebrow={`What ${view.scenario?.recipient ?? P.scenario_id} will receive`} title="How each column is shared"
       right={<div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">{LANES.map(l => <span key={l.technique}>{l.icon} {l.name}</span>)}</div>}>
+      <Tabs defaultValue="board">
+      <TabsList><TabsTrigger value="board"><LayoutGrid className="size-4" /> Board</TabsTrigger><TabsTrigger value="yaml"><FileCode2 className="size-4" /> YAML</TabsTrigger></TabsList>
+      <TabsContent value="yaml"><PlanYaml /></TabsContent>
+      <TabsContent value="board" className="flex flex-col gap-4">
       {view.reviews.length > 0 && <div className="flex items-center gap-2 rounded-xl border border-warn/45 bg-warn-soft px-4 py-3 text-sm"><AlertTriangle className="size-4 text-warn" />
         <span><b>{plural(view.reviews.length, "column")} need{view.reviews.length === 1 ? "s" : ""} a person's decision</b>: click {view.reviews.length === 1 ? "it" : "them"} below and choose.</span></div>}
       <Accordion type="multiple" defaultValue={tables.filter((t, i) => i < 3 || flagged(t))} className="flex flex-col gap-2">
@@ -118,6 +124,8 @@ function Board() {
       </Accordion>
       {view.withheld_tables.length > 0 && <p className="text-sm text-muted-foreground">Not shared at all: {view.withheld_tables.join(", ")}.</p>}
       <p className="text-sm text-muted-foreground">Click any column to see why, and to change how it is shared.</p>
+      </TabsContent>
+      </Tabs>
       {change && <ChangeDialog action={change} onClose={() => setChange(null)} />}
     </Section>
   );
@@ -176,6 +184,10 @@ function CountsBoard() {
   const view = useApp(s => s.plan!), P = view.plan;
   return (
     <Section eyebrow={`What ${view.scenario?.recipient ?? P.scenario_id} will receive`} title="Only counts, never individual records">
+      <Tabs defaultValue="board">
+      <TabsList><TabsTrigger value="board"><LayoutGrid className="size-4" /> Board</TabsTrigger><TabsTrigger value="yaml"><FileCode2 className="size-4" /> YAML</TabsTrigger></TabsList>
+      <TabsContent value="yaml"><PlanYaml /></TabsContent>
+      <TabsContent value="board" className="flex flex-col gap-4">
       <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] gap-3">
         {P.aggregates.map(a => (
           <div key={a.name} className="flex flex-col gap-1.5 rounded-xl border bg-muted p-4"><span className="text-2xl">📊</span><b>{a.name.replace(/_/g, " ")}</b>
@@ -183,6 +195,8 @@ function CountsBoard() {
         ))}
       </div>
       <p className="text-sm text-muted-foreground">A little random noise is added to every number, so nobody can tell whether one particular person is in the data.{P.differential_privacy && ` Each person is counted at most ${P.differential_privacy.max_rows_per_unit} times.`}</p>
+      </TabsContent>
+      </Tabs>
     </Section>
   );
 }
