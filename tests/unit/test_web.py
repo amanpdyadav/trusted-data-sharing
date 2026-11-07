@@ -66,6 +66,16 @@ def sid(client: TestClient) -> str:
     return str(data["id"])
 
 
+def test_the_attack_shows_a_trail_and_can_pick_another_person(client: TestClient, sid: str) -> None:
+    scan = _ok(client.post(f"/api/sessions/{sid}/scan"))
+    trail = scan["attack"]["trail"]
+    assert [(h["table"], h["via"]) for h in trail] == [("visits", ""), ("labs", "visit_id")]
+    assert "patient_name" in trail[0]["learnt"]
+    another = f"/api/sessions/{sid}/attack/another"
+    people = {_ok(client.post(another, json={"seed": n}))["before"]["known"]["date_of_birth"] for n in range(8)}
+    assert len(people) > 1  # a different person on different tries
+
+
 def test_scan_shows_identifiers_links_and_one_person(client: TestClient, sid: str) -> None:
     scan = _ok(client.post(f"/api/sessions/{sid}/scan"))
     roles = {(c["table"], c["column"]): c["privacy_role"] for c in scan["detections"]["columns"]}

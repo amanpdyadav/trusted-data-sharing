@@ -17,7 +17,7 @@ import pandas as pd
 from pets_transformer.aggregate import BudgetExceededError, EpsilonLedger
 from pets_transformer.assess import attack
 from pets_transformer.assess.lookalikes import attacker_views, lookalikes
-from pets_transformer.assess.riskscan import find_links, scan
+from pets_transformer.assess.riskscan import TableLink, find_links, scan
 from pets_transformer.assess.usefulness import column_changes, dp_accuracy
 from pets_transformer.config import Settings
 from pets_transformer.contracts import (
@@ -127,14 +127,31 @@ class App:
         if cached is None:
             det, frames = s.detections, s.tables()
             links = find_links(det, frames)
-            target = attack.pick_target(det, frames)
-            before = attack.on_raw(det, frames, target, attack.reach(det, frames, links, target)) if target else None
-            cached = {
-                "risk": scan(det, frames, links).as_dict(), "attack": {"before": before.as_dict(), "after": None}
-                if before else None, "target": asdict(target) if target else None,
-            }  # fmt: skip
+            cached = {"risk": scan(det, frames, links).as_dict(), "links": [asdict(x) for x in links]}
+            cached |= self._attack_on(s, attack.pick_target(det, frames, links), links)
             s.cache_scan(cached)
         return {"detections": s.detections.model_dump(mode="json"), "risk": cached["risk"], "attack": cached["attack"]}
+
+    def another_person(self, s: Session, seed: int | None) -> dict[str, Any] | None:
+        """Attack someone else, picked at random among the people whose records reach the most tables."""
+        self.scan(s)
+        cached = s.cached_scan() or {}
+        det, frames = _need(s.detections, "scan the data first"), s.tables()
+        if "links" not in cached:  # a scan saved by an earlier version
+            cached["links"] = [asdict(x) for x in find_links(det, frames)]
+        links = [TableLink(**x) for x in cached["links"]]
+        target = attack.pick_target(det, frames, links, np.random.default_rng(seed))
+        cached |= self._attack_on(s, target, links)
+        s.cache_scan(cached)
+        return self.attack(s)
+
+    def _attack_on(self, s: Session, target: attack.Target | None, links: list[TableLink]) -> dict[str, Any]:
+        if target is None:
+            return {"attack": None, "target": None}
+        det, frames = _need(s.detections, "scan the data first"), s.tables()
+        before = attack.on_raw(det, frames, target, attack.reach(det, frames, links, target))
+        trail = [asdict(h) for h in attack.trail(det, frames, links, target)]
+        return {"attack": {"before": before.as_dict(), "trail": trail, "after": None}, "target": asdict(target)}
 
     def attack(self, s: Session) -> dict[str, Any] | None:
         """The linkage attack on one person, on the raw data and (once released) on the release."""
@@ -143,17 +160,13 @@ class App:
         cached = s.cached_scan()
         if not cached or not cached["target"]:
             return None
-        out: dict[str, Any] = {"before": cached["attack"]["before"], "after": None}
+        out: dict[str, Any] = {**cached["attack"], "after": None}
         if s.outcome is not None and s.plan is not None:
-            det, frames, target = (
-                _need(s.detections, "scan the data first"),
-                s.tables(),
-                attack.Target(**cached["target"]),
-            )
+            det, frames = _need(s.detections, "scan the data first"), s.tables()
             released = {t.name: t.frame for t in s.outcome.tables}
             ids = {t.name: t.record_ids for t in s.outcome.tables if t.record_ids is not None}
             copy = attack.ReleasedCopy(s.plan, released, ids)
-            out["after"] = attack.on_release(det, frames, target, copy).as_dict()
+            out["after"] = attack.on_release(det, frames, attack.Target(**cached["target"]), copy).as_dict()
         return out
 
     def override(self, s: Session, o: Override) -> dict[str, Any]:

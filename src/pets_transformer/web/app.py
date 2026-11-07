@@ -32,6 +32,10 @@ class OverrideRequest(BaseModel):
     by: str = ""
 
 
+class SeedRequest(BaseModel):
+    seed: int | None = None  # None: a fresh random pick
+
+
 class PlanRequest(BaseModel):
     scenario_id: str | None = None
     custom: dict[str, Any] | None = None  # a receiver described in the app (same fields as a scenario YAML)
@@ -115,6 +119,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @api.post("/api/sessions/{sid}/scan")
     def scan(sid: str) -> dict[str, Any]:
         return svc.scan(session(sid))
+
+    @api.post("/api/sessions/{sid}/attack/another")
+    def another_person(sid: str, req: SeedRequest) -> dict[str, Any] | None:
+        return svc.another_person(session(sid), req.seed)
 
     @api.post("/api/sessions/{sid}/detections")
     def override(sid: str, req: OverrideRequest) -> dict[str, Any]:
