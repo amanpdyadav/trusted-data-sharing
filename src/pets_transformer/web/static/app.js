@@ -66,7 +66,8 @@ function render() {
     `<button data-step="${k}" ${k === S.step ? 'aria-current="step"' : ""} class="${done[k] && k !== S.step ? "done" : ""}" ${canOpen(k) ? "" : "disabled"}>
       <span class="n">${done[k] && k !== S.step ? "✓" : i + 1}</span>${label}</button>`).join("");
   renderTicker();
-  $("#page").innerHTML = VIEWS[S.step]() + nextBar();
+  $("#topbar").innerHTML = topBar();
+  $("#page").innerHTML = VIEWS[S.step]();
   renderModal();
   wire();
 }
@@ -81,7 +82,7 @@ function renderTicker() {
 }
 function go(step) { if (canOpen(step)) { S.step = step; render(); window.scrollTo(0, 0); } }
 const busy = label => S.busy === label ? ` <span class="busy" aria-label="working"></span>` : "";
-const head = (n, title, lede) => `<div class="head"><span class="eyebrow">Step ${n} of 5</span><h1>${title}</h1>${lede ? `<p class="lede">${lede}</p>` : ""}</div>`;
+const head = (n, title, lede) => `<div class="head"><h1>${title}</h1>${lede ? `<p class="lede">${lede}</p>` : ""}</div>`;  // the step number is in the top bar
 const kpi = (cls, v, l) => `<div class="kpi ${cls}"><div class="v">${v}</div><div class="l">${l}</div></div>`;
 function tabs(group, items) {
   const cur = items.some(i => i[0] === S.tabs[group]) ? S.tabs[group] : items[0][0];
@@ -114,7 +115,7 @@ function loaders() {
 function readyPanel() {
   const T = S.session.tables, rows = T.reduce((n, t) => n + t.rows, 0), cols = T.reduce((n, t) => n + t.columns.length, 0);
   const mb = (S.sessions.find(x => x.id === S.session.id) || {}).bytes;
-  return `<div class="panel ready"><div class="spread"><div class="head"><span class="eyebrow">Step 1 of 5 · dataset ready</span><h1>${esc(S.session.name)}</h1></div>
+  return `<div class="panel ready"><div class="spread"><div class="head"><span class="eyebrow">Dataset ready</span><h1>${esc(S.session.name)}</h1></div>
       <button class="btn primary lg" data-go="scan">Scan for risks →</button></div>
     <div class="facts4"><div><b>${fmt(T.length)}</b><span>tables</span></div><div><b>${fmt(rows)}</b><span>rows</span></div><div><b>${fmt(cols)}</b><span>columns</span></div>${mb ? `<div><b>${(mb / 2 ** 20).toFixed(1)} MB</b><span>on this computer</span></div>` : ""}</div>
     <p class="small">Next, the scan reads every column, finds what identifies people and how the tables connect, and replays an attack on one person.</p></div>`;
@@ -136,16 +137,27 @@ function setProgress(pct, detail) {
   if (d) d.textContent = detail;
 }
 setInterval(() => { const e = $("#elapsed"); if (e && S.progress) e.textContent = Math.round((Date.now() - S.progress.started) / 1000) + " s"; }, 1000);
-/* the next action, always in reach at the bottom of the screen */
-function nextBar() {
-  const bar = (info, action) => `<div class="nextbar"><div class="small">${info}</div>${action}</div>`;
-  if (S.progress) return "";
-  if (S.step === "data" && S.session) return bar(`<b>${esc(S.session.name)}</b> · ${plural(S.session.tables.length, "table")} loaded`, `<button class="btn primary" data-go="scan">Scan for risks →</button>`);
-  if (S.step === "scan" && S.scan) { const w = worstTable(); return bar(`${pct(w.unique_share)} of <b>${esc(w.table)}</b> can be singled out today`, `<button class="btn primary" data-go="plan">Choose a receiver →</button>`); }
-  if (S.step === "plan" && S.plan) return bar(`Plan for <b>${esc(S.plan.scenario?.recipient || S.plan.plan.scenario_id)}</b>${S.plan.reviews.length ? ` · ${plural(S.plan.reviews.length, "item")} to check` : ""}`, `<button class="btn primary" data-go="approve">Review & approve →</button>`);
-  if (S.step === "plan") return bar("Pick who receives the data above.", "");
-  if (S.step === "approve") return S.plan.plan.approved ? bar(`Approved by <b>${esc(S.plan.plan.approved_by)}</b>`, `<button class="btn primary" data-go="release">Create the release →</button>`) : bar("Type your name and approve the plan to continue.", "");
-  if (S.step === "release" && S.results) return bar(`<b>${esc(S.results.release_id)}</b> · ${S.results.files.map(f => esc(f.name)).join(", ")} + manifest`, `<a class="btn safe" href="/api/sessions/${sid()}/releases/${encodeURIComponent(S.results.release_id)}/release.zip" data-download>Download release (.zip)</a>`);
+/* the step and its main action, pinned to the top of the screen on every step */
+function topBar() {
+  const n = STEPS.findIndex(([k]) => k === S.step), label = `Step ${n + 1} of 5 · ${STEPS[n][1]}`;
+  const bar = (info, action = "") => `<div class="topbar-in"><div class="tb-text"><span class="eyebrow">${label}</span><span class="small">${info}</span></div><div class="row">${action}</div></div>`;
+  const btn = (attrs, text, cls = "primary") => `<button class="btn ${cls}" ${attrs}>${text}</button>`;
+  if (S.progress) return bar(`${esc(S.progress.title)}… <span class="busy"></span>`);
+  if (S.busy && S.busy !== "tradeoff") return bar(`Working… <span class="busy"></span>`);
+  const recipient = S.plan ? esc(S.plan.scenario?.recipient || S.plan.plan.scenario_id) : "";
+  switch (S.step) {
+    case "data": return S.session ? bar(`<b>${esc(S.session.name)}</b> · ${plural(S.session.tables.length, "table")} loaded`, btn("data-go=scan", "Scan for risks →"))
+      : bar("Drop your tables, pick an example, or reopen earlier work.", btn("data-pick-files", "Choose files…"));
+    case "scan": { if (!S.scan) return bar("Not scanned yet.", btn("data-scan", "Scan for risks"));
+      const w = worstTable(); return bar(`${pct(w.unique_share)} of <b>${esc(w.table)}</b> can be singled out today`, btn("data-go=plan", "Choose a receiver →")); }
+    case "plan": return S.plan ? bar(`Plan for <b>${recipient}</b>${S.plan.reviews.length ? ` · ${plural(S.plan.reviews.length, "item")} to check` : ""}`, btn("data-go=approve", "Review & approve →"))
+      : bar("Pick who receives the data.", btn('data-receiver="custom"', "Describe your own…", ""));
+    case "approve": return S.plan.plan.approved ? bar(`Approved by <b>${esc(S.plan.plan.approved_by)}</b>`, btn("data-go=release", "Create the release →"))
+      : bar(`Plan for <b>${recipient}</b> waits for a named approval`, btn('data-modal="approve"', "Review and approve…"));
+    case "release": return S.results ? bar(`<b>${esc(S.results.release_id)}</b> · ${plural(S.results.files.length, "file")} + manifest`,
+      `${S.plan?.plan.approved && !S.viewing ? btn('data-modal="release"', "New release…", "") : ""}<a class="btn safe" href="/api/sessions/${sid()}/releases/${encodeURIComponent(S.results.release_id)}/release.zip" data-download>Download<span class="long"> release (.zip)</span></a>`)
+      : bar(`Approved by <b>${esc(S.plan.plan.approved_by)}</b> · nothing released yet`, btn('data-modal="release"', "Create the release…"));
+  }
   return "";
 }
 function workspacePanel() {
@@ -653,6 +665,7 @@ function wire() {
   page.querySelectorAll("[data-sample]").forEach(b => (b.onclick = () => withProgress(`Opening the ${b.dataset.sample.replace(/_/g, " ")} example`, "Copying the tables into your workspace and reading them…",
     async () => openSession(await api("/api/sessions/sample", { body: { name: b.dataset.sample } })))));
   page.querySelectorAll("[data-scan]").forEach(b => (b.onclick = runScan));
+  page.querySelectorAll("[data-pick-files]").forEach(b => (b.onclick = () => $("#files")?.click()));
   page.querySelectorAll("[data-close]").forEach(b => (b.onclick = closeModal));
   page.querySelectorAll("[data-modal]").forEach(b => (b.onclick = () => openModal(b.dataset.modal)));
   page.querySelectorAll("[data-col]").forEach(b => (b.onclick = e => { e.stopPropagation(); openModal("column", { i: +b.dataset.col }); }));

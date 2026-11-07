@@ -322,17 +322,9 @@ details.switcher > summary::before { content: "+"; font: 600 18px/1 var(--mono);
 details.switcher[open] > summary::before { content: "–"; }
 details.switcher > summary > span:first-child { flex: 1; }
 details.switcher > .page { padding: 0 20px 20px; }
-.nextbar { position: sticky; bottom: max(12px, env(safe-area-inset-bottom, 0px)); z-index: 5; display: flex; gap: 12px 16px; align-items: center; justify-content: space-between; flex-wrap: wrap;
-  padding: 12px 14px 12px 18px; border-radius: 14px; border: 1px solid var(--line-strong);
-  background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: var(--shadow); }
-.nextbar .small { color: var(--ink); }
-.nextbar:empty { display: none; }
 .mapwrap { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
 @media (max-width: 700px) {
   .map { min-width: 680px; }
-  .nextbar { flex-wrap: nowrap; padding: 8px 8px 8px 14px; gap: 10px; }
-  .nextbar .small { font-size: 12.5px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-  .nextbar .btn { padding: 9px 14px; flex: 0 0 auto; }
   .toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
 }
 
@@ -391,3 +383,25 @@ td .d-keep { color: var(--muted); }
   .tarrow i { width: 2px; height: 30px; order: -1; }
   .tarrow i::after { right: auto; left: -5px; top: auto; bottom: -2px; border: 6px solid transparent; border-top: 9px solid var(--risk); border-bottom: 0; }
 }
+
+/* ---------------------------------------------------------------- top bar: the step and its main action */
+main { padding-top: 0; }
+.topbar { position: sticky; top: 0; z-index: 6; margin: 0 -32px 24px; padding: 12px 32px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line); }
+.topbar-in { max-width: 1160px; margin: 0 auto; display: flex; gap: 12px 20px; align-items: center; justify-content: space-between; min-height: 46px; }
+.tb-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tb-text .eyebrow { color: var(--safe); }
+.tb-text .small { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar .btn { padding: 10px 18px; font-weight: 600; }
+.topbar .btn.primary, .topbar .btn.safe { box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--safe) 70%, transparent); }
+@media (max-width: 960px) { .topbar { margin: 0 -16px 18px; padding: 10px 16px; } }
+@media (max-width: 600px) {
+  .topbar-in { flex-wrap: nowrap; }
+  .tb-text .eyebrow { font-size: 10px; } .tb-text .small { font-size: 12.5px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .topbar .btn { padding: 9px 13px; font-size: 14px; flex: 0 0 auto; }
+  .topbar .row .btn:not(.primary):not(.safe) { display: none; }  /* phones: the main action only */
+}
+.tb-text { flex: 1 1 auto; }
+.topbar-in > .row { flex: 0 0 auto; flex-wrap: nowrap; }
+@media (max-width: 600px) { .topbar .long { display: none; } }
