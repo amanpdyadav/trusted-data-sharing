@@ -8,7 +8,7 @@ OUT ?= out/health-s1
 RELEASE ?= $(OUT)/release
 ROWMAPS ?= $(OUT)/private
 
-.PHONY: install fmt lint typecheck test test-all schemas check release baseline validate detect-score detect-all text-score redact-eval web
+.PHONY: install fmt lint typecheck test test-all schemas check release baseline validate detect-score detect-all text-score redact-eval web ui ui-dev
 
 install:  ## create/refresh the dev environment (+ the organisers' pets-eval toolkit for evaluation)
 	$(UV) pip install -p $(PY) -e ".[dev,web]"
@@ -40,6 +40,12 @@ check: lint typecheck test  ## run before every push
 # ---------------------------------------------------------------- releases and validation (need the data package)
 web:  ## open the local web app at http://127.0.0.1:8765 (this machine only)
 	$(PY) -m pets_transformer.cli web
+
+ui:  ## rebuild the web app (React, in frontend/) into the package; needs Node 18+
+	cd frontend && npm ci && npm run build
+
+ui-dev:  ## work on the web app with live reload at http://localhost:5173 (run `make web` alongside)
+	cd frontend && npm run dev
 
 release:  ## protect data with a plan: make release [PLAN=plans/health-s1.yaml RECEIVER=uni-research OUT=out/health-s1]
 	$(PY) -m pets_transformer.cli run --plan $(PLAN) --receiver $(RECEIVER) --out $(OUT)

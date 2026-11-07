@@ -1,6 +1,7 @@
 """The local web app end to end on a small synthetic dataset: upload, scan, plan, review, approve, run, download."""
 
 import io
+import re
 import zipfile
 from pathlib import Path
 
@@ -148,11 +149,13 @@ def test_user_errors_are_explained(client: TestClient) -> None:
 def test_the_page_and_its_assets_are_served(client: TestClient) -> None:
     page = client.get("/")
     assert page.status_code == 200
-    assert "/static/app.js" in page.text
-    script = client.get("/static/app.js")
-    assert script.status_code == 200
-    assert script.headers["cache-control"] == "no-cache"  # an updated app is never served stale
-    assert client.get("/static/app.css").status_code == 200
+    assets = re.findall(r'(?:src|href)="(/static/assets/[^"]+)"', page.text)  # the built React app (frontend/)
+    assert any(a.endswith(".js") for a in assets)
+    assert any(a.endswith(".css") for a in assets)
+    for asset in assets:
+        served = client.get(asset)
+        assert served.status_code == 200
+        assert served.headers["cache-control"] == "no-cache"  # an updated app is never served stale
     catalogue = client.get("/api/catalogue").json()
     assert "direct_identifier" in catalogue["roles"]
     assert "diagnosis_group" in catalogue["codelists"]
