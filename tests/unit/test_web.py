@@ -224,3 +224,35 @@ def test_tables_can_be_added_and_removed_until_the_dataset_is_released(client: T
     _ok(client.post(f"/api/sessions/{copy['id']}/rename", json={"name": "clinic final"}))
     assert _ok(client.delete(f"/api/sessions/{copy['id']}")) == {"deleted": copy["id"]}
     assert [x["id"] for x in _ok(client.get("/api/sessions"))] == [sid]
+
+
+def test_plan_versions_can_be_compared_restored_and_released(client: TestClient, sid: str) -> None:
+    _ok(client.post(f"/api/sessions/{sid}/scan"))
+    _ok(client.post(f"/api/sessions/{sid}/plan", json={"custom": RECEIVER}))
+    _ok(client.post(f"/api/sessions/{sid}/approve", json={"by": "Test Steward", "confirm_review": True}))
+    _ok(
+        client.post(
+            f"/api/sessions/{sid}/plan/action", json={"table": "visits", "column": "municipality", "technique": "drop"}
+        )
+    )
+    versions = _ok(client.get(f"/api/sessions/{sid}/plan/versions"))
+    assert [v["note"] for v in versions["versions"]] == [
+        "New plan for University",
+        "Approved by Test Steward",
+        "visits.municipality: shared as is → removed",
+    ]
+    assert versions["current"] == 3
+    diff = _ok(client.get(f"/api/sessions/{sid}/plan/compare", params={"a": 2, "b": 3}))
+    assert {"what": "visits.municipality", "before": "shared as is", "after": "removed"} in diff["changes"]
+    assert "municipality" in diff["yaml_a"]
+    assert (
+        "approved_by: Test Steward" in _ok(client.get(f"/api/sessions/{sid}/plan/yaml", params={"version": 2}))["yaml"]
+    )
+
+    restored = _ok(client.post(f"/api/sessions/{sid}/plan/versions/2/restore"))
+    assert restored["plan"]["approved"]  # the approved version stays approved: release straight away
+    release = _ok(client.post(f"/api/sessions/{sid}/run", json={"receiver": "uni"}))
+    assert release["summary"]["plan_version"] == 4
+    listed = _ok(client.get(f"/api/sessions/{sid}/plan/versions"))["versions"]
+    assert listed[-1]["note"] == "Back to version 2"
+    assert listed[-1]["released_as"] == release["release_id"]

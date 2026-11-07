@@ -43,6 +43,7 @@ from pets_transformer.pipeline import (
     transform_rows,
 )
 from pets_transformer.plan.common import REVIEW
+from pets_transformer.plan.diff import describe, plan_changes
 from pets_transformer.plan.policy import RulePolicy
 from pets_transformer.plan.scenario import Scenario, load_scenarios
 from pets_transformer.plan.statistics import load_codelists
@@ -202,7 +203,7 @@ class App:
             raise WorkspaceError(f"this receiver's request does not fit the data: {exc}") from exc
         s.scenario, s.plan = scenario, plan.model_copy(update={"dataset": s.name})
         s.changed("plan")
-        s.save()
+        s.record_plan(f"New plan for {scenario.recipient}")
         return self.plan_view(s)
 
     def plan_view(self, s: Session) -> dict[str, Any]:
@@ -229,14 +230,14 @@ class App:
         qis = {t: [q for q in cols if not (t == e.table and q == gone)] for t, cols in plan.quasi_identifiers.items()}
         s.plan = plan.model_copy(update={"actions": actions, "quasi_identifiers": qis, "approved": False})
         s.changed("plan")
-        s.save()
+        s.record_plan(f"{e.table}.{e.column}: {describe(old)} → {describe(new)}")
         return self.plan_view(s)
 
     def set_k(self, s: Session, k: int) -> dict[str, Any]:
         plan = _need(s.plan, "make a plan first")
         s.plan = Plan.model_validate(plan.model_dump() | {"k_target": k, "approved": False, "approved_by": None})
         s.changed("plan")
-        s.save()
+        s.record_plan(f"Protection level {plan.k_target} → {k}")
         return self.plan_view(s)
 
     def approve(self, s: Session, by: str, confirm_review: bool) -> dict[str, Any]:
@@ -247,7 +248,41 @@ class App:
         if view["reviews"] and not confirm_review:
             raise WorkspaceError(f"open review items: {', '.join(view['reviews'])}; check them, then confirm")
         s.plan = plan.model_copy(update={"approved": True, "approved_by": by.strip()})
-        s.save()
+        s.record_plan(f"Approved by {by.strip()}")
+        return self.plan_view(s)
+
+    # ------------------------------------------------------------ plan versions
+    def plan_versions(self, s: Session) -> dict[str, Any]:
+        released = {r["plan_version"]: r["release_id"] for r in s.releases() if r.get("plan_version")}
+
+        def card(v: dict[str, Any]) -> dict[str, Any]:
+            plan, scenario = v["plan"], v["scenario"] or {}
+            return {
+                "version": v["version"], "created_at": v["created_at"], "note": v["note"], "approved": plan["approved"],
+                "approved_by": plan.get("approved_by"), "recipient": scenario.get("recipient", plan["scenario_id"]),
+                "released_as": released.get(v["version"]),
+            }  # fmt: skip
+
+        return {"current": s.plan_version, "versions": [card(v) for v in s.plan_versions()]}
+
+    def plan_yaml_at(self, s: Session, version: int | None) -> str:
+        plan = s.plan_at(version)[0] if version else _need(s.plan, "make a plan first")
+        return plan.to_yaml()
+
+    def compare_plans(self, s: Session, a: int, b: int) -> dict[str, Any]:
+        old, new = s.plan_at(a)[0], s.plan_at(b)[0]
+        return {
+            "changes": [asdict(c) for c in plan_changes(old, new)],
+            "yaml_a": old.to_yaml(),
+            "yaml_b": new.to_yaml(),
+        }
+
+    def restore_plan(self, s: Session, version: int) -> dict[str, Any]:
+        """Make an earlier version the current plan. An approved version stays approved: it is what was signed."""
+        plan, scenario, _ = s.plan_at(version)
+        s.plan, s.scenario = plan, scenario
+        s.changed("plan")
+        s.record_plan(f"Back to version {version}")
         return self.plan_view(s)
 
     # ------------------------------------------------------------ run and results
@@ -426,9 +461,7 @@ class App:
         return f"{release_id}.zip", (folder / "release.zip").read_bytes()
 
     def plan_yaml(self, s: Session) -> str:
-        path = s.root / "plan.yaml"
-        _need(s.plan, "make a plan first").save(path)
-        return path.read_text(encoding="utf-8")
+        return _need(s.plan, "make a plan first").to_yaml()
 
     def detection_json(self, s: Session) -> str:
         return _need(s.detections, "scan the data first").model_dump_json(indent=2)
@@ -492,7 +525,7 @@ def _summary(
     after = (replay or {}).get("after") or {}
     return {
         "release_id": outcome.manifest.release_id, "created_at": outcome.manifest.created_at.isoformat(),
-        "receiver": s.receiver, "scenario_id": plan.scenario_id,
+        "receiver": s.receiver, "scenario_id": plan.scenario_id, "plan_version": s.plan_version,
         "recipient": s.scenario.recipient if s.scenario else plan.scenario_id, "approved_by": plan.approved_by,
         "k": plan.k_target if plan.quasi_identifiers else None,
         "epsilon": plan.epsilon_spent if plan.aggregates else None, "budget_cap": dp.budget_cap if dp else None,

@@ -178,6 +178,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def plan_example(sid: str) -> dict[str, Any]:
         return svc.plan_example(session(sid))
 
+    @api.get("/api/sessions/{sid}/plan/versions")
+    def plan_versions(sid: str) -> dict[str, Any]:
+        return svc.plan_versions(session(sid))
+
+    @api.get("/api/sessions/{sid}/plan/yaml")
+    def plan_yaml_text(sid: str, version: int | None = None) -> dict[str, str]:
+        return {"yaml": svc.plan_yaml_at(session(sid), version)}
+
+    @api.get("/api/sessions/{sid}/plan/compare")
+    def compare_plans(sid: str, a: int, b: int) -> dict[str, Any]:
+        return svc.compare_plans(session(sid), a, b)
+
+    @api.post("/api/sessions/{sid}/plan/versions/{version}/restore")
+    def restore_plan(sid: str, version: int) -> dict[str, Any]:
+        return svc.restore_plan(session(sid), version)
+
     @api.post("/api/sessions/{sid}/plan/action")
     def edit_action(sid: str, req: ActionRequest) -> dict[str, Any]:
         return svc.edit_action(session(sid), ActionEdit(**req.model_dump()))

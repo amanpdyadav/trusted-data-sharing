@@ -2,6 +2,7 @@
 
 <out>/web/<session>/session.json, detection.json, plan.json, scenario.json   the work so far (reloaded on start)
 <out>/web/<session>/scan.json   the last risk scan (slow on large data), dropped when a detection changes
+<out>/web/<session>/plan_versions/v001.json ...   every version of the plan, to compare and to go back to
 <out>/web/<session>/data/      the tables the user uploaded or picked (CSV)
 <out>/web/<session>/release/   the latest protected tables + manifest.json (what may be shared)
 <out>/web/<session>/private/   row maps (never offered for download)
@@ -52,6 +53,7 @@ class Session:
     published: bool = False  # the release was downloaded: its privacy budget is spent
     frames: dict[str, pd.DataFrame] = field(default_factory=dict)
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds"))
+    plan_version: int = 0  # the version the current plan is (0: no plan yet)
 
     @property
     def data(self) -> Path:
@@ -73,8 +75,8 @@ class Session:
 
     def save(self) -> None:
         """Write the work so far, so the session survives a restart of the app."""
-        (self.root / "session.json").write_text(json.dumps({"id": self.id, "name": self.name,
-                                                            "created_at": self.created_at}))  # fmt: skip
+        meta = {"id": self.id, "name": self.name, "created_at": self.created_at, "plan_version": self.plan_version}
+        (self.root / "session.json").write_text(json.dumps(meta))
         for name, model in (("detection", self.detections), ("plan", self.plan), ("scenario", self.scenario)):
             path = self.root / f"{name}.json"
             if model is None:
@@ -93,7 +95,40 @@ class Session:
         return cls(
             meta["id"], meta["name"], root, detections=read("detection", DetectionReport),
             scenario=read("scenario", Scenario), plan=read("plan", Plan), created_at=meta["created_at"],
+            plan_version=meta.get("plan_version", 0),
         )  # fmt: skip
+
+    # -------------------------------------------------------- plan versions
+    @property
+    def versions_dir(self) -> Path:
+        return self.root / "plan_versions"
+
+    def record_plan(self, note: str) -> int:
+        """Keep the current plan as a new version with a plain note of what changed."""
+        if self.plan is None:
+            return 0
+        n = len(list(self.versions_dir.glob("v*.json"))) + 1
+        self.versions_dir.mkdir(exist_ok=True)
+        scenario = self.scenario.model_dump(mode="json") if self.scenario else None
+        entry = {
+            "version": n, "created_at": datetime.now(UTC).isoformat(timespec="seconds"), "note": note,
+            "plan": self.plan.model_dump(mode="json"), "scenario": scenario,
+        }  # fmt: skip
+        (self.versions_dir / f"v{n:03d}.json").write_text(json.dumps(entry), encoding="utf-8")
+        self.plan_version = n
+        self.save()
+        return n
+
+    def plan_versions(self) -> list[dict[str, Any]]:
+        return [json.loads(p.read_text(encoding="utf-8")) for p in sorted(self.versions_dir.glob("v*.json"))]
+
+    def plan_at(self, version: int) -> tuple[Plan, Scenario | None, dict[str, Any]]:
+        path = self.versions_dir / f"v{version:03d}.json"
+        if not path.exists():
+            raise WorkspaceError(f"no plan version {version}")
+        entry = json.loads(path.read_text(encoding="utf-8"))
+        scenario = Scenario.model_validate(entry["scenario"]) if entry["scenario"] else None
+        return Plan.model_validate(entry["plan"]), scenario, entry
 
     # -------------------------------------------------------- releases kept for download and comparison
     @property
