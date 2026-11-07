@@ -11,7 +11,7 @@ ROWMAPS ?= $(OUT)/private
 .PHONY: install fmt lint typecheck test test-all schemas check release baseline validate detect-score detect-all text-score redact-eval
 
 install:  ## create/refresh the dev environment (+ the organisers' pets-eval toolkit for evaluation)
-	$(UV) pip install -p $(PY) -e ".[dev]"
+	$(UV) pip install -p $(PY) -e ".[dev,web]"
 	@if [ -d "$(PKG)/toolkit" ]; then $(UV) pip install -p $(PY) -e "$(PKG)/toolkit"; \
 	else echo "note: $(PKG)/toolkit not found; evaluation commands need it"; fi
 
