@@ -101,8 +101,11 @@ def test_full_release_flow_and_downloads(client: TestClient, sid: str) -> None:
     assert "approved_by: Test Steward" in client.get(f"/api/sessions/{sid}/download/plan.yaml").text
 
 
-def test_tradeoff_and_override(client: TestClient, sid: str) -> None:
-    _ok(client.post(f"/api/sessions/{sid}/scan"))
+def test_tradeoff_and_override(settings: Settings, client: TestClient, sid: str) -> None:
+    first = _ok(client.post(f"/api/sessions/{sid}/scan"))
+    kept = settings.out_dir / "web" / sid / "scan.json"
+    assert kept.exists()  # reopening a large dataset does not scan it again
+    assert _ok(client.post(f"/api/sessions/{sid}/scan"))["risk"] == first["risk"]
     _ok(client.post(f"/api/sessions/{sid}/plan", json={"custom": RECEIVER}))
     points = _ok(client.get(f"/api/sessions/{sid}/tradeoff"))["k"]
     assert [p["k"] for p in points][:3] == [2, 3, 5]
@@ -111,6 +114,7 @@ def test_tradeoff_and_override(client: TestClient, sid: str) -> None:
         "table": "visits", "column": "triage", "privacy_role": "sensitive_attribute", "subtype": "OTHER", "by": "Ann",
     }))  # fmt: skip
     assert col["evidence"][0]["kind"] == "manual"
+    assert not kept.exists()  # a corrected detection needs a fresh scan
     assert client.get(f"/api/sessions/{sid}/plan").status_code == 400  # a changed detection needs a new plan
 
 

@@ -1,11 +1,13 @@
 """Sessions of the local web app: one folder per piece of work, under the output directory, never uploaded anywhere.
 
 <out>/web/<session>/session.json, detection.json, plan.json, scenario.json   the work so far (reloaded on start)
+<out>/web/<session>/scan.json   the last risk scan (slow on large data), dropped when a detection changes
 <out>/web/<session>/data/      the tables the user uploaded or picked (CSV)
 <out>/web/<session>/release/   the latest protected tables + manifest.json (what may be shared)
 <out>/web/<session>/private/   row maps (never offered for download)
 <out>/web/<session>/releases/<release_id>/release.zip    every release made, kept for download and comparison
 <out>/web/<session>/releases/<release_id>/results.json   its proof page (holds raw previews: stays on this machine)
+<out>/web/<session>/releases/<release_id>/summary.json   its headline numbers, for quick listings
 """
 
 import json
@@ -17,7 +19,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import pandas as pd
 from pydantic import BaseModel
@@ -106,11 +108,23 @@ class Session:
             for f in sorted((self.root / "release").iterdir()):
                 z.write(f, f"{release_id}/{f.name}")
         (folder / "results.json").write_text(json.dumps(results), encoding="utf-8")
+        (folder / "summary.json").write_text(json.dumps(results["summary"]), encoding="utf-8")
 
     def releases(self) -> list[dict[str, object]]:
         """Summaries of every release, newest first."""
-        found = [json.loads(p.read_text(encoding="utf-8")) for p in self.releases_dir.glob("*/results.json")]
-        return sorted((r["summary"] for r in found), key=lambda r: str(r["created_at"]), reverse=True)
+        found = [json.loads(p.read_text(encoding="utf-8")) for p in self.releases_dir.glob("*/summary.json")]
+        return sorted(found, key=lambda r: str(r["created_at"]), reverse=True)
+
+    # -------------------------------------------------------- the last risk scan, kept because it is slow on big data
+    @property
+    def _scan_file(self) -> Path:
+        return self.root / "scan.json"
+
+    def cached_scan(self) -> dict[str, Any] | None:
+        return json.loads(self._scan_file.read_text(encoding="utf-8")) if self._scan_file.exists() else None
+
+    def cache_scan(self, scan: dict[str, Any]) -> None:
+        self._scan_file.write_text(json.dumps(scan), encoding="utf-8")
 
     def release(self, release_id: str) -> Path:
         folder = self.releases_dir / release_id
@@ -122,6 +136,7 @@ class Session:
         """Clear what was built on a changed step: new detections need a new plan, a new plan a new run."""
         if what == "detections":
             self.plan = None
+            self._scan_file.unlink(missing_ok=True)
         self.outcome = None
         self.published = False
 

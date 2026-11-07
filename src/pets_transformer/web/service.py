@@ -119,23 +119,37 @@ class App:
 
     # ------------------------------------------------------------ scan
     def scan(self, s: Session) -> dict[str, Any]:
+        """Detections, risk scan and the attack on one person. Kept with the session: it is slow on big data."""
         if s.detections is None:
             s.detections = detect_source(s.source(), s.name)
-        s.save()
-        risk = scan(s.detections, s.tables())
-        return {
-            "detections": s.detections.model_dump(mode="json"), "risk": risk.as_dict(), "attack": self.attack(s),
-        }  # fmt: skip
+            s.save()
+        cached = s.cached_scan()
+        if cached is None:
+            det, frames = s.detections, s.tables()
+            links = find_links(det, frames)
+            target = attack.pick_target(det, frames)
+            before = attack.on_raw(det, frames, target, attack.reach(det, frames, links, target)) if target else None
+            cached = {
+                "risk": scan(det, frames, links).as_dict(), "attack": {"before": before.as_dict(), "after": None}
+                if before else None, "target": asdict(target) if target else None,
+            }  # fmt: skip
+            s.cache_scan(cached)
+        return {"detections": s.detections.model_dump(mode="json"), "risk": cached["risk"], "attack": cached["attack"]}
 
     def attack(self, s: Session) -> dict[str, Any] | None:
         """The linkage attack on one person, on the raw data and (once released) on the release."""
-        det, frames = _need(s.detections, "scan the data first"), s.tables()
-        target = attack.pick_target(det, frames)
-        if target is None:
+        if s.cached_scan() is None:
+            self.scan(s)
+        cached = s.cached_scan()
+        if not cached or not cached["target"]:
             return None
-        reach = attack.reach(det, frames, find_links(det, frames), target)
-        out: dict[str, Any] = {"before": attack.on_raw(det, frames, target, reach).as_dict(), "after": None}
+        out: dict[str, Any] = {"before": cached["attack"]["before"], "after": None}
         if s.outcome is not None and s.plan is not None:
+            det, frames, target = (
+                _need(s.detections, "scan the data first"),
+                s.tables(),
+                attack.Target(**cached["target"]),
+            )
             released = {t.name: t.frame for t in s.outcome.tables}
             ids = {t.name: t.record_ids for t in s.outcome.tables if t.record_ids is not None}
             copy = attack.ReleasedCopy(s.plan, released, ids)
