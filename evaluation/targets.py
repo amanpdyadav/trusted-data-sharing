@@ -8,7 +8,7 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
-from evaluation.attacks import ReplayResult
+from evaluation.attacks import ReplayResult, attack_defeated
 from evaluation.scrap_sweep import SweepResult
 from pets_transformer.contracts import Metrics
 
@@ -50,11 +50,6 @@ class Gate:
 
 def _fmt(x: float | None) -> str:
     return "n/a" if x is None else f"{x:.3f}"
-
-
-def attack_defeated(r: ReplayResult, minimum: int) -> bool:
-    """An attack is defeated if it ends with no candidates, misses the target, or leaves `minimum`+ candidates."""
-    return r.candidates_left == 0 or r.target_among_candidates is False or r.candidates_left >= minimum
 
 
 def release_gates(

@@ -19,10 +19,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from evaluation import dashboard
-from evaluation.runner import RESULTS, git_commit
+from evaluation.runner import RESULTS, git_commit, write_csv
+from evaluation.scenarios_from_pack import HAND_WRITTEN
 from evaluation.scorecard import Run, run_pets_eval, to_metrics
 from pets_transformer.contracts import Plan
-from pets_transformer.detect.rules import detect_source
+from pets_transformer.detect.source import detect_source
 from pets_transformer.keys import KeyScope
 from pets_transformer.pipeline import OutputLayout, run_release
 from pets_transformer.plan.policy import RulePolicy
@@ -32,7 +33,6 @@ from pets_transformer.sources import open_source
 
 CSV = RESULTS / "receivers.csv"
 READY = 0.70  # combined score from which a receiver's automatic plan counts as ready
-HAND_WRITTEN = {"HEALTH-S1", "HEALTH-S2"}
 BENCHMARK = "benchmark (automatic plan, not for sharing)"
 
 # Why a receiver's automatic plan loses usefulness, read from its scorecard (docs/RECEIVERS.md). Kept here so the CSV
@@ -148,9 +148,4 @@ def write(rows: Iterable[ReceiverResult], path: Path = CSV) -> Path:
     new = {r.id: {k: ("" if v is None else v) for k, v in asdict(r).items()} for r in rows}
     kept = [r for r in read(path) if r["id"] not in new]
     merged = sorted([*kept, *new.values()], key=lambda r: (str(r["dataset"]), str(r["id"])))
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=FIELDS, lineterminator="\n")
-        w.writeheader()
-        w.writerows(merged)
-    return path
+    return write_csv(path, FIELDS, merged)

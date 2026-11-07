@@ -1,13 +1,15 @@
 """Score one release and record it: shared by `validate`, `baseline` and experiments (one path, one result)."""
 
+import csv
 import subprocess
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from evaluation.attack_cases import DEMO_CASES
 from evaluation.attacks import ReplayResult, replay
 from evaluation.history import append_history, ensure_new_run_id, history_row
-from evaluation.scorecard import Run, rowmaps_in, run_pets_eval, to_metrics
+from evaluation.scorecard import Run, record_ids, run_pets_eval, to_metrics
 from evaluation.scrap_sweep import SweepResult, sweep
 from evaluation.targets import Gate, load_targets, release_gates
 from pets_transformer.contracts import Metrics
@@ -37,15 +39,6 @@ def git_commit() -> str:
     return out.stdout.strip()
 
 
-def _record_ids(run: Run, table: str, rows: int) -> list[str] | None:
-    """Original id per release row, from the private row map; None when there is no usable map."""
-    maps = rowmaps_in(run.rowmap_dir)
-    if table not in maps:
-        return None
-    rm = read_table(maps[table]).astype({"protected_row": int}).sort_values("protected_row")
-    return rm["original_record_id"].tolist() if len(rm) == rows else None
-
-
 def demo_replays(run: Run) -> list[tuple[ReplayResult, ReplayResult]]:
     """Replay each demo attack on the original table (before) and on the release (after)."""
     pairs: list[tuple[ReplayResult, ReplayResult]] = []
@@ -55,7 +48,7 @@ def demo_replays(run: Run) -> list[tuple[ReplayResult, ReplayResult]]:
             continue
         orig, rel = read_table(orig_path), read_table(rel_path)
         before = replay(case, orig, orig["visit_id"].tolist())
-        after = replay(case, rel, _record_ids(run, case.table, len(rel)))
+        after = replay(case, rel, record_ids(run.rowmap_dir, case.table, len(rel)))
         pairs.append((before, after))
     return pairs
 
@@ -66,7 +59,7 @@ def scrap_sweep(run: Run) -> SweepResult | None:
     if run.dataset != "health" or not rel_path.exists():
         return None
     rel = read_table(rel_path)
-    return sweep(run.package_root, rel, _record_ids(run, "ed_visits", len(rel)))
+    return sweep(run.package_root, rel, record_ids(run.rowmap_dir, "ed_visits", len(rel)))
 
 
 def score_run(run: Run, results: Path = RESULTS) -> Scored:
@@ -79,3 +72,13 @@ def score_run(run: Run, results: Path = RESULTS) -> Scored:
     gates = release_gates(metrics, [after for _, after in pairs], load_targets(run.scenario_id), swept)
     append_history(history, history_row(metrics, gates, git_commit()))
     return Scored(run, metrics, gates, pairs, swept)
+
+
+def write_csv(path: Path, fields: Sequence[str], rows: Iterable[Mapping[str, object]]) -> Path:
+    """Write rows to a committed results file (LF line endings, header first)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(fields), lineterminator="\n")
+        w.writeheader()
+        w.writerows(rows)
+    return path

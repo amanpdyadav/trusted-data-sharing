@@ -2,9 +2,10 @@
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { Loader2 } from "lucide-react";
 import * as React from "react";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-export const Spinner = ({ className }: { className?: string }) => <Loader2 className={cn("size-4 animate-spin text-safe", className)} aria-label="working" />;
+export const Spinner = ({ className }: { className?: string }) => <Loader2 role="status" className={cn("size-4 animate-spin text-safe", className)} aria-label="working" />;
 
 /** A thin bar: value 0..1. */
 export const Meter = ({ value, tone = "risk", className }: { value: number; tone?: "risk" | "safe" | "ok"; className?: string }) => (
@@ -16,9 +17,8 @@ export const Meter = ({ value, tone = "risk", className }: { value: number; tone
 export const Progress = ({ value }: { value: number | null }) => (
   <div className="relative h-2.5 overflow-hidden rounded-full bg-muted ring-1 ring-border">
     {value == null
-      ? <div className="absolute h-full w-1/3 animate-[slide_1.3s_ease-in-out_infinite] rounded-full bg-safe" style={{ animationName: "slide" }} />
+      ? <div className="absolute h-full w-1/3 animate-slide rounded-full bg-safe" />
       : <div className="h-full rounded-full bg-safe transition-[width]" style={{ width: `${value * 100}%` }} />}
-    <style>{"@keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(300%)}}"}</style>
   </div>
 );
 
@@ -33,7 +33,7 @@ export const Td = ({ className, ...p }: React.TdHTMLAttributes<HTMLTableCellElem
 );
 
 export const TooltipProvider = TooltipPrimitive.Provider;
-export function Tip({ text, children }: { text: React.ReactNode; children: React.ReactNode }) {
+export function Tip({ text, children }: { text: ReactNode; children: ReactNode }) {
   return (
     <TooltipPrimitive.Root delayDuration={200}>
       <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>

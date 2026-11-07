@@ -1,24 +1,20 @@
 """Checks against the real challenge data. Skipped when the package is not on disk."""
 
-from pathlib import Path
-
 import pytest
 
 from pets_transformer.assess.kanon import k_anonymity
-from pets_transformer.config import Settings
 from pets_transformer.detect.base import match_rate
-from pets_transformer.detect.rules import detect_source
+from pets_transformer.detect.source import detect_source
 from pets_transformer.detect.validators import HetuValidator, IbanValidator
 from pets_transformer.sources import open_source
+from tests.conftest import PACKAGE
 
 pytestmark = pytest.mark.integration
-
-ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture(scope="module")
 def health() -> object:
-    data = ROOT / Settings.from_env().package_root / "data" / "health"
+    data = PACKAGE / "data" / "health"
     if not data.is_dir():
         pytest.skip("TrustED data package not found")
     return open_source(f"csv:{data}")
@@ -31,7 +27,7 @@ def test_hetu_validator_recognises_the_id_column(health: object) -> None:
 
 
 def test_iban_validator_on_bank_data() -> None:
-    data = ROOT / Settings.from_env().package_root / "data" / "finance"
+    data = PACKAGE / "data" / "finance"
     if not data.is_dir():
         pytest.skip("TrustED data package not found")
     customers = open_source(f"csv:{data}").read("customers")

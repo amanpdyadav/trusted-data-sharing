@@ -1,6 +1,6 @@
 // The plan as YAML, every version of it, and what changed between any two versions.
 import { Check, Copy, Download, GitCompare, History, RotateCcw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Section } from "@/components/common";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { PlanCompare } from "@/lib/api";
 import { plural, when } from "@/lib/format";
 import { foldUnchanged, lineDiff } from "@/lib/linediff";
-import { comparePlans, go, planHref, planYaml, useApp, useVersion } from "@/lib/store";
+import { comparePlans, go, planHref, planYaml, useApp, restoreVersion } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 /** The exact plan.yaml that is approved and written into every release, with line numbers. */
@@ -67,7 +67,7 @@ export function PlanVersionsPanel() {
               <div className="flex items-center gap-2 pt-1.5">
                 <label className="flex cursor-pointer items-center gap-1.5 text-[13px]"><Checkbox checked={picked.includes(v.version)} onCheckedChange={on => pick(v.version, !!on)} aria-label={`Compare version ${v.version}`} /> compare</label>
                 {!current && <Button size="sm" variant="ghost" disabled={busy} onClick={() => setCompare([v.version, data.current])}><GitCompare /> vs current</Button>}
-                {!current && <Button size="sm" variant="outline" disabled={busy} onClick={() => useVersion(v.version)}><RotateCcw /> Use this version</Button>}
+                {!current && <Button size="sm" variant="outline" disabled={busy} onClick={() => restoreVersion(v.version)}><RotateCcw /> Use this version</Button>}
               </div>
             </li>
           );
@@ -81,7 +81,9 @@ export function PlanVersionsPanel() {
 
 function CompareVersions({ a, b, onClose }: { a: number; b: number; onClose: () => void }) {
   const [data, setData] = useState<PlanCompare | null>(null), current = useApp(s => s.versions?.current), busy = useApp(s => s.busy === "plan");
-  useEffect(() => { comparePlans(a, b).then(setData).catch(() => onClose()); }, [a, b, onClose]);
+  const close = useRef(onClose);  // the parent passes a new callback each render; the fetch depends on a and b only
+  close.current = onClose;
+  useEffect(() => { comparePlans(a, b).then(setData).catch(() => close.current()); }, [a, b]);
   const older = a === current ? b : a;
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
@@ -104,7 +106,7 @@ function CompareVersions({ a, b, onClose }: { a: number; b: number; onClose: () 
           )}
         </DialogBody>
         <DialogFooter>
-          {older !== current && <Button variant="outline" disabled={busy} onClick={async () => { if (await useVersion(older)) { onClose(); go("plan"); } }}><RotateCcw /> Use version {older}</Button>}
+          {older !== current && <Button variant="outline" disabled={busy} onClick={async () => { if (await restoreVersion(older)) { onClose(); go("plan"); } }}><RotateCcw /> Use version {older}</Button>}
           <Button onClick={onClose}>Close</Button>
         </DialogFooter>
       </DialogContent>

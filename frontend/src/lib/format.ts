@@ -1,9 +1,13 @@
-// Formatting and on-screen masking. Masking only changes what is shown, never the data.
+// Formatting: numbers, percentages, dates, clipped text, and plain words for privacy roles.
 export const fmt = (n: number) => Number(n).toLocaleString("en-US");
 export const pct = (x: number | null | undefined, digits = 0) => (x == null ? "–" : `${(100 * x).toFixed(digits)}%`);
 export const plural = (n: number, word: string, many = `${word}s`) => `${fmt(n)} ${n === 1 ? word : many}`;
 export const when = (iso?: string | null) =>
   iso ? new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+/** A value as text, shown as it is in the data (the app runs on this computer only). */
+/** "smart_city" -> "smart city": identifiers as plain words. */
+export const words = (id: string) => id.replace(/_/g, " ");
+export const text = (v: unknown) => String(v ?? "");
 export const clip = (v: unknown, n = 120) => { const t = String(v ?? ""); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
 export const mb = (bytes: number) => (bytes / 2 ** 20).toFixed(bytes < 10 * 2 ** 20 ? 1 : 0);
 

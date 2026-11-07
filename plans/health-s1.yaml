@@ -3,7 +3,7 @@
 # 30-day revisits by age (H-U6), CRP vs temperature via the lab join (H-U7), hour-of-day arrivals (H-U8).
 # Version 2: hand-written, tuned with `python -m evaluation experiment arrival-time` and `... suppression-order`
 # (results in results/history.csv). The automatic planner will produce this from detection + scenario.
-# Version 3 (combine branch): version 2 passed the demo attacks but failed the post and news sweep (8 of 1,050 public
+# Version 3: version 2 passed the demo attacks but failed the post and news sweep (8 of 1,050 public
 # scraps left the real visit in a group of 1-4, via exact length of stay, town and sex). `python -m evaluation
 # experiment stay-length` picked: stay in 30-minute bands with 12 h+ as "720+", sex dropped (not requested), the eight
 # largest municipalities kept and the rest merged (H-U4 needs only those). All 5 gates pass; combined 0.991.

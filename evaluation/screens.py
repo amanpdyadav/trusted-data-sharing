@@ -1,4 +1,4 @@
-"""Data for the web app's two presentation screens (ported from the main branch's mosaic attack and release audit).
+"""Data for the web app's Mosaic attack screen, and the organisers' scorecard shown in a release's audit record.
 
     python -m evaluation screens        # from the newest HEALTH-S1 release made in the web app
     python -m evaluation screens --release out/health-s1/release --rowmaps out/health-s1/private
@@ -6,9 +6,9 @@
 writes results/screens/mosaic.json and results/screens/audit.json; the web app shows them under "Mosaic attack" and
 "Release audit". Built here, not in the runtime package, because they read the attacker files and the ground truth.
 
-Mosaic attack, three modes per case:
-  raw    every organisation shares raw files: the verified chain from demo/mosaic_trace.json
-  names  names, ID codes, phones and addresses removed: the same clues replayed on the package quickstart release
+Mosaic attack, three modes per case (built in mosaic_chain.py):
+  raw    every organisation shares raw files: the chain from the scrap to a verified person and their other data
+  names  names, ID codes, phones and addresses removed everywhere: the same clues still lead to the person
   ours   the same clues replayed on our release
 """
 
@@ -20,45 +20,19 @@ from typing import Any
 import yaml
 
 from evaluation import mosaic_chain
-from evaluation.attacks import AttackCase, ReplayResult, replay
+from evaluation.attacks import replay_summary
 from evaluation.runner import Scored
+from evaluation.scorecard import record_ids
 from pets_transformer.io import read_table
 
-TRACE = Path("demo/mosaic_trace.json")
 OUT = Path("results/screens")
-
-
-def _ids(rowmap_dir: Path, table: str, rows: int) -> list[str] | None:
-    path = rowmap_dir / f"rowmap_{table}.csv"
-    if not path.exists():
-        return None
-    rm = read_table(path).astype({"protected_row": int}).sort_values("protected_row")
-    ids: list[str] = rm["original_record_id"].astype(str).tolist()
-    return ids if len(ids) == rows else None
-
-
-def _funnel(r: ReplayResult) -> dict[str, Any]:
-    return {
-        "funnel": [[s.label, s.candidates, s.applied] for s in r.funnel],
-        "candidates": r.candidates_left,
-        "target_in": r.target_among_candidates,
-        "holds": r.candidates_left == 0 or r.target_among_candidates is False or r.candidates_left >= 5,
-    }
-
-
-def _replay_on(case: AttackCase, folder: Path, rowmaps: Path) -> dict[str, Any] | None:
-    path = folder / f"{case.table}.csv"
-    if not path.exists():
-        return None
-    frame = read_table(path)
-    return _funnel(replay(case, frame, _ids(rowmaps, case.table, len(frame))))
 
 
 def mosaic(package_root: Path, release: Path, rowmaps: Path) -> dict[str, Any]:
     """Every public post and news clip that leads to one verified person: raw and names-removed chains, plus a replay
     on our release (evaluation/mosaic_chain.py)."""
     frame = read_table(release / "ed_visits.csv")
-    cases, summary = mosaic_chain.build_with_summary(package_root, frame, _ids(rowmaps, "ed_visits", len(frame)))
+    cases, summary = mosaic_chain.build(package_root, frame, record_ids(rowmaps, "ed_visits", len(frame)))
     return {
         "created_utc": datetime.now(UTC).isoformat(timespec="seconds"), "release": str(release),
         "summary": summary, "cases": cases,
@@ -97,7 +71,7 @@ def audit(scored: Scored, plan_path: Path | None) -> dict[str, Any]:
         "sweep": None if sw is None else {
             "scraps": sw.scraps, "single": sw.single, "single_target": sw.single_target, "exposed": sw.exposed,
             "median_candidates": sw.median_candidates,
-            "worst": [{"id": r.case_id, **_funnel(r)} for r in sw.worst],
+            "worst": [{"id": r.case_id, **replay_summary(r)} for r in sw.worst],
         },
         "decisions": [{k: a.get(k) for k in ("table", "column", "technique", "params", "reason")}
                       for a in plan.get("actions", [])],

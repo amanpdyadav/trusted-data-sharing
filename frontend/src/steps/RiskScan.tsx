@@ -1,26 +1,23 @@
-// Step 2: what could go wrong if the data were shared as it is. Headline numbers, the attack replay on one
-// person and the trail through the tables, the connection map, then the detail per table and per column.
-import { ArrowDown, ArrowRight, Dices, Download, Play } from "lucide-react";
-import { useState } from "react";
-import { Facts, Guide, Kpi, Kpis, PageHead, ProgressCard, Section, useRole, useShown } from "@/components/common";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+// Step 2: what could go wrong if the data were shared as it is. Headline numbers, the connection map, the attack
+// replay on one person and the trail through the tables, then the tabs in ScanDetails.
+import { ArrowDown, ArrowRight, Dices, Play } from "lucide-react";
+import type { ReactNode } from "react";
+import { Facts, Guide, Kpi, Kpis, PageHead, ProgressCard, Section, useRole, Verdict } from "@/components/common";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/form";
-import { Meter, Spinner, TableWrap, Td, Th } from "@/components/ui/misc";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { Attack, Hop, Scan, TableExposure } from "@/lib/api";
-import { ROLE_LABEL, ROLE_TONE, clip, fmt, pct, plural } from "@/lib/format";
-import { anotherPerson, correctColumn, detectionHref, go, play, runScan, useApp } from "@/lib/store";
+import { Spinner } from "@/components/ui/misc";
+import { worstTable, type Attack, type Hop, type Scan } from "@/lib/api";
+import { ROLE_TONE, fmt, pct, plural, text } from "@/lib/format";
+import { anotherPerson, go, play, runScan, useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { Details } from "@/steps/ScanDetails";
 
 export function RiskScan() {
   const scan = useApp(s => s.scan), progress = useApp(s => s.progress);
   const title = "What could go wrong if this data were shared as it is";
   if (!scan) return <><PageHead title={title} />{progress ? <ProgressCard /> : <div><Button size="lg" onClick={runScan}>Scan for risks</Button></div>}</>;
-  const R = scan.risk, worst = [...R.tables].sort((a, b) => b.unique_share - a.unique_share)[0];
+  const R = scan.risk, worst = worstTable(R);
   const outside = R.tables.flatMap(t => t.outside_links), joined = new Set(R.links.flatMap(l => [l.from_table, l.to_table])).size;
   const special = R.tables.filter(t => t.special_category).map(t => t.table);
   return (
@@ -42,13 +39,13 @@ export function RiskScan() {
   );
 }
 
-export const Legend = ({ items }: { items: [string, string][] }) => (
+const Legend = ({ items }: { items: [string, string][] }) => (
   <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-muted-foreground">
     {items.map(([cls, label]) => <span key={label} className="inline-flex items-center gap-1.5"><i className={cn("size-2.5 rounded-sm", cls)} />{label}</span>)}
   </div>
 );
 
-function Stage({ n, title, hit, children }: { n: number; title: string; hit?: boolean; children: React.ReactNode }) {
+function Stage({ n, title, hit, children }: { n: number; title: string; hit?: boolean; children: ReactNode }) {
   return (
     <div className={cn("stage flex min-w-0 flex-col gap-2 border bg-card p-4 md:border-l-0 md:first:rounded-l-xl md:first:border-l md:last:rounded-r-xl max-md:border-t-0 max-md:first:rounded-t-xl max-md:first:border-t max-md:last:rounded-b-xl",
       hit && "border-risk/45 bg-risk-soft")}>
@@ -96,16 +93,9 @@ function AttackReplay({ attack }: { attack: Attack }) {
   );
 }
 
-export const Verdict = ({ tone, badge, children }: { tone: "risk" | "safe"; badge: string; children: React.ReactNode }) => (
-  <div className={cn("verdict flex flex-wrap items-center gap-3.5 rounded-xl px-4 py-3.5", tone === "risk" ? "bg-risk-soft" : "bg-safe-soft")}>
-    <span className={cn("rounded-md px-3 py-2 font-display text-[13px] font-extrabold uppercase tracking-wider text-white", tone === "risk" ? "bg-risk" : "bg-safe")}>{badge}</span>
-    <span className="flex-1">{children}</span>
-  </div>
-);
-
 /** The mosaic effect step by step: from the outsider's facts through each table, and what each one gives away. */
 function Trail({ attack }: { attack: Attack }) {
-  const shown = useShown(), role = useRole(), trail = attack.trail!;
+  const role = useRole(), trail = attack.trail!;
   const arrow = (label: string, sub: string) => (
     <div className="flex shrink-0 items-center gap-2.5 px-1.5 max-md:pl-6 md:w-[118px] md:flex-col md:justify-center md:text-center">
       <span className="font-mono text-xs font-semibold text-risk">{label}</span>
@@ -121,7 +111,7 @@ function Trail({ attack }: { attack: Attack }) {
       {Object.entries(h.learnt).map(([k, v]) => {
         const [, vals, more = ""] = v.match(/^(.*?)( \+\d+ more)?$/s) ?? [];
         return <div key={k} className="flex flex-col border-b border-dashed border-risk/25 py-1 text-[12.5px]"><span className="font-mono text-[11px] text-muted-foreground">{k}</span>
-          <b className={cn("font-semibold [overflow-wrap:anywhere]", ROLE_TONE[role(h.table, k)] ?? "")}>{shown(h.table, k, vals)}{more}</b></div>;
+          <b className={cn("font-semibold [overflow-wrap:anywhere]", ROLE_TONE[role(h.table, k)] ?? "")}>{text(vals)}{more}</b></div>;
       })}
       {!Object.keys(h.learnt).length && <span className="text-sm text-muted-foreground">nothing telling beyond the link</span>}
     </div>
@@ -185,164 +175,5 @@ function ConnectionMap({ risk }: { risk: Scan["risk"] }) {
             {e.quasi_identifiers.length ? `${pct(e.unique_share)} singled out` : "no quasi-identifiers"}</text></g>;
       })}
     </svg>
-  );
-}
-
-function Details({ scan }: { scan: Scan }) {
-  const R = scan.risk, det = scan.detections.columns, people = Object.values(R.person ?? {}).reduce((n, r) => n + r.length, 0);
-  return (
-    <Card className="p-5">
-      <Tabs defaultValue="tables">
-        <TabsList>
-          <TabsTrigger value="tables">Exposure per table <Badge>{R.tables.length}</Badge></TabsTrigger>
-          <TabsTrigger value="person">One person's file <Badge>{people}</Badge></TabsTrigger>
-          <TabsTrigger value="columns">What each column is <Badge>{det.length}</Badge></TabsTrigger>
-        </TabsList>
-        <TabsContent value="tables"><div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,240px),1fr))] gap-3">{R.tables.map(t => <ExposureCard key={t.table} t={t} />)}</div></TabsContent>
-        <TabsContent value="person"><PersonFile person={R.person} /></TabsContent>
-        <TabsContent value="columns"><ColumnsByTable scan={scan} /></TabsContent>
-      </Tabs>
-    </Card>
-  );
-}
-
-function ExposureCard({ t }: { t: TableExposure }) {
-  const chips = (cols: string[], v: "risk" | "warn" | "safe") => cols.map(c => <Badge key={c} variant={v} className="font-mono">{c}</Badge>);
-  const row = (label: string, cols: string[], v: "risk" | "warn" | "safe") => cols.length > 0 && <div className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">{label}: {chips(cols, v)}</div>;
-  return (
-    <div className={cn("flex flex-col gap-3 rounded-xl border bg-muted p-4", t.unique_share >= 0.5 && "border-risk/50")}>
-      <div className="flex flex-wrap items-center justify-between gap-2"><b className="min-w-0 break-all font-mono">{t.table}</b>{t.special_category && <Badge variant="risk">GDPR Art. 9</Badge>}</div>
-      <div><div className="flex justify-between text-[13px]"><span className="text-muted-foreground">singled out on quasi-identifiers</span><b className="tabular-nums">{pct(t.unique_share)}</b></div><Meter value={t.unique_share} /></div>
-      {row("Identifies a person", t.direct_identifiers, "risk")}{row("An outsider may know", t.quasi_identifiers, "warn")}
-      {row("Sensitive", t.sensitive, "safe")}{row("Free text", t.free_text, "risk")}
-    </div>
-  );
-}
-
-/** Groups for what one person's records give away, in the same colours as the rest of the scan. */
-const PERSON_GROUPS: { title: string; roles: string[]; tone: "risk" | "warn" | "safe" | "outline" }[] = [
-  { title: "Identifies the person", roles: ["direct_identifier"], tone: "risk" },
-  { title: "An outsider may know", roles: ["quasi_identifier"], tone: "warn" },
-  { title: "Sensitive", roles: ["sensitive_attribute"], tone: "safe" },
-  { title: "Free text", roles: ["free_text"], tone: "risk" },
-  { title: "Codes and other details", roles: [], tone: "outline" },
-];
-
-function PersonFile({ person }: { person: Record<string, Record<string, string>[]> }) {
-  const tables = Object.keys(person ?? {});
-  if (!tables.length) return <p className="text-sm text-muted-foreground">No person key found, so records cannot be gathered per person.</p>;
-  return (
-    <div className="flex flex-col gap-3">
-      <p className="text-sm text-muted-foreground">One person picked the way an attacker would: someone with several records. Facts that are the same in every record are shown once, grouped by what they give away; below them, what changes from record to record.</p>
-      <Accordion type="multiple" defaultValue={[tables[0]]} className="flex flex-col gap-2">
-        {tables.map(t => <PersonTable key={t} table={t} records={person[t]} />)}
-      </Accordion>
-    </div>
-  );
-}
-
-function PersonTable({ table, records }: { table: string; records: Record<string, string>[] }) {
-  const shown = useShown(), role = useRole();
-  const cols = [...new Set(records.flatMap(r => Object.keys(r)))];
-  const same = records.length > 1 ? cols.filter(c => records.every(r => (r[c] ?? "") === (records[0][c] ?? ""))) : cols;
-  const varies = cols.filter(c => !same.includes(c));
-  const known = PERSON_GROUPS.flatMap(g => g.roles);
-  const groups = PERSON_GROUPS.map(g => ({ ...g, cols: same.filter(c => (g.roles.length ? g.roles.includes(role(table, c)) : !known.includes(role(table, c)))) })).filter(g => g.cols.length);
-  const exposing = same.filter(c => ["direct_identifier", "quasi_identifier"].includes(role(table, c))).length;
-  return (
-    <AccordionItem value={table}>
-      <AccordionTrigger right={<>{plural(records.length, "record")}{exposing ? <span className="text-risk"> · {exposing} identifying facts in every one</span> : null}</>}><b className="font-mono">{table}</b></AccordionTrigger>
-      <AccordionContent className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <span className="eyebrow text-muted-foreground">{records.length > 1 ? `The same in all ${records.length} records` : "The record"}</span>
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-3">
-            {groups.map(g => (
-              <div key={g.title} className={cn("flex flex-col gap-2 rounded-xl border bg-muted p-4", g.tone === "risk" && "border-risk/40")}>
-                <div className="flex items-center justify-between gap-2"><b className="text-sm">{g.title}</b><Badge variant={g.tone}>{g.cols.length}</Badge></div>
-                <Facts table={table} facts={Object.fromEntries(g.cols.map(c => [c, clip(records[0][c] ?? "", 44)]))} />
-              </div>
-            ))}
-          </div>
-        </div>
-        {varies.length > 0 && (
-          <div className="flex flex-col gap-2">
-            <span className="eyebrow text-muted-foreground">What changes from record to record</span>
-            <TableWrap>
-              <table className="w-full border-collapse">
-                <thead><tr><Th>#</Th>{varies.map(c => <Th key={c} className={ROLE_TONE[role(table, c)]}>{c}</Th>)}</tr></thead>
-                <tbody>{records.map((r, i) => (
-                  <tr key={i}><Td className="tabular-nums text-muted-foreground">{i + 1}</Td>
-                    {varies.map(c => { const v = shown(table, c, r[c] ?? ""); return <Td key={c} className={cn("whitespace-nowrap", ROLE_TONE[role(table, c)])} title={clip(v, 600)}>{clip(v, 40) || "–"}</Td>; })}</tr>
-                ))}</tbody>
-              </table>
-            </TableWrap>
-          </div>
-        )}
-      </AccordionContent>
-    </AccordionItem>
-  );
-}
-
-function ColumnsByTable({ scan }: { scan: Scan }) {
-  const det = scan.detections.columns, tables = [...new Set(det.map(c => c.table))];
-  const [open, setOpen] = useState<number | null>(null);
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">Found from column names and values (ID-code checksums, IBAN and card check digits, phone formats, name shapes, dates, code sets). Wrong? Open it and change it; the plan follows your correction.</p>
-        <Button size="sm" variant="outline" asChild><a href={detectionHref()}><Download /> detection.json</a></Button>
-      </div>
-      <Accordion type="multiple" defaultValue={[tables[0]]} className="flex flex-col gap-2">
-        {tables.map(t => {
-          const cols = det.map((c, i) => [c, i] as const).filter(([c]) => c.table === t);
-          const ident = cols.filter(([c]) => c.privacy_role === "direct_identifier").length, qi = cols.filter(([c]) => c.privacy_role === "quasi_identifier").length;
-          return (
-            <AccordionItem key={t} value={t}>
-              <AccordionTrigger right={<>{plural(cols.length, "column")}{ident ? <span className="text-risk"> · {ident} identify a person</span> : null}{qi ? <span className="text-warn"> · {qi} outsider may know</span> : null}</>}><b className="font-mono">{t}</b></AccordionTrigger>
-              <AccordionContent className="p-0">
-                <TableWrap className="rounded-none border-0">
-                  <table className="w-full border-collapse"><thead><tr><Th>Column</Th><Th>What it is</Th><Th>Type</Th><Th>How sure</Th><Th /></tr></thead>
-                    <tbody>{cols.map(([c, i]) => (
-                      <tr key={c.column} className="cursor-pointer hover:bg-muted" onClick={() => setOpen(i)}>
-                        <Td className="font-mono">{c.column}</Td>
-                        <Td className={ROLE_TONE[c.privacy_role]}>{ROLE_LABEL[c.privacy_role] ?? c.privacy_role}{c.evidence.some(e => e.kind === "manual") && <Badge variant="ok" className="ml-2">corrected</Badge>}</Td>
-                        <Td className="font-mono text-xs text-muted-foreground">{c.subtype}</Td><Td><Meter value={c.confidence} tone="safe" className="w-20" /></Td>
-                        <Td><Button size="sm" variant="outline">Details</Button></Td>
-                      </tr>))}</tbody></table>
-                </TableWrap>
-              </AccordionContent>
-            </AccordionItem>
-          );
-        })}
-      </Accordion>
-      {open != null && <ColumnDialog index={open} onClose={() => setOpen(null)} />}
-    </div>
-  );
-}
-
-/** Why a column was classified as it was, a few values, and a correction form. */
-function ColumnDialog({ index, onClose }: { index: number; onClose: () => void }) {
-  const c = useApp(s => s.scan!.detections.columns[index]), cat = useApp(s => s.cat!), session = useApp(s => s.session!), busy = useApp(s => s.busy === "scan");
-  const shown = useShown(), samples = (session.tables.find(t => t.name === c.table)?.preview ?? []).map(r => r[c.column]).filter(v => v).slice(0, 6);
-  const select = "h-9 w-full rounded-lg border border-input bg-card px-2.5 text-sm";
-  return (
-    <Dialog open onOpenChange={o => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader><DialogTitle className="font-mono">{c.table}.{c.column}</DialogTitle></DialogHeader>
-        <DialogBody>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5"><Label>What it is</Label>
-              <select className={select} value={c.privacy_role} onChange={e => correctColumn(index, "privacy_role", e.target.value)}>{cat.roles.map(r => <option key={r} value={r}>{ROLE_LABEL[r] ?? r}</option>)}</select></div>
-            <div className="flex flex-col gap-1.5"><Label>Type</Label>
-              <select className={select} value={c.subtype} onChange={e => correctColumn(index, "subtype", e.target.value)}>{cat.subtypes.map(r => <option key={r}>{r}</option>)}</select></div>
-          </div>
-          <div><span className="eyebrow">How sure</span><div className="flex items-center gap-3"><Meter value={c.confidence} tone="safe" className="flex-1" /><b className="tabular-nums">{c.confidence.toFixed(2)}</b></div></div>
-          <div><span className="eyebrow">Why</span><ul className="mt-1 flex flex-col gap-1.5 text-sm">{c.evidence.map((e, i) => <li key={i} className="flex items-baseline gap-2"><Badge>{e.kind}</Badge>{e.detail}</li>)}</ul></div>
-          {samples.length > 0 && <div><span className="eyebrow">Values from the first rows</span><div className="mt-1 flex flex-wrap gap-1.5">{samples.map((v, i) => <Badge key={i} className="font-mono">{clip(shown(c.table, c.column, v), 40)}</Badge>)}</div></div>}
-          <p className="text-xs text-muted-foreground">A change is kept as a reviewer's correction (with your name in the evidence) and the plan follows it.</p>
-        </DialogBody>
-        <DialogFooter>{busy && <Spinner />}<Button onClick={onClose}>Done</Button></DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }

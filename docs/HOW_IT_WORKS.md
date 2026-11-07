@@ -12,6 +12,15 @@ tables ──> detect ──> risk scan ──> plan ──> approve ──> tra
 Each step is its own package in `src/pets_transformer/`, and steps talk through typed files (`contracts/`):
 `detection.json`, `plan.yaml`, `manifest.json`.
 
+## 0. Name what has no name (`columns.py`, optional)
+
+A table may arrive with blank headers, codes like `c07`, or no header row. Those columns, and only those, can be
+named before the scan. Format checks name what they are sure of; the local AI, when it is on and a person asks,
+suggests the rest from a short summary per column (profile, at most 8 short sample values, the neighbouring names;
+8 columns per call, about 2,000 tokens at most). A person confirms every name. The names are applied when the
+tables are read (`NamedSource`), recorded in the plan and the manifest with the original header and who suggested
+them, and the release uses them.
+
 ## 1. Detect (`detect/`, `text/`)
 
 Every column gets a **privacy role** (direct identifier, quasi-identifier, sensitive attribute, free text,
@@ -99,7 +108,8 @@ is not approved or if any column has no decision: every column needs keep, drop 
 
 1. The tool never reads the challenge's answer files or imports the organisers' scorer.
 2. Only `llm.py` may use the network, and only to a local AI on localhost.
-3. Protection and measurement never depend on the AI: everything works with it off.
+3. Protection and measurement never depend on the AI: everything works with it off. The AI only suggests column
+   names, and a person confirms each one.
 
 The web app listens on 127.0.0.1 only, keeps each session in `out/web/`, and the release ZIP never contains row maps.
 

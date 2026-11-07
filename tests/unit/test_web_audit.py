@@ -9,7 +9,6 @@ import pytest
 
 from evaluation import baselines, receivers, screens
 from pets_transformer.config import Settings
-from pets_transformer.web import service
 from pets_transformer.web.service import App
 from pets_transformer.web.workspace import Workspace, WorkspaceError
 from tests.conftest import TEST_MASTER_KEY
@@ -79,7 +78,7 @@ def test_the_benchmark_is_read_from_results(released: tuple[App, object]) -> Non
         "2026-11-07T15:00:00+00:00",
         "abc",
     )
-    receivers.write([row], service.RESULTS / "receivers.csv")
+    receivers.write([row], app.settings.results_dir / "receivers.csv")
     bench = app.receivers_benchmark()
     assert bench["rows"][0]["composite"] == 0.95
     assert bench["rows"][0]["epsilon"] is None
@@ -153,11 +152,11 @@ def test_the_benchmark_carries_the_baselines(released: tuple[App, object]) -> No
         "2026-11-07T15:00:00+00:00",
         "abc",
     )
-    receivers.write([row], service.RESULTS / "receivers.csv")
+    receivers.write([row], app.settings.results_dir / "receivers.csv")
     baselines.write(
         [{"id": "CS-S1", "dataset": "customer_service", "privacy_b0": 0.22, "utility_b0": 1.0, "privacy_b2": 0.31,
           "utility_b2": 0.75, "privacy_b2k": 0.5, "utility_b2k": 0.75, "generated": "2026-11-04 09:46"}],
-        service.RESULTS / "baselines.csv",
+        app.settings.results_dir / "baselines.csv",
     )  # fmt: skip
     bench = app.receivers_benchmark()
     assert bench["rows"][0]["baselines"]["b2k"] == {"privacy": 0.5, "utility": 0.75}

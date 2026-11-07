@@ -10,7 +10,6 @@ from pets_transformer.detect.validators import VALIDATORS
 
 SAMPLE = 2000
 _NUMBER = re.compile(r"^-?\d{1,3}([ \u00a0]?\d{3})*([.,]\d+)?$|^-?\d+([.,]\d+)?$")  # 3 987,96 and 1234.5
-_INTEGER = re.compile(r"^-?\d+$")
 _DATETIME = re.compile(
     r"^(\d{4}-\d{2}-\d{2}([ T]\d{1,2}:\d{2}(:\d{2})?)?"  # ISO date or timestamp
     r"|\d{1,2}[./]\d{1,2}[./]\d{2,4}([ ]\d{1,2}[:.]\d{2})?"  # 22.1.2025 [20.08]
@@ -29,7 +28,6 @@ class ColumnProfile:
     avg_len: float
     space_share: float  # share of values containing a space (text, names, addresses)
     numeric_share: float
-    integer_share: float
     datetime_share: float
     time_share: float  # of the datetime values, how many carry a time of day
     person_name_share: float  # values shaped like a person's name: 2-5 words of letters
@@ -70,7 +68,6 @@ def profile_column(name: str, values: pd.Series) -> ColumnProfile:
         avg_len=float(sample.str.len().mean()) if has else 0.0,
         space_share=float(sample.str.contains(" ").mean()) if has else 0.0,
         numeric_share=_share(sample, _NUMBER),
-        integer_share=_share(sample, _INTEGER),
         datetime_share=float(dt.mean()) if has else 0.0,
         time_share=float(sample[dt].str.contains(_HAS_TIME).mean()) if dt.any() else 0.0,
         person_name_share=float(sample.map(lambda x: _name_words(x, 2)).mean()) if has else 0.0,

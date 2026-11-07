@@ -2,7 +2,7 @@
 
 Detect privacy risks, apply proportionate protections for a named receiver, and prove the before/after.
 Built for the TrustED challenge (Since AI Hackathon 2026) and to run later on real company data.
-Using the tool: [`README.md`](README.md). Requirements and decisions: [`NOTES_requirements.md`](NOTES_requirements.md).
+Using the tool: [`README.md`](README.md). Requirements and decisions: [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md).
 
 ## Setup (5 minutes)
 
@@ -26,25 +26,27 @@ without it.
 ```
 src/pets_transformer/
   contracts/   the shared files as typed models: detection, plan, metrics, manifest, spans, taxonomy
-  detect/      what each column holds (validators, names, profiles, rules)
+  detect/      what each column holds: two detectors (rules.py, layered.py) combined (combined.py); source.py runs them
   text/        find and hide personal details in free text
   plan/        scenarios (YAML) -> one protection per column, with a reason
   transform/   apply the plan: pseudonymise (HMAC), generalise, suppress, redact
   aggregate/   published statistics with differential privacy, and the privacy budget ledger
   assess/      our own checks: risk scan, attack replay and trail, look-alikes, usefulness
   report/      fingerprints for the manifest
-  web/         the local web app's backend: workspace (sessions), service (what it does), app (HTTP);
+  web/         the local web app's backend: workspace (sessions on disk), service (what each step does),
+               views (engine objects as plain dicts), results (reads evaluation output), app (HTTP only);
                static/ holds the built page (from frontend/, committed so `make web` needs no Node)
+  columns.py   columns without a name: spot them, suggest names (rules, then the local AI), apply confirmed names
   pipeline.py  run an approved plan and write a release
   sources.py   where tables come from (CSV now; database later)
   keys.py      secret keys from the environment, one derived key per receiver
-  llm.py       the only door to the local AI
+  llm.py       the only door to the local AI (localhost only)
   plugins.py   extensions from other packages
   cli.py       command line
 scenarios/     receivers as YAML presets
 examples/      sample shared files (kept in step with the contracts)
-tests/         unit/, integration/ (needs the data package), test_architecture.py (rule guards)
-docs/          user guide and how it works
+tests/         unit/, evaluation/, integration/ (the last two need the data package), test_architecture.py
+docs/          runbook, user guide, how it works, receivers, detection, requirements
 frontend/      the web app's source: React + TypeScript + shadcn/ui (see "The web app" below)
 ```
 
@@ -57,19 +59,23 @@ React + TypeScript, built with Vite, styled with Tailwind and [shadcn/ui](https:
 frontend/src/
   lib/api.ts          typed calls to the local API (one interface per response)
   lib/store.ts        the app's state and every user action (zustand); errors become toasts here
-  lib/format.ts       numbers, dates, on-screen masking, plain words for privacy roles
-  lib/lanes.ts        how a column can be shared, in plain words
+  lib/data.ts         useApi (load page data straight from the API) and the Mosaic attack data types
+  lib/format.ts       numbers, dates, clipped text, plain words for privacy roles and identifiers
+  lib/lanes.ts        how a column can be shared, in plain words; technique badge colours
   App.tsx             the frame: rail, top bar with the step's main action
-  components/common   shared pieces (page head, "what to do here", headline tiles, progress)
+  components/common   shared pieces (page head, "what to do here", headline tiles, facts, verdict, progress)
   components/dialogs  name and confirm dialogs
+  components/ColumnNames  the note and dialog for columns without a name
   components/ui/      shadcn/ui components (Button, Dialog, DropdownMenu, Tabs, Accordion, ...)
-  steps/              one file per step: DataStep, RiskScan, PlanStep, Approve, Release
+  steps/              one file per step (DataStep, RiskScan, PlanStep, Approve, Release), the parts big enough
+                      to stand alone (ScanDetails, CustomReceiver, PlanVersions, ReleaseHistory), and the two
+                      "Show the risk" pages (ReleaseAudit, MosaicAttack)
 ```
 
 To change it: run `make web` (the API) and `make ui-dev` (live reload at http://localhost:5173), edit, then
 `make ui` to rebuild into the package and commit both the source and the build. Needs Node 18 or newer.
-Rules: every number comes from the API; personal values go through `useShown` (masking); new controls use the
-shadcn components rather than hand-made HTML.
+Rules: every number comes from the API; shared logic lives in `lib/` and shared pieces in `components/`; new
+controls use the components in `components/ui/` (Button, Select, Dialog, ...) rather than hand-made HTML.
 
 ## Principles we hold each other to
 
@@ -84,8 +90,8 @@ shadcn components rather than hand-made HTML.
   detect and text alike.
 - **No premature optimisation.** Write the clear version first, measure on real-size data, and optimise only
   what the profile shows.
-- **Small pure functions,** type hints everywhere (mypy runs on `src/`), no hidden global state except the
-  registries.
+- **Small pure functions,** type hints everywhere (mypy checks `src/` and `evaluation/`), no hidden global state
+  except the registries.
 
 ## Rules the build enforces (`tests/test_architecture.py`)
 
@@ -154,3 +160,4 @@ to add a clue, add a small class with `label` and `matches(frame)` in `evaluatio
 
 - Branch per task: `feat/<step>-<what>`, `fix/...`. Small commits, one concern each.
 - `make check` green before pushing. Never commit `.env`, `out/`, the data package or row maps.
+- `make help` lists every command.

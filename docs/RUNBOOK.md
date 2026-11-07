@@ -26,7 +26,6 @@ Every command is run from the project folder. All data is synthetic.
 
 ```bash
 git clone https://github.com/MahatHari/Trusted-Unlikable.git Trusted && cd Trusted
-git switch combine/best-of-both          # the combined branch (until it is merged)
 uv venv .venv -p 3.12
 ```
 

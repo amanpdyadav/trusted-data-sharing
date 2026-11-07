@@ -7,7 +7,7 @@ It replays them with the same engine (attacks.replay), which understands general
 
 A release passes when no scrap leaves 1-4 candidates with the real visit among them (k = 5 for this attacker).
 Evaluation only: it reads the attacker files and the ground truth (to pick each scrap's real visit and to check the
-result). Ported from the main branch's reid_chain.py.
+result).
 """
 
 import re
@@ -29,6 +29,7 @@ from evaluation.attacks import (
     StayedBetween,
     replay,
 )
+from pets_transformer.io import read_table
 
 POST_WINDOW_H = (16, 1)  # posts appear up to ~16 h after arrival, occasionally just before
 STAY_PATTERNS = (r"Spent (\d+) hours", r"Jo (\d+) tuntia", r"(\d+) timmar")
@@ -80,10 +81,6 @@ class InGroup:
 
 
 # ---------------------------------------------------------------- reading the package
-def _read(path: Path) -> pd.DataFrame:
-    return pd.read_csv(path, dtype=str, keep_default_na=False)
-
-
 def _hetu_sex(h: str) -> str | None:
     digits = re.sub(r"\D", "", h[7:10]) if len(h) >= 10 else ""
     return ("M" if int(digits) % 2 else "F") if len(digits) == 3 else None
@@ -93,8 +90,8 @@ def _hetu_sex(h: str) -> str | None:
 def _name_sex(root: Path) -> dict[str, str]:
     """Stand-in for public first-name statistics: the usual sex of each first name, from ID codes in two customer
     lists and the school register."""
-    f, c = _read(root / "data/finance/customers.csv"), _read(root / "data/customer_service/customers.csv")
-    st = _read(root / "data/education/students.csv")
+    f, c = read_table(root / "data/finance/customers.csv"), read_table(root / "data/customer_service/customers.csv")
+    st = read_table(root / "data/education/students.csv")
     rows = pd.concat([
         pd.DataFrame({"first": f.full_name.str.split().str[0], "sex": f.hetu.map(_hetu_sex)}),
         pd.DataFrame({"first": c.full_name.str.split().str[0], "sex": c.hetu.map(_hetu_sex)}),
@@ -108,9 +105,9 @@ def _name_sex(root: Path) -> dict[str, str]:
 
 
 @cache
-def _visits(root: Path) -> pd.DataFrame:
-    ed = _read(root / "data/health/ed_visits.csv").merge(
-        _read(root / "truth/health__ed_visits.csv").rename(columns={"record_id": "visit_id"}), on="visit_id"
+def load_visits(root: Path) -> pd.DataFrame:
+    ed = read_table(root / "data/health/ed_visits.csv").merge(
+        read_table(root / "truth/health__ed_visits.csv").rename(columns={"record_id": "visit_id"}), on="visit_id"
     )
     ed["arrival"] = pd.to_datetime(ed.arrival_ts)
     return ed
@@ -165,22 +162,24 @@ def _news_clues(n: Row, day: pd.Timestamp) -> list[Clue]:
     return clues
 
 
-def _scraps(root: Path, name: str) -> list[Row]:
-    frame = _read(root / f"adversary/{name}.csv").merge(_read(root / f"truth/adversary__{name}.csv"), on="adv_row_id")
+def load_scraps(root: Path, name: str) -> list[Row]:
+    frame = read_table(root / f"adversary/{name}.csv").merge(
+        read_table(root / f"truth/adversary__{name}.csv"), on="adv_row_id"
+    )
     return [{str(k): str(v) for k, v in r.items()} for r in frame.to_dict("records")]
 
 
 def build_cases(root: Path) -> list[AttackCase]:
     root = Path(root)
-    ed, name_sex = _visits(root), _name_sex(root)
+    ed, name_sex = load_visits(root), _name_sex(root)
     cases: list[AttackCase] = []
-    for p in _scraps(root, "social_posts_health"):
+    for p in load_scraps(root, "social_posts_health"):
         target = _target(ed, p["person_id"], pd.Timestamp(p["posted_ts"]))
         if target is not None:
             cases.append(
                 AttackCase(p["adv_row_id"], "social post", p["text"][:80], target, tuple(_post_clues(p, name_sex)))
             )
-    for n in _scraps(root, "news_clips_health"):
+    for n in load_scraps(root, "news_clips_health"):
         day = pd.Timestamp(n["event_date"] or n["published_date"])
         target = _target(ed, n["person_id"], day)
         if target is not None:

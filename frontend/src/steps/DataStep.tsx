@@ -2,7 +2,7 @@
 import { Copy, Lock, MoreHorizontal, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { NamingNote } from "@/components/ColumnNames";
-import { Guide, PageHead, ProgressCard, Section, useRole, useShown } from "@/components/common";
+import { Guide, PageHead, ProgressCard, Section, useRole } from "@/components/common";
 import { ConfirmDialog, NameDialog } from "@/components/dialogs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Input, Label } from "@/components/ui/form";
 import { TableWrap, Td, Th, Tip } from "@/components/ui/misc";
 import type { SessionListItem } from "@/lib/api";
-import { ROLE_TONE, clip, fmt, mb, pct, plural, when } from "@/lib/format";
+import { ROLE_TONE, clip, fmt, mb, pct, plural, text, when, words } from "@/lib/format";
 import {
   addTables, deleteDataset, duplicateDataset, go, openSample, removeTable, renameDataset, reopen, runScan, uploadFiles, useApp,
 } from "@/lib/store";
@@ -22,7 +22,7 @@ export const openPicker = () => document.getElementById("files")?.click();
 const WORKSPACE_SHOWN = 6;  // newest first; the rest behind "Show all" or a search
 
 export function DataStep() {
-  const session = useApp(s => s.session), scan = useApp(s => s.scan), progress = useApp(s => s.progress);
+  const session = useApp(s => s.session), scan = useApp(s => s.scan), progress = useApp(s => s.progress), datasets = useApp(s => s.sessions.length);
   if (progress) return <><PageHead title="Bring the data you want to share" /><ProgressCard /></>;
   const guide = <Guide steps={["Upload your files or pick an example", "Look at what is inside", "Scan for risks"]} done={[!!session, !!session, !!scan]} />;
   if (session) return (
@@ -33,7 +33,7 @@ export function DataStep() {
       <details className="group rounded-2xl border bg-card">
         <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 px-5 py-4 font-semibold">
           <span className="flex items-center gap-2"><Plus className="size-4 text-safe transition-transform group-open:rotate-45" /> Load different data or reopen earlier work</span>
-          <span className="text-sm font-normal text-muted-foreground">{plural(useApp.getState().sessions.length, "dataset")} in your workspace</span>
+          <span className="text-sm font-normal text-muted-foreground">{plural(datasets, "dataset")} in your workspace</span>
         </summary>
         <div className="flex flex-col gap-5 px-5 pb-5"><Loaders /><Workspace /></div>
       </details>
@@ -72,7 +72,7 @@ function Loaders() {
           {samples.map(s => (
             <button key={s.name} onClick={() => openSample(s.name)} className="flex flex-col gap-1 rounded-xl border bg-card p-3.5 text-left shadow-sm transition-colors hover:border-input hover:bg-muted">
               <span className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{s.tables.length} tables</span>
-              <b>{s.name.replace(/_/g, " ")}</b>
+              <b>{words(s.name)}</b>
               <span className="line-clamp-2 text-sm text-muted-foreground">{s.tables.join(", ")}</span>
             </button>
           ))}
@@ -116,7 +116,7 @@ function Ready() {
 function Inside() {
   const session = useApp(s => s.session)!, scan = useApp(s => s.scan);
   const [current, setCurrent] = useState(session.tables[0]?.name), [removing, setRemoving] = useState(""), [dup, setDup] = useState(false);
-  const shown = useShown(), role = useRole(), add = useRef<HTMLInputElement>(null);
+  const role = useRole(), add = useRef<HTMLInputElement>(null);
   const t = session.tables.find(x => x.name === current) ?? session.tables[0];
   const frozen = session.released, removable = !frozen && session.tables.length > 1;
   return (
@@ -141,7 +141,7 @@ function Inside() {
       <TableWrap>
         <table className="w-full border-collapse"><thead><tr>{t.columns.map(c => { const was = t.naming.unnamed.find(u => u.name === c)?.original;
           return <Th key={c} title={was ? `was ${was}` : undefined}>{c}{was && <span className="block font-normal normal-case text-muted-foreground">was {was}</span>}</Th>; })}</tr></thead>
-          <tbody>{t.preview.map((r, i) => <tr key={i}>{t.columns.map(c => { const v = shown(t.name, c, r[c]); return <Td key={c} className={ROLE_TONE[role(t.name, c)]} title={clip(v, 600)}>{clip(v)}</Td>; })}</tr>)}</tbody></table>
+          <tbody>{t.preview.map((r, i) => <tr key={i}>{t.columns.map(c => { const v = text(r[c]); return <Td key={c} className={ROLE_TONE[role(t.name, c)]} title={clip(v, 600)}>{clip(v)}</Td>; })}</tr>)}</tbody></table>
       </TableWrap>
       <ConfirmDialog open={!!removing} onOpenChange={o => !o && setRemoving("")} title={`Remove ${removing}?`} action="Remove the table" danger
         onConfirm={() => removeTable(removing)}>

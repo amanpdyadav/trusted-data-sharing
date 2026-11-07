@@ -59,12 +59,6 @@ def is_unnamed(header: str) -> bool:
     return bool(UNNAMED.match(str(header)))
 
 
-def positional_names(count: int) -> list[str]:
-    """Names for the columns of a file without a header row: col_01, col_02 ..."""
-    width = max(2, len(str(count)))
-    return [f"col_{i:0{width}d}" for i in range(1, count + 1)]
-
-
 def looks_headerless(headers: list[str]) -> bool:
     """True when most of the header row looks like data (IDs, numbers, dates, emails), not like column names."""
 

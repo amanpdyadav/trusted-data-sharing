@@ -1,7 +1,7 @@
 // Step 4: check what leaves, then sign it off. Tables on the left, their fields and what happens to each on the
 // right; then plain checks and a name. Nothing is shared until a named person approves.
 import { CheckCircle2, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Guide, PageHead, Section } from "@/components/common";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
@@ -11,10 +11,9 @@ import { Checkbox, Input, Label } from "@/components/ui/form";
 import { Spinner } from "@/components/ui/misc";
 import type { Plan } from "@/lib/api";
 import { plural } from "@/lib/format";
-import { laneOf } from "@/lib/lanes";
+import { laneOf, planTables } from "@/lib/lanes";
 import { approve, go, useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { planTables } from "@/steps/PlanStep";
 
 type Kind = "shared" | "counts" | "stays";
 type Field = { column: string; cls: string; icon: string; fate: string; why: string };
@@ -148,7 +147,7 @@ function SignOff({ recipient, onDone }: { recipient: string; onDone: () => void 
   const [checks, setChecks] = useState({ need: false, review: reviews.length === 0, allowed: false }), [name, setName] = useState("");
   const ready = checks.need && checks.review && checks.allowed && name.trim().length > 1;
   const purpose = view.scenario?.purpose ? view.scenario.purpose.toLowerCase() : "the agreed purpose";
-  const check = (key: keyof typeof checks, body: React.ReactNode) => (
+  const check = (key: keyof typeof checks, body: ReactNode) => (
     <label className={cn("flex cursor-pointer items-start gap-3 rounded-xl border bg-muted px-4 py-3 text-[14.5px]", checks[key] && "border-ok bg-ok-soft")}>
       <Checkbox className="mt-0.5" checked={checks[key]} onCheckedChange={v => setChecks({ ...checks, [key]: !!v })} /><span>{body}</span>
     </label>

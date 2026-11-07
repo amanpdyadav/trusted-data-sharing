@@ -15,6 +15,15 @@ Bring the tables you want to share:
 - **Earlier work:** open a dataset from **Your workspace**. Your scan, plan and releases come back as you left them.
 
 When the files are read, the page shows a **Dataset ready** card with the number of tables, rows and columns.
+
+**Columns without a name.** If a table has blank headers, codes like `c07`, or no header row at all, a note above
+the table says so. **Name the columns** opens a dialog that lists only those columns (columns that have a name are
+never renamed). Format checks fill in what they are sure of (ID codes, IBANs, phones, emails, plates ...). When the
+local AI is on, the button reads **Suggest names** and the AI suggests the rest from a short summary of each column:
+a few sample values, never the whole table. Change any name, keep an original header, or ask again for one column;
+nothing changes until **Use these names**. If the first row looks like data, **Read the first row as data** fixes
+it. The release uses the new names, and the manifest keeps the original headers.
+
 Click **Scan for risks**.
 
 ## 2. Risk scan
@@ -24,13 +33,14 @@ The scan reads every column and shows what could go wrong if the data were share
 - **Headline tiles:** how many people can be singled out, how many columns match outside sources (public
   registers, social media, leaked lists), how many tables are joined, and whether there is special category data
   (GDPR Article 9, for example health data).
+- **How your data connects:** a map of the tables, the keys that join them, and the columns an outsider could match.
 - **Attack replay:** an outsider knows a few everyday facts about one person (for example birth date, sex,
   postcode). The tool shows that these facts fit exactly one person, which reveals their name and ID code.
   Click **Play the attack** to watch it again, or **Another person** to attack someone else.
 - **Follow the trail:** from the first table, each arrow follows a key (for example `visit_id`) into the next
   table, and each card shows what that table gives away. This is the mosaic effect.
-- **How your data connects:** a map of the tables, the keys that join them, and the columns an outsider could match.
-- **Tabs below:** exposure per table, one person's full file, and **What each column is**.
+- **Tabs below:** exposure per table, one person's file (facts that repeat in every record shown once, grouped by
+  what they give away, then what changes from record to record), and **What each column is**.
 
 **If a column is labelled wrong,** open it with **Details** in **What each column is**, and change what it is
 (for example from "harmless" to "sensitive fact"). Your correction is saved with your name and the plan follows it.
@@ -76,6 +86,20 @@ The proof page shows:
 
 Click **Download release** to get the ZIP. For statistics, the download asks first, because publishing spends
 privacy budget (ε).
+
+## Show the risk
+
+Two pages in the sidebar, outside the five steps:
+
+- **Release audit.** *Your releases*: every release made in the app, from every dataset, with who it was for, who
+  approved it, what was done to each column and why, the attack before and after, the risk left and the
+  fingerprint of every shared file. *Receivers benchmark*: how the automatic planner does for each of the
+  challenge's 27 receivers, next to the organisers' baselines (B0, B2, B2-k), with a filter for the receivers
+  that fit the data you have open.
+- **Mosaic attack.** On the challenge's hospital data: how many public posts and news clips single out one patient
+  once names are removed, and how many still do on your release. Pick one and follow it into the bank, energy,
+  transport and school data, with raw data, names removed and your release side by side. It appears once its
+  data is built (`make screens`, see the runbook).
 
 ## Glossary
 

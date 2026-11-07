@@ -1,6 +1,6 @@
 """Mosaic chains for every public post and news clip: how one scrap leads to a person, dataset by dataset.
 
-For the web app's Mosaic attack screen (see screens.py). Ported from the main branch's reid_chain.py and mosaic.py.
+For the web app's Mosaic attack screen (see screens.py).
 Each case has two chains and a replay:
 
   raw    every organisation shares raw files: once the hospital row gives a name, every dataset with a name opens up
@@ -21,8 +21,9 @@ from typing import Any
 import pandas as pd
 from pets_eval.utility.health import diagnosis_group
 
-from evaluation.attacks import AttackCase, replay
-from evaluation.scrap_sweep import Row, _read, _scraps, _visits, build_cases
+from evaluation.attacks import AttackCase, replay, replay_summary
+from evaluation.scrap_sweep import Row, build_cases, load_scraps, load_visits
+from pets_transformer.io import read_table
 
 Step = dict[str, Any]
 
@@ -72,33 +73,36 @@ class Tables:
 
 
 def _with_truth(df: pd.DataFrame, root: Path, name: str, key: str) -> pd.DataFrame:
-    t = _read(root / f"truth/{name}.csv").rename(columns={"record_id": key, "adv_row_id": key})
+    t = read_table(root / f"truth/{name}.csv").rename(columns={"record_id": key, "adv_row_id": key})
     return df.merge(t, on=key, how="left")
 
 
 @cache
 def tables(root: Path) -> Tables:
-    ed = _visits(root)
+    ed = load_visits(root)
     codes = ed["icd10_primary"]
     groups = pd.Series(diagnosis_group(codes).to_numpy(), index=ed.index).fillna("").astype(str)
     directory = _with_truth(
-        _read(root / "adversary/public_directory.csv"), root, "adversary__public_directory", "adv_row_id"
+        read_table(root / "adversary/public_directory.csv"), root, "adversary__public_directory", "adv_row_id"
     )
     return Tables(
         ed=ed.assign(group=groups),
         directory=directory,
         leak=_with_truth(
-            _read(root / "adversary/leaked_customer_list.csv"), root, "adversary__leaked_customer_list", "adv_row_id"
+            read_table(root / "adversary/leaked_customer_list.csv"),
+            root,
+            "adversary__leaked_customer_list",
+            "adv_row_id",
         ),
-        bank=_with_truth(_read(root / "data/finance/customers.csv"), root, "finance__customers", "customer_id"),
-        energy=_with_truth(_read(root / "data/energy/customers.csv"), root, "energy__customers", "customer_id"),
-        cards=_with_truth(_read(root / "data/mobility/cards.csv"), root, "mobility__cards", "card_id"),
-        school=_with_truth(_read(root / "data/education/students.csv"), root, "education__students", "student_id"),
-        work=_with_truth(_read(root / "data/cyber/identity.csv"), root, "cyber__identity", "identity_id"),
+        bank=_with_truth(read_table(root / "data/finance/customers.csv"), root, "finance__customers", "customer_id"),
+        energy=_with_truth(read_table(root / "data/energy/customers.csv"), root, "energy__customers", "customer_id"),
+        cards=_with_truth(read_table(root / "data/mobility/cards.csv"), root, "mobility__cards", "card_id"),
+        school=_with_truth(read_table(root / "data/education/students.csv"), root, "education__students", "student_id"),
+        work=_with_truth(read_table(root / "data/cyber/identity.csv"), root, "cyber__identity", "identity_id"),
         telecom=_with_truth(
-            _read(root / "data/customer_service/customers.csv"), root, "customer_service__customers", "customer_id"
+            read_table(root / "data/customer_service/customers.csv"), root, "customer_service__customers", "customer_id"
         ),
-        calls=_read(root / "data/customer_service/conversations.csv")[["customer_id", "intent"]],
+        calls=read_table(root / "data/customer_service/conversations.csv")[["customer_id", "intent"]],
     )
 
 
@@ -562,19 +566,15 @@ def raw_chain(src: Step, found: Found, t: Tables) -> list[Step]:
     return steps
 
 
-def build(root: Path, release: pd.DataFrame, record_ids: list[str] | None, limit: int = 400) -> list[dict[str, Any]]:
-    """Every scrap that leads to one verified person, richest chains first (plus a replay on our release)."""
-    return build_with_summary(root, release, record_ids, limit)[0]
-
-
-def build_with_summary(
+def build(
     root: Path, release: pd.DataFrame, record_ids: list[str] | None, limit: int = 400
 ) -> tuple[list[dict[str, Any]], dict[str, dict[str, int]]]:
-    """`build`, plus the headline counted over every scrap (before `limit`): per kind, how many scraps there are,
-    how many lead to one verified person with names removed, and how many still expose someone on our release."""
+    """Every scrap that leads to one verified person, richest chains first (plus a replay on our release), and the
+    headline counted over every scrap (before `limit`): per kind, how many scraps there are, how many lead to one
+    verified person with names removed, and how many still expose someone on our release."""
     t = tables(root)
-    scraps = {s["adv_row_id"]: (s, False) for s in _scraps(root, "social_posts_health")}
-    scraps |= {s["adv_row_id"]: (s, True) for s in _scraps(root, "news_clips_health")}
+    scraps = {s["adv_row_id"]: (s, False) for s in load_scraps(root, "social_posts_health")}
+    scraps |= {s["adv_row_id"]: (s, True) for s in load_scraps(root, "news_clips_health")}
     out: list[dict[str, Any]] = []
     for case in build_cases(root):
         scrap, news = scraps[case.id]
@@ -592,14 +592,7 @@ def build_with_summary(
                 "label": (scrap["headline"] if news else (scrap["display_name"] or "anonymous")),
                 "raw": raw_chain(src, found, t),
                 "names": names,
-                "ours": {
-                    "funnel": [[s.label, s.candidates, s.applied] for s in ours.funnel],
-                    "candidates": ours.candidates_left,
-                    "target_in": ours.target_among_candidates,
-                    "holds": ours.candidates_left == 0
-                    or ours.target_among_candidates is False
-                    or ours.candidates_left >= 5,
-                },
+                "ours": replay_summary(ours),
             }
         )
     demo = ("POST00635", "NEWS00100")  # the problem demo's two cases come first

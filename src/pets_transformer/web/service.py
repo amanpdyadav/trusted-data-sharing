@@ -4,17 +4,14 @@ Steps: data -> scan (detect + risk scan) -> plan (preset or custom receiver) -> 
 Everything runs on this machine with the same engine as the command line.
 """
 
-import csv
 import json
 import re
 import zipfile
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any, TypeVar
 
 import numpy as np
-import pandas as pd
 
 from pets_transformer.aggregate import BudgetExceededError, EpsilonLedger
 from pets_transformer.assess import attack
@@ -34,12 +31,10 @@ from pets_transformer.contracts import (
     Subtype,
     Technique,
 )
-from pets_transformer.detect.rules import detect_source
-from pets_transformer.keys import DerivedKeyProvider, KeyScope
+from pets_transformer.detect.source import detect_source
+from pets_transformer.keys import DerivedKeyProvider, KeyScope, receiver_domain
 from pets_transformer.llm import build_llm
 from pets_transformer.pipeline import (
-    ProtectedTable,
-    RunOutcome,
     RunSettings,
     protect_table,
     publish_aggregates,
@@ -47,12 +42,14 @@ from pets_transformer.pipeline import (
     run_release,
     transform_rows,
 )
-from pets_transformer.plan.common import REVIEW
+from pets_transformer.plan.common import open_reviews
 from pets_transformer.plan.diff import describe, plan_changes
 from pets_transformer.plan.policy import RulePolicy
 from pets_transformer.plan.scenario import Scenario, load_scenarios
 from pets_transformer.plan.statistics import load_codelists
 from pets_transformer.text.redactor import build_redactor
+from pets_transformer.web import views
+from pets_transformer.web.results import EvaluationResults
 from pets_transformer.web.workspace import Session, Workspace, WorkspaceError
 
 PREVIEW_ROWS = 6
@@ -60,8 +57,6 @@ EXAMPLE_ROWS = 3
 TEXT_SAMPLES = 6
 K_VALUES = (2, 3, 5, 8, 10, 15, 20)
 EPSILON_FACTORS = (0.25, 0.5, 1.0, 2.0, 4.0)
-TAG = re.compile(r"\[([A-Z_]+)\]")
-RESULTS = Path("results")  # committed benchmark results and the presentation screens' data (built by evaluation)
 
 
 @dataclass(frozen=True)
@@ -100,6 +95,11 @@ class App:
     settings: Settings
     workspace: Workspace
 
+    @property
+    def results_files(self) -> EvaluationResults:
+        """What the evaluation commands wrote (benchmark, baselines, presentation screens)."""
+        return EvaluationResults(self.settings.results_dir)
+
     # ------------------------------------------------------------ catalogue
     def samples(self) -> list[dict[str, Any]]:
         """Example datasets that ship with the challenge package (synthetic), if it is present."""
@@ -114,7 +114,7 @@ class App:
         return out
 
     def scenarios(self) -> list[dict[str, Any]]:
-        return [_scenario_card(s) for s in load_scenarios(self.settings.scenario_dirs).values()]
+        return [views.scenario_card(s) for s in load_scenarios(self.settings.scenario_dirs).values()]
 
     def policy(self) -> RulePolicy:
         return RulePolicy(load_codelists(self.settings.codelist_dir))
@@ -130,7 +130,7 @@ class App:
         return {
             "id": s.id, "name": s.name,
             "tables": [
-                {"name": t, "rows": len(f), "columns": list(f.columns), "preview": _records(f.head(PREVIEW_ROWS)),
+                {"name": t, "rows": len(f), "columns": list(f.columns), "preview": views.records(f.head(PREVIEW_ROWS)),
                  "naming": self._naming(s, t)}
                 for t, f in s.tables().items()
             ],
@@ -289,11 +289,10 @@ class App:
 
     def plan_view(self, s: Session) -> dict[str, Any]:
         plan = _need(s.plan, "make a plan first")
-        reviews = [f"{a.table}.{a.column}" for a in plan.actions if a.reason.startswith(REVIEW)]
-        reviews += [f"statistic {a.name}" for a in plan.aggregates if a.reason.startswith(REVIEW)]
+        reviews = open_reviews(plan)
         withheld = sorted(set(s.tables()) - set(plan.tables) - {a.table for a in plan.aggregates})
         return {
-            "plan": plan.model_dump(mode="json"), "scenario": _scenario_card(s.scenario) if s.scenario else None,
+            "plan": plan.model_dump(mode="json"), "scenario": views.scenario_card(s.scenario) if s.scenario else None,
             "reviews": reviews, "withheld_tables": withheld,
         }  # fmt: skip
 
@@ -369,18 +368,16 @@ class App:
     # ------------------------------------------------------------ run and results
     def scope(self, s: Session, receiver: str) -> KeyScope:
         plan = _need(s.plan, "make a plan first")
-        month = plan.created_at.strftime("%Y-%m")
-        return KeyScope(DerivedKeyProvider.from_env(), f"{plan.scenario_id}/{receiver}/{month}")
+        return KeyScope(DerivedKeyProvider.from_env(), receiver_domain(plan, receiver))
 
     def run(self, s: Session, receiver: str) -> dict[str, Any]:
         plan = _need(s.plan, "make a plan first")
         if not plan.approved:
             raise WorkspaceError("approve the plan before releasing")
         receiver = re.sub(r"[^A-Za-z0-9_\-]", "-", receiver.strip()) or "receiver"
-        if s.layout.root.joinpath("release").exists():
-            for sub in ("release", "private"):
-                for f in (s.root / sub).glob("*"):
-                    f.unlink()
+        for folder in (s.layout.release, s.layout.private):  # the latest release only; earlier ones stay archived
+            for f in folder.glob("*"):
+                f.unlink()
         created = datetime.now(UTC)
         while (s.releases_dir / release_id(plan, created)).exists():  # two releases in one second keep apart
             created += timedelta(seconds=1)
@@ -403,9 +400,9 @@ class App:
             "files": [f.model_dump(mode="json") for f in outcome.manifest.files],
             "tables": [
                 {"name": t.name, "rows_in": t.rows_in, "rows_out": len(t.frame),
-                 "preview": _records(t.frame.head(PREVIEW_ROWS)),
-                 "raw_preview": _records(raw[t.name].head(PREVIEW_ROWS)),
-                 "pairs": _pairs(raw[t.name], t, plan.record_keys.get(t.name)),
+                 "preview": views.records(t.frame.head(PREVIEW_ROWS)),
+                 "raw_preview": views.records(raw[t.name].head(PREVIEW_ROWS)),
+                 "pairs": views.pairs(raw[t.name], t, plan.record_keys.get(t.name), PREVIEW_ROWS),
                  "changes": [asdict(c) for c in column_changes(plan, t.name, raw[t.name], t.frame)],
                  "suppression": None if t.suppression is None else {
                      "rows_removed": t.suppression.rows_removed, "cells_blanked": t.suppression.cells_blanked}}
@@ -413,11 +410,11 @@ class App:
             ],
             "attacker": attacker,
             "attack": attack_replay,
-            "summary": _summary(s, plan, outcome, attacker, attack_replay),
-            "techniques": {f"{c.table}.{c.column}": _technique(plan, c.table, c.column, detail=True)
+            "summary": views.release_summary(s, plan, outcome, attacker, attack_replay),
+            "techniques": {f"{c.table}.{c.column}": views.technique(plan, c.table, c.column, detail=True)
                            for c in _need(s.detections, "scan the data first").columns},
             "statistics": [
-                {"name": a.name, "preview": _records(a.frame.head(12)), "cells": len(a.frame)}
+                {"name": a.name, "preview": views.records(a.frame.head(12)), "cells": len(a.frame)}
                 for a in outcome.aggregates
             ],
             "accuracy": [asdict(a) for a in dp_accuracy(plan, raw, published, scope)],
@@ -436,7 +433,8 @@ class App:
             redactor = build_redactor(names)
             values = [v for v in raw[a.table][a.column] if v][:200]
             picked = sorted(values, key=lambda v: -len(redactor.spans(v)))[:TEXT_SAMPLES]
-            out.append({"column": f"{a.table}.{a.column}", "samples": [_parts(v, redactor.spans(v)) for v in picked]})
+            samples = [views.text_parts(v, redactor.spans(v)) for v in picked]
+            out.append({"column": f"{a.table}.{a.column}", "samples": samples})
         return out
 
     def plan_example(self, s: Session) -> dict[str, Any]:
@@ -449,9 +447,9 @@ class App:
             frame = raw[table]
             first = [int(target["row"])] if target.get("table") == table else []
             rows = frame.iloc[list(dict.fromkeys([*first, *range(min(EXAMPLE_ROWS, len(frame)))]))[:EXAMPLE_ROWS]]
-            after = _records(transform_rows(table, rows, plan, scope, raw))
+            after = views.records(transform_rows(table, rows, plan, scope, raw))
             renamed = {a.column: str(a.params.get("rename_to", a.column)) for a in plan.actions if a.table == table}
-            pairs = [{"raw": r, "after": p} for r, p in zip(_records(rows), after, strict=True)]
+            pairs = [{"raw": r, "after": p} for r, p in zip(views.records(rows), after, strict=True)]
             out.append({"table": table, "renamed": renamed, "rows": pairs})
         return {"tables": out}
 
@@ -464,14 +462,14 @@ class App:
         if plan.quasi_identifiers:
             for k in K_VALUES:
                 trial = plan.model_copy(update={"k_target": k})
-                guess, kept_cells, kept_rows = [], 0.0, 0.0
+                guess, cells, rows = [], [], []  # per table; the worst table is reported
                 for table, qis in plan.quasi_identifiers.items():
                     t = protect_table(table, raw[table], trial, scope, raw)
                     guess.append(lookalikes(t.frame, qis).guess_chance)
-                    filled = (t.frame[qis] != "").to_numpy().mean() if len(t.frame) else 0.0
-                    kept_cells, kept_rows = float(filled), len(t.frame) / max(t.rows_in, 1)
-                out["k"].append({"k": k, "guess_chance": round(max(guess), 4), "cells_kept": round(kept_cells, 4),
-                                 "rows_kept": round(kept_rows, 4), "current": k == plan.k_target})  # fmt: skip
+                    cells.append(float((t.frame[qis] != "").to_numpy().mean()) if len(t.frame) else 0.0)
+                    rows.append(len(t.frame) / max(t.rows_in, 1))
+                out["k"].append({"k": k, "guess_chance": round(max(guess), 4), "cells_kept": round(min(cells), 4),
+                                 "rows_kept": round(min(rows), 4), "current": k == plan.k_target})  # fmt: skip
         if plan.aggregates:
             for f in EPSILON_FACTORS:
                 aggs = [a.model_copy(update={"epsilon": a.epsilon * f}) for a in plan.aggregates]
@@ -500,7 +498,7 @@ class App:
         for i in scenario_ids:
             if i not in found:
                 continue
-            missing = sorted(_receiver_tables(found[i]) - have)
+            missing = sorted(views.receiver_tables(found[i]) - have)
             if missing:
                 reason = f"made for the {found[i].dataset.replace('_', ' ')} data; needs {', '.join(missing)}"
                 left_out.append({"id": i, "recipient": found[i].recipient, "reason": reason})
@@ -515,9 +513,9 @@ class App:
         for c in det.columns:
             row: dict[str, Any] = {"table": c.table, "column": c.column, "role": c.privacy_role.value}
             for sid, p in plans.items():
-                row[sid] = _technique(p, c.table, c.column)
+                row[sid] = views.technique(p, c.table, c.column)
             rows.append(row)
-        receivers = [_scenario_card(found.get(i) or s.scenario) for i in plans]  # type: ignore[arg-type]
+        receivers = [views.scenario_card(found.get(i) or s.scenario) for i in plans]  # type: ignore[arg-type]
         return {"receivers": receivers, "rows": rows, "left_out": left_out}
 
     # ------------------------------------------------------------ downloads
@@ -564,34 +562,17 @@ class App:
         return {
             "dataset": s.name, "summary": results["summary"], "manifest": manifest, "attack": results.get("attack"),
             "attacker": results.get("attacker", []), "residual_risks": results.get("residual_risks", []),
-            "published": (folder / "published").exists(), "scorecard": _scorecard_for(release_id),
+            "published": (folder / "published").exists(), "scorecard": self.results_files.scorecard_for(release_id),
         }  # fmt: skip
 
     def receivers_benchmark(self) -> dict[str, Any]:
-        """The automatic planner measured on every receiver: results/receivers.csv (`make receivers`)."""
-        path = RESULTS / "receivers.csv"
-        if not path.exists():
-            return {"rows": [], "measured_at": None, "baselines_generated": None}
-        with path.open(encoding="utf-8", newline="") as f:
-            rows = list(csv.DictReader(f))
-        num = ("privacy", "utility", "composite", "epsilon")
-        for r in rows:
-            for k in num:
-                r[k] = float(r[k]) if r.get(k) else None
-            r["released_tables"] = int(r["released_tables"] or 0)
-        base = _read_baselines(RESULTS / "baselines.csv")
-        for r in rows:
-            r["baselines"] = base.get(r["id"])
-        generated = next((b["generated"] for b in base.values()), None)
-        return {
-            "rows": rows,
-            "measured_at": max((r["measured_at"] for r in rows), default=None),
-            "baselines_generated": generated,
-        }
+        return self.results_files.receivers_benchmark()
 
     def screens(self) -> list[str]:
-        """The presentation screens whose data has been built (`python -m evaluation screens`)."""
-        return [n for n in ("mosaic", "audit") if (RESULTS / "screens" / f"{n}.json").exists()]
+        return self.results_files.screens()
+
+    def screen(self, name: str) -> dict[str, Any] | None:
+        return self.results_files.screen(name)
 
     def release_results(self, s: Session, release_id: str) -> dict[str, Any]:
         results: dict[str, Any] = json.loads((s.release(release_id) / "results.json").read_text(encoding="utf-8"))
@@ -629,110 +610,3 @@ def _need(value: T | None, message: str) -> T:
     if value is None:
         raise WorkspaceError(message)
     return value
-
-
-def _records(frame: pd.DataFrame) -> list[dict[str, str]]:
-    return [{str(k): ("" if pd.isna(v) else str(v)) for k, v in row.items()} for row in frame.to_dict("records")]
-
-
-def _parts(text: str, spans: list[Any]) -> list[dict[str, str]]:
-    parts, cursor = [], 0
-    for sp in spans:
-        if sp.start < cursor:
-            continue
-        parts += [{"t": text[cursor : sp.start]}, {"t": text[sp.start : sp.end], "label": sp.label.value}]
-        cursor = sp.end
-    parts.append({"t": text[cursor:]})
-    return [p for p in parts if p["t"]]
-
-
-def _technique(plan: Plan, table: str, column: str, *, detail: bool = False) -> str:
-    """What a plan does with one column: its technique, statistics only, or withheld."""
-    a = plan.action_for(table, column)
-    if a is None:
-        stats = any(g.table == table and any(d.column == column for d in g.dimensions) for g in plan.aggregates)
-        return "statistics" if stats else "withheld"
-    if detail and a.technique is Technique.GENERALISE:
-        to = a.params.get("to")
-        return f"generalise: {a.params.get('unit') if to == 'time' else to}"
-    return a.technique.value
-
-
-def _pairs(raw: pd.DataFrame, t: ProtectedTable, key: str | None) -> list[dict[str, dict[str, str]]]:
-    """The first released rows next to the raw records they came from (matched with the private row map)."""
-    if key is None or t.record_ids is None or key not in raw.columns:
-        return []
-    by_id = raw.assign(_id=raw[key].astype(str)).drop_duplicates("_id").set_index("_id")
-    out = []
-    for pos, rid in enumerate(t.record_ids[:PREVIEW_ROWS]):
-        if rid in by_id.index:
-            out.append({"raw": _records(by_id.loc[[rid]])[0], "released": _records(t.frame.iloc[[pos]])[0]})
-    return out
-
-
-def _summary(
-    s: Session, plan: Plan, outcome: RunOutcome, attacker: list[dict[str, Any]], replay: dict[str, Any] | None
-) -> dict[str, Any]:
-    """The headline numbers of one release, for the release history and release-to-release comparison."""
-    dp = plan.differential_privacy
-    worst = max(attacker, key=lambda v: v["before"]["unique_share"], default=None)
-    after = (replay or {}).get("after") or {}
-    return {
-        "release_id": outcome.manifest.release_id, "created_at": outcome.manifest.created_at.isoformat(),
-        "receiver": s.receiver, "scenario_id": plan.scenario_id, "plan_version": s.plan_version,
-        "recipient": s.scenario.recipient if s.scenario else plan.scenario_id, "approved_by": plan.approved_by,
-        "k": plan.k_target if plan.quasi_identifiers else None,
-        "epsilon": plan.epsilon_spent if plan.aggregates else None, "budget_cap": dp.budget_cap if dp else None,
-        "key_domain": outcome.manifest.key_domain, "files": [f.name for f in outcome.manifest.files],
-        "singled_out_before": worst["before"]["unique_share"] if worst else None,
-        "singled_out_after": worst["after"]["unique_share"] if worst else None,
-        "guess_chance_after": worst["after"]["guess_chance"] if worst else None,
-        "attack_outcome": after.get("outcome"), "attack_matches": after.get("matches"),
-    }  # fmt: skip
-
-
-def _read_baselines(path: Path) -> dict[str, dict[str, Any]]:
-    """The organisers' B0, B2 and B2-k per receiver (results/baselines.csv, `make baselines`): privacy per dataset,
-    usefulness per receiver."""
-    if not path.exists():
-        return {}
-    with path.open(encoding="utf-8", newline="") as f:
-        found = list(csv.DictReader(f))
-    return {
-        r["id"]: {
-            "generated": r["generated"],
-            **{
-                k: {"privacy": float(r[f"privacy_{k}"]), "utility": float(r[f"utility_{k}"])}
-                for k in ("b0", "b2", "b2k")
-            },
-        }
-        for r in found
-    }
-
-
-def _scorecard_for(release_id: str) -> dict[str, Any] | None:
-    """The organisers' scorecard of this release, when `python -m evaluation screens` scored it."""
-    path = RESULTS / "screens" / "audit.json"
-    if not path.exists():
-        return None
-    data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
-    return data if (data.get("manifest") or {}).get("release_id") == release_id else None
-
-
-def _receiver_tables(s: Scenario) -> set[str]:
-    """The tables a receiver asks for: the app offers it only for data that has all of them."""
-    return {n.table for n in s.needs if n.table} | {st.table for st in s.statistics}
-
-
-def _scenario_card(s: Scenario) -> dict[str, Any]:
-    return {
-        "id": s.id, "title": s.title, "recipient": s.recipient, "purpose": s.purpose, "dataset": s.dataset,
-        "trust_level": s.trust_level.value, "kind": "statistics" if s.statistics and not s.needs else "rows",
-        "legal_context": s.legal_context, "needs": [n.model_dump() for n in s.needs],
-        "statistics": [st.name for st in s.statistics], "k": s.targets.k, "epsilon": s.targets.epsilon,
-        "tables": sorted(_receiver_tables(s)),
-    }  # fmt: skip
-
-
-def package_path(settings: Settings) -> Path:
-    return settings.package_root

@@ -11,12 +11,11 @@ baseline once per dataset, so every receiver of a dataset shows the same baselin
 catalogue instead of detecting fields, and release rows even for public receivers (where only statistics may go).
 """
 
-import csv
 import json
 from pathlib import Path
 from typing import Any
 
-from evaluation.runner import RESULTS
+from evaluation.runner import RESULTS, write_csv
 
 CSV = RESULTS / "baselines.csv"
 LEVELS = {"b0": "B0", "b2": "B2", "b2k": "B2K"}
@@ -45,9 +44,4 @@ def rows(package_root: Path) -> list[dict[str, Any]]:
 
 
 def write(found: list[dict[str, Any]], path: Path = CSV) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=FIELDS, lineterminator="\n")
-        w.writeheader()
-        w.writerows(found)
-    return path
+    return write_csv(path, FIELDS, found)

@@ -1,6 +1,6 @@
 """Load a .env file into the environment, the way most apps do.
 
-Used only by entry points (the CLI, later the web API); library code keeps reading plain environment variables.
+Used only by entry points (the CLI and the web app); library code keeps reading plain environment variables.
 Variables that are already set always win, so a server's or container's real settings are never overridden.
 """
 

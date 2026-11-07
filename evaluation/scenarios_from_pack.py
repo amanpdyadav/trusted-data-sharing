@@ -33,7 +33,7 @@ PERSON_ID = re.compile(
 )
 POINTS = re.compile(r"(^|_)(lat|lon|latitude|longitude)$")
 CATEGORY_NAMES = re.compile(r"postcode|zip|code$|_code|station|stop_id|sensor_id|car_park|zone|line$")
-HANDWRITTEN = {"HEALTH-S1", "HEALTH-S2"}
+HAND_WRITTEN = {"HEALTH-S1", "HEALTH-S2"}
 # Receivers whose analyses need hourly time, chosen by measurement (both settings released and scored with pets-eval,
 # 7 Nov): hourly raised the combined score and kept privacy >= 0.9. Combined score with the planner's default -> hourly:
 # CYBER-S1 0.20 -> 0.35, ENERGY-S2 0.00 -> 1.00, ENERGY-S3 0.63 -> 1.00, FIN-S1 0.00 -> 0.69, FIN-S2 0.28 -> 0.63.
@@ -185,7 +185,7 @@ def write_all(package_root: Path, out_dir: Path, force: bool = False) -> list[Pa
     written = []
     for s in scenarios:
         path = out_dir / f"{s['id']}.yaml"
-        if s["id"] in HANDWRITTEN or (path.exists() and not force):
+        if s["id"] in HAND_WRITTEN or (path.exists() and not force):
             continue
         body = yaml.safe_dump(scenario_file(s, package_root / "data"), sort_keys=False, allow_unicode=True, width=110)
         header = f"# {s['id']}: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.\n"

@@ -1,5 +1,5 @@
 # Challenge material: never commit (large, and the data package has its own licence)
-TRUSTED_PETS_PROVING_GROUND_2026/
+/TRUSTED_PETS_PROVING_GROUND_2026
 *.zip
 *.mp4
 *.pdf
@@ -33,14 +33,12 @@ build/
 .idea/
 .vscode/
 
-# Local layout from the main branch's setup: challenge pack, old outputs, editor config, old React build
+# Local only: the unpacked challenge pack (docs/RUNBOOK.md), JSON schemas from `make schemas`, editor/agent config
 challenge/
-outputs/
+schemas/
 .claude/
-web/node_modules/
-web/dist/
 
-# Generated screen data (python -m evaluation screens)
+# Generated screen data (make screens)
 results/screens/
 
 # Web app sources build into src/pets_transformer/web/static (committed); dependencies are not

@@ -1,11 +1,12 @@
 // The frame around every step: the rail on the left (new dataset, steps, exposure, settings) and the top bar with
 // the step's main action. The step itself is rendered in the middle.
 import { Check, Download, Loader2, Plus } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Toaster } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Meter, TooltipProvider } from "@/components/ui/misc";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { worstTable } from "@/lib/api";
 import { pct, plural } from "@/lib/format";
 import { SCREENS, STEPS, applyTheme, askDownload, can, go, init, isScreen, newDataset, runScan, useApp, type Theme } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -83,7 +84,7 @@ function Rail() {
 function Ticker() {
   const scan = useApp(s => s.scan), after = useApp(s => s.results?.summary.singled_out_after);
   if (!scan) return null;
-  const worst = [...scan.risk.tables].sort((a, b) => b.unique_share - a.unique_share)[0];
+  const worst = worstTable(scan.risk);
   return (
     <div className="flex flex-col gap-2.5 rounded-xl border bg-muted p-3">
       <span className="eyebrow text-[10.5px]">People singled out</span>
@@ -123,14 +124,14 @@ function TopBar() {
   }
   const n = STEPS.findIndex(([k]) => k === s.step);
   const recipient = s.plan?.scenario?.recipient ?? s.plan?.plan.scenario_id ?? "";
-  let info: React.ReactNode = "", action: React.ReactNode = null;
+  let info: ReactNode = "", action: ReactNode = null;
   if (s.progress) info = <span className="inline-flex items-center gap-2">{s.progress.title}… <Loader2 className="size-4 animate-spin text-safe" /></span>;
   else if (s.step === "data") {
     info = s.session ? <><b>{s.session.name}</b> · {plural(s.session.tables.length, "table")} loaded</> : "Drop your tables, pick an example, or reopen earlier work.";
     action = s.session ? <Button onClick={() => (s.scan ? go("scan") : runScan())}>{s.scan ? "See the risk scan →" : "Scan for risks →"}</Button> : <Button onClick={openPicker}>Choose files…</Button>;
   } else if (s.step === "scan") {
     if (!s.scan) { info = "Not scanned yet."; action = <Button onClick={runScan}>Scan for risks</Button>; }
-    else { const w = [...s.scan.risk.tables].sort((a, b) => b.unique_share - a.unique_share)[0]; info = <>{pct(w.unique_share)} of <b>{w.table}</b> can be singled out today</>; action = <Button onClick={() => go("plan")}>Choose a receiver →</Button>; }
+    else { const w = worstTable(s.scan.risk); info = <>{pct(w.unique_share)} of <b>{w.table}</b> can be singled out today</>; action = <Button onClick={() => go("plan")}>Choose a receiver →</Button>; }
   } else if (s.step === "plan") {
     info = s.plan ? <>Plan for <b>{recipient}</b>{s.plan.reviews.length ? ` · ${plural(s.plan.reviews.length, "item")} to check` : ""}</> : "Pick who receives the data.";
     action = s.plan && <Button onClick={() => go("approve")}>Review & approve →</Button>;

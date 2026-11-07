@@ -3,7 +3,6 @@
 Run with `pets-transformer web`. It listens on 127.0.0.1 only: the data never leaves this machine.
 """
 
-import json
 from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Any
@@ -17,7 +16,7 @@ from pets_transformer.config import Settings
 from pets_transformer.contracts import PrivacyRole, Subtype, TrustLevel
 from pets_transformer.keys import MissingKeyError
 from pets_transformer.web.service import ActionEdit, App, NewName, Override
-from pets_transformer.web.workspace import Session, Workspace, WorkspaceError
+from pets_transformer.web.workspace import Session, Workspace
 
 STATIC = Path(__file__).with_name("static")
 
@@ -159,18 +158,14 @@ def _audit_routes(api: FastAPI, svc: App, session: Callable[[str], Session]) -> 
         return svc.receivers_benchmark()
 
 
-def _screen_routes(api: FastAPI) -> None:
-    """The presentation screens' data (Mosaic attack, Release audit), written by `python -m evaluation screens`."""
+def _screen_routes(api: FastAPI, svc: App) -> None:
+    """The presentation screens' data, written by `make screens` (outside the tool)."""
 
     @api.get("/api/screens/{name}")
     def screen(name: str) -> dict[str, Any]:
-        """Data for the presentation screens, written by `python -m evaluation screens` (results/screens/)."""
-        if name not in ("mosaic", "audit"):
-            raise HTTPException(404, f"no screen called {name}")
-        path = Path("results") / "screens" / f"{name}.json"
-        if not path.exists():
-            raise HTTPException(404, f"{path} not found: run `python -m evaluation screens`")
-        data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+        data = svc.screen(name)
+        if data is None:
+            raise HTTPException(404, f"no {name} screen data yet: run `make screens`")
         return data
 
 
@@ -178,10 +173,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
     svc = App(settings, Workspace(settings.out_dir / "web"))
     api = FastAPI(title="PETs Transformer", docs_url="/api/docs", redoc_url=None)
-
-    @api.exception_handler(WorkspaceError)
-    async def _user_error(_: Request, exc: WorkspaceError) -> JSONResponse:
-        return JSONResponse({"error": str(exc)}, status_code=400)
 
     @api.exception_handler(MissingKeyError)
     async def _no_key(_: Request, exc: MissingKeyError) -> JSONResponse:
@@ -323,7 +314,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         body = svc.detection_json(session(sid))
         return PlainTextResponse(body, media_type="application/json", headers=_attachment("detection.json"))
 
-    _screen_routes(api)
+    _screen_routes(api, svc)
 
     @api.get("/api/{rest:path}")
     def unknown(rest: str) -> None:

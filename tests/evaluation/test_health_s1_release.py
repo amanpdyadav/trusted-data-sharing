@@ -1,7 +1,5 @@
 """Regression guard on the real data: our HEALTH-S1 plan must keep defeating the demo attacks and reach k."""
 
-from pathlib import Path
-
 import pytest
 
 from evaluation.attack_cases import DEMO_CASES
@@ -11,19 +9,19 @@ from pets_transformer.contracts import Plan
 from pets_transformer.keys import DerivedKeyProvider, KeyScope
 from pets_transformer.pipeline import OutputLayout, run_release
 from pets_transformer.sources import open_source
-from tests.conftest import TEST_MASTER_KEY
+from tests.conftest import PACKAGE, REPO, TEST_MASTER_KEY
 
 pytestmark = pytest.mark.integration
 
-ROOT = Path(__file__).resolve().parents[2]
-DATA = ROOT / "TRUSTED_PETS_PROVING_GROUND_2026" / "data" / "health"
+DATA = PACKAGE / "data" / "health"
 
 
 @pytest.fixture(scope="module")
 def outcome(tmp_path_factory: pytest.TempPathFactory) -> object:
     if not DATA.is_dir():
         pytest.skip("TrustED data package not found")
-    plan = Plan.load(ROOT / "plans" / "health-s1.yaml")
+    plan = Plan.load(REPO / "plans" / "health-s1.yaml")
+    plan = plan.model_copy(update={"approved": True, "approved_by": "regression test"})  # the plan file awaits sign-off
     scope = KeyScope(DerivedKeyProvider(TEST_MASTER_KEY), "HEALTH-S1/test/2026-11")
     return run_release(open_source(f"csv:{DATA}"), plan, scope, OutputLayout(tmp_path_factory.mktemp("rel")))
 

@@ -1,7 +1,7 @@
-"""Layered column detector (ported from the main branch): the second opinion inside CombinedDetector.
+"""Layered column detector: values first, the second opinion inside CombinedDetector.
 
 Layers, in order (see docs/detection/DECISIONS.md):
-  1. Format proof: a checker with a check digit or a strict format fires on most values (pets/checkers.py).
+  1. Format proof: a checker with a check digit or a strict format fires on most values (detect/checks.py).
   2. Structure: unique per row → record key; a repeated identifier-like code → technical identifier.
   3. Value vocabularies: sex, language, municipality, trade unions, health words.
   4. Table context: a table that holds ICD-10 codes holds health records, so its clinical numbers are health data.
@@ -22,15 +22,6 @@ import pandas as pd
 from pets_transformer.contracts import ColumnDetection, Evidence, EvidenceKind, PrivacyRole, Subtype
 from pets_transformer.detect import checks
 
-ROLES = [
-    "direct_identifier",
-    "quasi_identifier",
-    "sensitive_attribute",
-    "technical_identifier",
-    "free_text",
-    "record_key",
-    "non_sensitive",
-]
 STRONG = 0.8  # share of values that must pass a format checker for it to decide the column
 
 
@@ -131,35 +122,6 @@ UNION_WORDS = (
     "ammattiliit",
     "liitto",
     "union",
-)
-HEALTH_WORDS = (
-    "kipu",
-    "kuume",
-    "lääkär",
-    "sairaus",
-    "diagnoos",
-    "migreeni",
-    "masennus",
-    "ahdistus",
-    "leikkaus",
-    "tulehdus",
-    "pain",
-    "fever",
-    "diagnos",
-    "injury",
-    "fracture",
-    "admitted",
-    "ward",
-    "sick",
-    "symptom",
-    "hoito",
-    "potilas",
-    "patient",
-    "allerg",
-    "astma",
-    "diabet",
-    "raskaus",
-    "pregnan",
 )
 YES_NO = {"0", "1", "true", "false", "yes", "no", "y", "n", "kyllä", "ei", "ja", "nej"}
 
@@ -627,7 +589,7 @@ def to_column_detection(d: Detection) -> ColumnDetection:
 
 
 class LayeredDetector:
-    """Implements ColumnDetector with the main branch's five layers."""
+    """Implements ColumnDetector with the five layers above."""
 
     def detect(self, table: str, frame: pd.DataFrame) -> list[ColumnDetection]:
         return [to_column_detection(d) for d in detect_table(frame.astype(str), "", table, use_names=True)]

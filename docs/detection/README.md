@@ -10,10 +10,10 @@ Two detectors label every column independently, and `combined.py` picks one labe
 | Detector | File | Strength |
 |---|---|---|
 | Rule-based (Aman) | `detect/rules.py` | Validators with check digits, name hints in three languages, identifier columns, reference tables |
-| Layered (Hari, from the main branch) | `detect/layered.py`, `detect/checks.py` | Works from values when names say nothing: trade-union vocabulary, health context from diagnosis codes, people tables, first-name lists and surname endings |
+| Layered (Hari) | `detect/layered.py`, `detect/checks.py` | Works from values when names say nothing: trade-union vocabulary, health context from diagnosis codes, people tables, first-name lists and surname endings |
 | **Combined** (default) | `detect/combined.py` | Agreeing labels stand; on a disagreement the stronger evidence (higher confidence) wins; ties keep the rule-based label |
 
-`detect_source()` uses the combined detector, so the CLI (`pets-transformer detect`), the web app and
+`detect_source()` (`detect/source.py`) uses the combined detector, so the CLI (`pets-transformer detect`), the web app and
 `python -m evaluation detect-all` all get it. Every label carries `evidence` (what fired) and, where the
 layered detector contributed, `basis`: IDs of the laws and standards in `SOURCES.md`.
 
@@ -34,8 +34,8 @@ Both detectors were tuned on overlapping data, so no held-out number is fully cl
 - `SOURCES.md`: every rule, law and standard we rely on, and what we took from it
 - `DECISIONS.md`: each design decision with options, reason and source
 - `SCORES.md`: every measured iteration, from the organisers' baseline onwards
-- `FORMAT.md`: the main branch's original `detection.json` format (kept for reference; the shared contract is now
-  `contracts/detection.py`, which gained `basis` and `needed_by`)
+- The `detection.json` format is the typed model in `src/pets_transformer/contracts/detection.py`
+  (`make schemas` writes its JSON schema); an example is in `examples/contracts/detection.example.json`
 
 ## Commands
 

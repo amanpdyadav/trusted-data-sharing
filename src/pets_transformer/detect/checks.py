@@ -1,4 +1,4 @@
-"""Value checks for the layered detector (ported from the main branch). Kept separate from validators.py on purpose:
+"""Value checks for the layered detector. Kept separate from validators.py on purpose where the rules differ:
 the combined detector works best when its two detectors judge independently.
 
 Format checkers: does a single value look like a known kind of identifier or data?

@@ -1,4 +1,4 @@
-"""Interfaces for the Detect step (owner: Hari). Code depends on these, not on concrete detectors."""
+"""Interfaces for the Detect step. Code depends on these, not on concrete detectors."""
 
 from collections.abc import Iterable
 from typing import Protocol

@@ -6,10 +6,11 @@ import { Kpi, Kpis, PageHead } from "@/components/common";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Select } from "@/components/ui/form";
 import { Meter } from "@/components/ui/misc";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { clip, fmt, plural, when } from "@/lib/format";
-import { useScreen, type ChainStep, type FunnelRow, type Mosaic, type MosaicCase } from "@/lib/screens";
+import { useApi, type ChainStep, type FunnelRow, type Mosaic, type MosaicCase } from "@/lib/data";
 import { cn } from "@/lib/utils";
 
 type Mode = "raw" | "names" | "ours";
@@ -24,7 +25,7 @@ function ticksOf(chain: ChainStep[]): [step: number, rows: number][] {
 }
 
 export function MosaicAttack() {
-  const { data, error } = useScreen<Mosaic>("mosaic");
+  const { data, error } = useApi<Mosaic>("/api/screens/mosaic");
   if (!data) return <><PageHead title="Mosaic attack" lede="From one public post or news clip to a full profile." /><NotBuilt error={error} what="mosaic data" /></>;
   return <MosaicBoard data={data} />;
 }
@@ -61,10 +62,9 @@ function MosaicBoard({ data }: { data: Mosaic }) {
             <ToggleGroupItem value="post" title={`${counts.post} of the posts that lead to one patient, richest chains first`}>Public posts <span className="ml-1 font-mono text-xs opacity-70">{counts.post}</span></ToggleGroupItem>
             <ToggleGroupItem value="news" title={`${counts.news} of the news clips that lead to one patient, richest chains first`}>News clips <span className="ml-1 font-mono text-xs opacity-70">{counts.news}</span></ToggleGroupItem>
           </ToggleGroup>
-          <select aria-label="Pick a scrap" value={c.id} onChange={e => { setCaseId(e.target.value); reset(); }}
-            className="min-w-0 flex-1 basis-64 rounded-lg border border-input bg-card px-3 py-2 text-sm">
+          <Select aria-label="Pick a scrap" value={c.id} onChange={e => { setCaseId(e.target.value); reset(); }} className="min-w-0 flex-1 basis-64 px-3">
             {ofKind.map(x => <option key={x.id} value={x.id}>{x.id} · {clip(x.label, 24)}: {clip(x.text, 60)}</option>)}
-          </select>
+          </Select>
         </div>
         <p className="-mt-1 text-xs text-muted-foreground">Pick one to follow: the {data.cases.length} richest chains are listed.</p>
         <ModeCards c={c} mode={activeMode} onPick={m => { setMode(m); reset(); }} />
@@ -89,7 +89,7 @@ function MosaicBoard({ data }: { data: Mosaic }) {
             <div className="grid gap-4 lg:grid-cols-2">
               <Card className={cn("flex flex-col gap-3 p-5", st.kind !== "public" && "border-risk/50")}>
                 <Badge variant={st.kind === "public" ? "safe" : "risk"} className="w-fit">{KIND_LABEL[st.kind]}</Badge>
-                <h2 className="text-2xl">{st.title}</h2>
+                <h2 className="text-xl">{st.title}</h2>
                 <code className="text-xs text-muted-foreground">{st.file}</code>
                 <p>{st.how}</p>
                 {si === 0 && st.quote && <blockquote className="border-l-[3px] border-risk py-1 pl-3 text-[17px]"><b>{st.quote.who}</b> <span className="text-xs text-muted-foreground">{st.quote.when}</span><br />{st.quote.text}</blockquote>}
@@ -158,7 +158,7 @@ function OursView({ c }: { c: MosaicCase }) {
     <>
       <LinkGraph chain={chain} upto={0} broken />
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card className={cn("flex flex-col gap-3 p-5", r.holds ? "border-safe/50" : "border-risk/50")}><h2 className="text-2xl">Same scrap, our release</h2><Funnel rows={r.funnel} safe={r.holds} /></Card>
+        <Card className={cn("flex flex-col gap-3 p-5", r.holds ? "border-safe/50" : "border-risk/50")}><h2 className="text-xl">Same scrap, our release</h2><Funnel rows={r.funnel} safe={r.holds} /></Card>
         <Card className="flex flex-col gap-3 p-5">
           <span className="eyebrow">What the attacker now knows</span>
           <div className={cn("big-number text-[52px] leading-none", r.holds ? "text-safe" : "text-risk")}>{fmt(r.candidates)}</div>
@@ -183,7 +183,7 @@ function LinkGraph({ chain, upto, broken = false }: { chain: ChainStep[]; upto: 
             <g key={`e${i}`}>
               <line x1={x1} y1={50} x2={x2 - 6} y2={50} stroke={stroke} strokeWidth={2} strokeDasharray={on ? undefined : "5 4"} />
               {on && <path d={`M${x2 - 8},45 L${x2},50 L${x2 - 8},55 Z`} fill="hsl(var(--risk))" />}
-              <text x={(x1 + x2) / 2} y={brk ? 38 : i % 2 ? 98 : 14} textAnchor="middle" fontSize={10.5} fontFamily="var(--font-mono, monospace)"
+              <text x={(x1 + x2) / 2} y={brk ? 38 : i % 2 ? 98 : 14} textAnchor="middle" fontSize={10.5} className="font-mono"
                 fill={brk ? "hsl(var(--safe))" : on ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))"}>{brk ? "chain breaks" : clip(st.link, 36)}</text>
             </g>
           );
@@ -206,7 +206,7 @@ function LinkGraph({ chain, upto, broken = false }: { chain: ChainStep[]; upto: 
   );
 }
 
-export function NotBuilt({ error, what }: { error: string | null; what: string }) {
+function NotBuilt({ error, what }: { error: string | null; what: string }) {
   return (
     <Card className={cn("flex flex-col gap-2 p-5", error && "border-risk/50")}>
       {error ? <><b>No {what} yet.</b>

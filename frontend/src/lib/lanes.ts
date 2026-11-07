@@ -10,5 +10,12 @@ export const LANES: Lane[] = [
 ];
 export const laneOf = (technique: string) => LANES.find(l => l.technique === technique) ?? LANES[0];
 
+/** Badge colour for a protection: dropped in red, kept or withheld as is, anything that changes the value in blue. */
+export const techniqueTone = (technique: string): "risk" | "outline" | "safe" =>
+  technique === "drop" ? "risk" : technique === "keep" || technique === "withheld" ? "outline" : "safe";
+
+/** The tables a plan releases as rows, in plan order. */
+export const planTables = (plan: { actions: { table: string }[] }) => [...new Set(plan.actions.map(a => a.table))];
+
 export const TIME_UNITS = ["week", "month", "day", "hour", "time_of_day"];
 export const RECEIVER_ICON: Record<string, string> = { public: "🌍", controlled_research: "🎓", contractual: "🤝", internal: "🏢" };

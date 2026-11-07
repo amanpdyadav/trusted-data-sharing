@@ -11,6 +11,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Protocol
 
+from pets_transformer.contracts import Plan
+
 MIN_MASTER_KEY_CHARS = 32
 ENV_VAR = "PETS_MASTER_KEY"
 
@@ -47,6 +49,12 @@ class DerivedKeyProvider:
         if not domain:
             raise ValueError("key domain must not be empty")
         return hmac.new(self._master, b"pets-transformer/" + domain.encode("utf-8"), hashlib.sha256).digest()
+
+
+def receiver_domain(plan: Plan, receiver: str) -> str:
+    """The key domain of one receiver's releases from a plan: scenario, receiver and the plan's month. The CLI and the
+    web app must agree on it, or the same receiver would get different pseudonyms."""
+    return f"{plan.scenario_id}/{receiver}/{plan.created_at:%Y-%m}"
 
 
 @dataclass(frozen=True)

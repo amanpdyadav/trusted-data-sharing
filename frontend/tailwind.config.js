@@ -28,9 +28,9 @@ export default {
       borderRadius: { lg: "var(--radius)", md: "calc(var(--radius) - 2px)", sm: "calc(var(--radius) - 4px)" },
       keyframes: {
         reveal: { from: { opacity: "0", transform: "translateY(10px)" }, to: { opacity: "1", transform: "none" } },
-        flow: { to: { strokeDashoffset: "-20" } },
+        slide: { from: { transform: "translateX(-100%)" }, to: { transform: "translateX(300%)" } },
       },
-      animation: { reveal: "reveal .5s both", flow: "flow 1.4s linear infinite" },
+      animation: { reveal: "reveal .5s both", slide: "slide 1.3s ease-in-out infinite" },
     },
   },
   plugins: [animate],

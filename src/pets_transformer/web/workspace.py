@@ -26,9 +26,9 @@ from typing import Any, TypeVar
 import pandas as pd
 from pydantic import BaseModel
 
-from pets_transformer.columns import NamedSource, positional_names
+from pets_transformer.columns import NamedSource
 from pets_transformer.contracts import ColumnName, DetectionReport, Plan
-from pets_transformer.io import list_tables, read_header
+from pets_transformer.io import list_tables, positional_names, read_header
 from pets_transformer.pipeline import OutputLayout, RunOutcome
 from pets_transformer.plan.scenario import Scenario
 from pets_transformer.sources import CsvFolderSource

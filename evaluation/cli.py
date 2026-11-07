@@ -23,7 +23,7 @@ from pathlib import Path
 from evaluation import dashboard, detection, text
 from evaluation.experiments import EXPERIMENTS, run_experiment
 from evaluation.runner import RESULTS, Scored, score_run
-from evaluation.scorecard import Run
+from evaluation.scorecard import Run, record_ids
 from evaluation.targets import Gate, detection_gates, load_targets, text_gates
 from pets_transformer.config import Settings
 from pets_transformer.contracts import DetectionReport, Plan
@@ -81,11 +81,7 @@ def cmd_sweep(args: argparse.Namespace) -> int:
 
     release = Path(args.release)
     rel = read_table(release / "ed_visits.csv")
-    rowmap = Path(args.rowmaps or release) / "rowmap_ed_visits.csv"
-    ids = None
-    if rowmap.exists():
-        rm = read_table(rowmap).astype({"protected_row": int}).sort_values("protected_row")
-        ids = rm["original_record_id"].tolist() if len(rm) == len(rel) else None
+    ids = record_ids(Path(args.rowmaps or release), "ed_visits", len(rel))
     result = sweep(Settings.from_env().package_root, rel, ids, k=args.k)
     print(f"post and news sweep on {release}: {result.summary()}")
     for r in result.worst[: args.show]:

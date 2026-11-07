@@ -11,10 +11,11 @@ from evaluation.cli import main
 from evaluation.text import redact_eval_split
 from pets_transformer.detect.validators import VALIDATORS
 from pets_transformer.io import read_table
+from tests.conftest import PACKAGE
 
 pytestmark = pytest.mark.integration
 
-PKG = Path(__file__).resolve().parents[2] / "TRUSTED_PETS_PROVING_GROUND_2026"
+PKG = PACKAGE
 QUICKSTART = PKG / "results" / "quickstart" / "health"
 
 

@@ -1,4 +1,4 @@
-"""Combined detector: Aman's rule-based detector and the main branch's layered detector, side by side.
+"""Combined detector: the rule-based detector (rules.py) and the layered detector (layered.py), side by side.
 
 Both label every column. Where they agree, the label stands. Where they disagree, the label with the stronger
 evidence (higher confidence) wins; on a tie the rule-based detector's label is kept. Measured on all nine

@@ -3,7 +3,7 @@ import { Check } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/misc";
-import { ROLE_TONE, clip } from "@/lib/format";
+import { ROLE_TONE, clip, text } from "@/lib/format";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -51,21 +51,17 @@ export function useRole() {
   const columns = useApp(s => s.scan?.detections.columns);
   return (table: string, column: string) => columns?.find(c => c.table === table && c.column === column)?.privacy_role ?? "";
 }
-/** A value as shown on screen: always as it is in the data (the app runs on this computer only). */
-export function useShown() {
-  return (_table: string, _column: string, v: unknown) => String(v ?? "");
-}
 
 /** column → value rows, used by the attack replay and its trail. */
 export function Facts({ facts, table, tone }: { facts: Record<string, string>; table: string; tone?: "risk" | "safe" }) {
-  const shown = useShown(), role = useRole();
+  const role = useRole();
   return (
     <div className="flex flex-col">
       {Object.entries(facts).map(([k, v]) => (
         <div key={k} className="flex min-w-0 justify-between gap-3 border-b border-dashed py-1 text-[13px]">
           <span className="truncate font-mono text-xs text-muted-foreground">{k}</span>
           <b className={cn("text-right font-semibold tabular-nums [overflow-wrap:anywhere]", tone === "risk" && "text-risk", tone === "safe" && "text-safe", !tone && ROLE_TONE[role(table, k)])}>
-            {clip(shown(table, k, v), 80) || "–"}
+            {clip(text(v), 80) || "–"}
           </b>
         </div>
       ))}
@@ -99,4 +95,12 @@ export const Section = ({ eyebrow, title, right, children, className }: { eyebro
     )}
     {children}
   </Card>
+);
+
+/** The outcome of an attack replay, as a coloured badge and one sentence. */
+export const Verdict = ({ tone, badge, children }: { tone: "risk" | "safe"; badge: string; children: ReactNode }) => (
+  <div className={cn("verdict flex flex-wrap items-center gap-3.5 rounded-xl px-4 py-3.5", tone === "risk" ? "bg-risk-soft" : "bg-safe-soft")}>
+    <span className={cn("rounded-md px-3 py-2 font-display text-[13px] font-extrabold uppercase tracking-wider text-white", tone === "risk" ? "bg-risk" : "bg-safe")}>{badge}</span>
+    <span className="flex-1">{children}</span>
+  </div>
 );

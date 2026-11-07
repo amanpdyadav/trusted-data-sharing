@@ -8,7 +8,7 @@ from pets_eval import io as pe_io
 from pets_eval.detect import score_detection
 
 from pets_transformer.contracts import DetectionReport
-from pets_transformer.detect.rules import detect_source
+from pets_transformer.detect.source import detect_source
 from pets_transformer.sources import open_source
 
 

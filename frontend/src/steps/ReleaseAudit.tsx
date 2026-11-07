@@ -3,7 +3,7 @@
 // every receiver (results/receivers.csv, `make receivers`). Works on company data: nothing here needs the answer files;
 // a release scored with the organisers' toolkit (`make screens`) also shows its checks.
 import { FileCheck2, Lock, Sparkles } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Kpi, Kpis, PageHead } from "@/components/common";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,34 +11,32 @@ import { Card } from "@/components/ui/card";
 import { Meter, Spinner, TableWrap, Td, Th } from "@/components/ui/misc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { api, type AuditDetail, type AuditItem, type Baselines, type ReceiverResult, type ReceiversBenchmark } from "@/lib/api";
-import { clip, fmt, pct, plural, when } from "@/lib/format";
+import { type AuditDetail, type AuditItem, type Baselines, type ReceiverResult, type ReceiversBenchmark } from "@/lib/api";
+import { clip, fmt, pct, plural, when, words } from "@/lib/format";
+import { planTables, techniqueTone } from "@/lib/lanes";
+import { useApi } from "@/lib/data";
 import { go, useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 export function ReleaseAudit() {
-  const [releases, setReleases] = useState<AuditItem[] | null>(null);
-  const [bench, setBench] = useState<ReceiversBenchmark | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    api<AuditItem[]>("/api/audit/releases").then(setReleases).catch((e: Error) => setError(e.message));
-    api<ReceiversBenchmark>("/api/audit/receivers").then(setBench).catch((e: Error) => setError(e.message));
-  }, []);
+  const { data: releases, error: releasesError } = useApi<AuditItem[]>("/api/audit/releases");
+  const { data: bench, error: benchError } = useApi<ReceiversBenchmark>("/api/audit/receivers");
   return (
     <>
       <PageHead title="Release audit" lede="Every release made here: who it was for, who approved it, what was done to each column, and what risk is left. And how the automatic planner does for each of the challenge's receivers." />
-      {error && <Card className="border-risk/50 p-4 text-sm">{error}</Card>}
       <Tabs defaultValue="releases">
         <TabsList>
           <TabsTrigger value="releases">Your releases <Badge>{releases?.length ?? "…"}</Badge></TabsTrigger>
           <TabsTrigger value="receivers">Receivers benchmark <Badge>{bench?.rows.length ?? "…"}</Badge></TabsTrigger>
         </TabsList>
-        <TabsContent value="releases">{releases ? <Releases items={releases} /> : <Spinner />}</TabsContent>
-        <TabsContent value="receivers">{bench ? <Receivers bench={bench} /> : <Spinner />}</TabsContent>
+        <TabsContent value="releases">{releasesError ? <Failed error={releasesError} /> : releases ? <Releases items={releases} /> : <Spinner />}</TabsContent>
+        <TabsContent value="receivers">{benchError ? <Failed error={benchError} /> : bench ? <Receivers bench={bench} /> : <Spinner />}</TabsContent>
       </Tabs>
     </>
   );
 }
+
+const Failed = ({ error }: { error: string }) => <Card className="border-risk/50 p-4 text-sm">{error}</Card>;
 
 // ---------------------------------------------------------------- your releases
 function Releases({ items }: { items: AuditItem[] }) {
@@ -75,20 +73,17 @@ function Releases({ items }: { items: AuditItem[] }) {
 }
 
 function ReleaseRecord({ item }: { item: AuditItem }) {
-  const [d, setD] = useState<AuditDetail | null>(null), [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    api<AuditDetail>(`/api/audit/releases/${item.session_id}/${encodeURIComponent(item.release_id)}`).then(setD).catch((e: Error) => setError(e.message));
-  }, [item]);
-  if (error) return <Card className="border-risk/50 p-4 text-sm">{error}</Card>;
+  const { data: d, error } = useApi<AuditDetail>(`/api/audit/releases/${item.session_id}/${encodeURIComponent(item.release_id)}`);
+  if (error) return <Failed error={error} />;
   if (!d) return <Card className="p-5"><Spinner /></Card>;
   const m = d.manifest, plan = m.plan, s = d.summary;
-  const tables = [...new Set(plan.actions.map(a => a.table))];
+  const tables = planTables(plan);
   const after = d.attack?.after;
   return (
     <div className="flex flex-col gap-4">
       <Card className="flex flex-col gap-2 p-5">
         <span className="eyebrow flex items-center gap-1.5 text-safe"><Lock className="size-3.5" /> Release {m.release_id}</span>
-        <h2 className="text-2xl">{s.recipient}</h2>
+        <h2 className="text-xl">{s.recipient}</h2>
         <p className="text-sm text-muted-foreground">
           {d.dataset} · receiver {plan.scenario_id} · made {when(m.created_at)} · plan version {s.plan_version ?? "–"} · approved by <b className="text-foreground">{plan.approved_by ?? "nobody"}</b>
         </p>
@@ -116,7 +111,7 @@ function ReleaseRecord({ item }: { item: AuditItem }) {
             <thead><tr><Th className="w-[28%]">{t}</Th><Th className="w-[22%]">Protection</Th><Th>Why</Th></tr></thead>
             <tbody>{plan.actions.filter(a => a.table === t).map(a => (
               <tr key={a.column}><Td className="font-mono text-xs">{a.column}</Td>
-                <Td><Badge variant={a.technique === "drop" ? "risk" : a.technique === "keep" ? "outline" : "safe"}>{a.technique}</Badge>
+                <Td><Badge variant={techniqueTone(a.technique)}>{a.technique}</Badge>
                   {a.params && Object.keys(a.params).length > 0 && <span className="mt-1 block font-mono text-[11px] text-muted-foreground">{params(a.params)}</span>}</Td>
                 <Td className="text-sm text-muted-foreground">{a.reason}</Td></tr>))}</tbody>
           </table></TableWrap>
@@ -171,7 +166,7 @@ function Receivers({ bench }: { bench: ReceiversBenchmark }) {
       <p className="text-sm text-muted-foreground">Run <code>make receivers</code> (needs the challenge pack): it plans, releases and scores every receiver and writes <code>results/receivers.csv</code>.</p></Card>
   );
   const count = (st: ReceiverResult["status"]) => bench.rows.filter(r => r.status === st).length;
-  const verdicts = bench.rows.map(versusB2k).filter((v): v is Verdict => v !== null);
+  const verdicts = bench.rows.map(versusB2k).filter((v): v is VsBaseline => v !== null);
   const beats = verdicts.filter(v => v.key === "beats").length, lessUseful = verdicts.filter(v => v.key === "less-useful").length;
   return (
     <div className="flex flex-col gap-4">
@@ -205,9 +200,9 @@ function Receivers({ bench }: { bench: ReceiversBenchmark }) {
           <thead><tr><Th>Receiver</Th><Th>Data · gets</Th><Th>Privacy</Th><Th>Usefulness</Th><Th>Combined</Th><Th>vs B2-k</Th><Th>Status</Th></tr></thead>
           <tbody>{rows.map(r => (
             <tr key={r.id} className="align-top">
-              <Td className="min-w-[240px]"><b className="block leading-snug">{r.recipient}</b><span className="font-mono text-[11px] text-muted-foreground">{r.id} · {r.trust_level.replace(/_/g, " ")}{r.source === "hand-written" ? " · hand-written" : ""}</span>
+              <Td className="min-w-[240px]"><b className="block leading-snug">{r.recipient}</b><span className="font-mono text-[11px] text-muted-foreground">{r.id} · {words(r.trust_level)}{r.source === "hand-written" ? " · hand-written" : ""}</span>
                 {r.why && <span className="mt-1 block text-xs text-muted-foreground">{r.why}</span>}</Td>
-              <Td className="whitespace-nowrap text-sm">{r.dataset.replace(/_/g, " ")}<span className="block text-xs text-muted-foreground">{r.gets === "statistics" ? `statistics${r.epsilon != null ? ` · ε ${r.epsilon.toFixed(2)}` : ""}` : "rows"}</span></Td>
+              <Td className="whitespace-nowrap text-sm">{words(r.dataset)}<span className="block text-xs text-muted-foreground">{r.gets === "statistics" ? `statistics${r.epsilon != null ? ` · ε ${r.epsilon.toFixed(2)}` : ""}` : "rows"}</span></Td>
               <Td><Score v={r.privacy} /><Base b={r.baselines} of="privacy" /></Td><Td><Score v={r.utility} /><Base b={r.baselines} of="utility" /></Td>
               <Td className="font-mono tabular-nums">{r.composite?.toFixed(2) ?? "–"}</Td>
               <Td><VsB2k r={r} /></Td>
@@ -220,9 +215,9 @@ function Receivers({ bench }: { bench: ReceiversBenchmark }) {
   );
 }
 
-type Verdict = { key: "beats" | "less-useful" | "less-private"; label: string; tone: "ok" | "warn" | "risk" };
+type VsBaseline = { key: "beats" | "less-useful" | "less-private"; label: string; tone: "ok" | "warn" | "risk" };
 /** Ours against the strongest baseline, B2-k (k >= 5 like our plans). Unscored receivers have no verdict. */
-function versusB2k(r: ReceiverResult): Verdict | null {
+function versusB2k(r: ReceiverResult): VsBaseline | null {
   const b = r.baselines?.b2k;
   if (!b || r.privacy == null || r.utility == null) return null;
   if (r.privacy + 0.005 < b.privacy) return { key: "less-private", label: "less private", tone: "risk" };

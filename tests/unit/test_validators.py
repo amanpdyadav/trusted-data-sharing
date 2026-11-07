@@ -108,7 +108,7 @@ class TestMoreFormats:
         self.check("url", ["https://a.example/x?y=1", "http://b.example"], ["ftp://x", "a.example"])
 
 
-# ---------------------------------------------------------------- ported from the main branch's detector
+# ---------------------------------------------------------------- the layered detector's checks
 def test_payment_card_needs_an_issuer_prefix() -> None:
     v = VALIDATORS.get("payment_card")
     assert v.is_valid("4111111111111111")

@@ -1,7 +1,7 @@
-"""Command line. Each sub-command is one small function; the pipeline commands arrive as the steps land.
+"""Command line: the same pipeline as the web app. Each sub-command is one small function.
 
 pets-transformer doctor                       # is everything configured? (AI on/off, key, data, scenarios)
-pets-transformer schemas --out schemas        # JSON schemas for the shared files (the UI reads these)
+pets-transformer schemas --out schemas        # JSON schemas for the shared files (for other tools)
 pets-transformer validate plan.yaml --kind plan
 pets-transformer run --plan plans/health-s1.yaml --receiver uni-research --out out/health-s1
 pets-transformer detect --dataset health --out out/health/detection.json
@@ -23,12 +23,13 @@ from pets_transformer.aggregate import EpsilonLedger
 from pets_transformer.config import Settings
 from pets_transformer.contracts import CONTRACTS, Contract, DetectionReport, Plan, RecordSpans, Technique
 from pets_transformer.detect.needs import annotate_needs
-from pets_transformer.detect.rules import detect_source
+from pets_transformer.detect.source import detect_source
 from pets_transformer.envfile import load_env_file
-from pets_transformer.keys import DerivedKeyProvider, KeyScope, MissingKeyError
+from pets_transformer.keys import DerivedKeyProvider, KeyScope, MissingKeyError, receiver_domain
 from pets_transformer.llm import LlmUnavailableError, build_llm
 from pets_transformer.pipeline import OutputLayout, RunSettings, run_release
-from pets_transformer.plan.policy import REVIEW, RulePolicy
+from pets_transformer.plan.common import REVIEW, open_reviews
+from pets_transformer.plan.policy import RulePolicy
 from pets_transformer.plan.scenario import Scenario, load_scenarios
 from pets_transformer.plan.statistics import load_codelists
 from pets_transformer.plugins import load_plugins
@@ -85,8 +86,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     plan = Plan.load(args.plan)
     settings = Settings.from_env()
     source = open_source(args.source or f"csv:{settings.package_root / 'data' / plan.dataset}")
-    month = plan.created_at.strftime("%Y-%m")
-    scope = KeyScope(DerivedKeyProvider.from_env(), f"{plan.scenario_id}/{args.receiver}/{month}")
+    scope = KeyScope(DerivedKeyProvider.from_env(), receiver_domain(plan, args.receiver))
     dp = plan.differential_privacy
     ledger = EpsilonLedger(settings.epsilon_ledger, dp.budget_cap if dp else None)
     outcome = run_release(source, plan, scope, OutputLayout(Path(args.out)), RunSettings(ledger=ledger))
@@ -145,22 +145,17 @@ def cmd_plan(args: argparse.Namespace) -> int:
     print(f"draft plan for {plan.scenario_id}: {len(plan.tables)} tables, {kept} columns released -> {args.out}")
     for agg in plan.aggregates:
         print(f"  statistic {agg.name}: epsilon {agg.epsilon:g}")
-    for item in _open_reviews(plan):
+    for item in open_reviews(plan):
         print(f"  {REVIEW}: {item}")
     print(f'  next: read the reasons, edit if needed, then: pets-transformer approve {args.out} --by "Your Name"')
     return 0
 
 
-def _open_reviews(plan: Plan) -> list[str]:
-    columns = [f"{a.table}.{a.column}" for a in plan.actions if a.reason.startswith(REVIEW)]
-    return columns + [f"statistic {a.name}" for a in plan.aggregates if a.reason.startswith(REVIEW)]
-
-
 def cmd_approve(args: argparse.Namespace) -> int:
     plan = Plan.load(args.plan)
-    open_reviews = _open_reviews(plan)
-    if open_reviews and not args.confirm_review:
-        raise ValueError(f"plan has open REVIEW items {open_reviews}; resolve them or pass --confirm-review")
+    pending = open_reviews(plan)
+    if pending and not args.confirm_review:
+        raise ValueError(f"plan has open REVIEW items {pending}; resolve them or pass --confirm-review")
     plan.model_copy(update={"approved": True, "approved_by": args.by}).save(args.plan)
     print(f"approved by {args.by}: {args.plan}")
     return 0

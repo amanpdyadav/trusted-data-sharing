@@ -25,6 +25,13 @@ Regenerate after changing the generator (keeps HEALTH-S1/S2): `python -m evaluat
 `make receivers` measures them again and writes `results/receivers.csv`; the web app shows that file on **Release
 audit → Receivers benchmark**, with a filter for the receivers that fit the open data.
 
+**Next to the organisers' baselines.** `make baselines` (run by `make receivers` too) copies the organisers' own
+results from the pack's `results/benchmark.json` into `results/baselines.csv`: B0 (drop names and ID codes), B2
+(classic protection) and B2-k (B2 plus suppression to k ≥ 5). Their usefulness is per receiver; their privacy is per
+dataset, because they scored each baseline once per dataset. They release rows even to public receivers, which get
+only statistics from us. Against B2-k, our automatic plans are better on both privacy and usefulness for 13 of the 20
+scored receivers; the other 7 are more private but less useful, and they are the plans to tune first.
+
 Each receiver was planned automatically (the rule-based planner, approved for the test), released, and scored with the
 organisers' `pets-eval` scorecard. Public dashboards outside health release correctly, but the toolkit only has a
 dashboard scorer for the hospital data. "Ready" means combined ≥ 0.70 (our target); "needs tuning" means the automatic

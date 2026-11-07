@@ -6,7 +6,7 @@ import {
   api, download, upload, type Attack, type NameSource, type NameSuggestions, type Catalogue, type Compare, type Example, type PlanCompare, type PlanVersions, type PlanView, type ReleaseSummary,
   type Results, type Scan, type SessionListItem, type SessionOverview, type Tradeoff,
 } from "./api";
-import { fmt, mb, plural } from "./format";
+import { fmt, mb, plural, words } from "./format";
 
 export type Step = "data" | "scan" | "plan" | "approve" | "release" | Screen;
 export const STEPS: [Step, string][] = [["data", "Data"], ["scan", "Risk scan"], ["plan", "Receiver & plan"], ["approve", "Review & approve"], ["release", "Release & proof"]];
@@ -87,7 +87,7 @@ function opened(s: SessionOverview) {
 export function newDataset() { set({ ...empty, step: "data" }); remember(""); refreshSessions(); window.scrollTo(0, 0); }
 
 export const openSample = (name: string) =>
-  withProgress(`Opening the ${name.replace(/_/g, " ")} example`, "Copying the tables into your workspace and reading them…",
+  withProgress(`Opening the ${words(name)} example`, "Copying the tables into your workspace and reading them…",
     async () => opened(await api<SessionOverview>("/api/sessions/sample", { body: { name } })));
 
 function formOf(files: FileList | File[], name?: string) {
@@ -140,7 +140,7 @@ export const setHeaderless = (table: string, headerless: boolean) =>
   busy("headerless", async () => dataChanged(await api<SessionOverview>(`/api/sessions/${sid()}/columns/headerless`, { body: { table, headerless } }),
     headerless ? `${table}: the first row is now read as data.` : `${table}: the first row is now read as column names.`));
 
-export const SCAN_CHECKS = [
+const SCAN_CHECKS = [
   "what each column holds: names, ID codes (with checksums), phones, addresses, dates, codes",
   "which facts an outsider could already know, and how many people they single out",
   "which keys join the tables, so one match unlocks the rest",
@@ -225,7 +225,7 @@ export const setK = (k: number) => busy("tradeoff", async () => {
 export const loadVersions = () => api<PlanVersions>(`/api/sessions/${sid()}/plan/versions`).then(versions => set({ versions })).catch(() => {});
 export const planYaml = (version?: number) => api<{ yaml: string }>(`/api/sessions/${sid()}/plan/yaml${version ? `?version=${version}` : ""}`).then(r => r.yaml);
 export const comparePlans = (a: number, b: number) => api<PlanCompare>(`/api/sessions/${sid()}/plan/compare?a=${a}&b=${b}`);
-export const useVersion = (version: number) => busy("plan", async () => {
+export const restoreVersion = (version: number) => busy("plan", async () => {
   set({ plan: await api<PlanView>(`/api/sessions/${sid()}/plan/versions/${version}/restore`, { method: "POST" }) }); planLoaded();
   const p = useApp.getState().plan!.plan;
   toast.success(`Version ${version} is the plan again.`, { description: p.approved ? `It was approved by ${p.approved_by}: you can create a release from it.` : "Approve it before releasing." });
@@ -250,7 +250,7 @@ export const viewRelease = (id: string) => busy("view", async () => {
   window.scrollTo(0, 0);
 });
 export const fetchRelease = (id: string) => api<Results>(`/api/sessions/${sid()}/releases/${encodeURIComponent(id)}`);
-export const releaseHref = (id: string) => `/api/sessions/${sid()}/releases/${encodeURIComponent(id)}/release.zip`;
+const releaseHref = (id: string) => `/api/sessions/${sid()}/releases/${encodeURIComponent(id)}/release.zip`;
 export const downloadRelease = (id: string) => busy("download", async () => {
   await download(releaseHref(id));
   const r = useApp.getState().results; if (r) set({ results: { ...r, published: true } });

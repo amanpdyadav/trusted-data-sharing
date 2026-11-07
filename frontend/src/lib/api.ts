@@ -127,3 +127,12 @@ export async function download(href: string) {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+/** The table whose rows are easiest to single out: the headline of the risk scan. */
+export const worstTable = (risk: Scan["risk"]) => [...risk.tables].sort((a, b) => b.unique_share - a.unique_share)[0];
+
+/** Usefulness: how much of the released columns survives (removing unrequested columns is minimisation, not loss). */
+export function valuesKept(R: Results) {
+  const ch = R.tables.flatMap(t => t.changes).filter(c => c.technique !== "drop"), before = ch.reduce((n, c) => n + c.filled_before, 0);
+  return before ? ch.reduce((n, c) => n + c.filled_after, 0) / before : null;
+}
