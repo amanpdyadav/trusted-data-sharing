@@ -30,9 +30,16 @@ def _grid(dims: pd.DataFrame, spec: Aggregate) -> pd.MultiIndex:
 
 
 def noisy_table(
-    frame: pd.DataFrame, spec: Aggregate, dp: DifferentialPrivacy, ctx: TransformContext, rng: np.random.Generator
+    frame: pd.DataFrame,
+    spec: Aggregate,
+    dp: DifferentialPrivacy,
+    ctx: TransformContext,
+    rng: np.random.Generator | None,
 ) -> pd.DataFrame:
-    """The published table for `spec` from contribution-bounded rows."""
+    """The published table for `spec` from contribution-bounded rows.
+
+    rng=None gives the exact table: for the data controller's own accuracy check, never for publication.
+    """
     for column, values in spec.exclude.items():
         frame = frame[~frame[column].astype(str).isin(values)]
     names = [d.output_name for d in spec.dimensions]
@@ -42,8 +49,8 @@ def noisy_table(
     c, m = dp.max_rows_per_unit, spec.measure
 
     def noisy(exact: pd.Series, sensitivity: int, epsilon: float) -> np.ndarray:
-        values: np.ndarray = exact.to_numpy() + discrete_laplace(rng, sensitivity, epsilon, len(exact))
-        return values
+        values: np.ndarray = exact.to_numpy()
+        return values if rng is None else values + discrete_laplace(rng, sensitivity, epsilon, len(exact))
 
     if m.kind == "count":
         exact = dims[inside].groupby(names).size().reindex(grid, fill_value=0)
