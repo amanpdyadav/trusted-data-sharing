@@ -116,8 +116,10 @@ function loaders() {
 function readyPanel() {
   const T = S.session.tables, rows = T.reduce((n, t) => n + t.rows, 0), cols = T.reduce((n, t) => n + t.columns.length, 0);
   const mb = (S.sessions.find(x => x.id === S.session.id) || {}).bytes;
-  return `<div class="panel ready"><div class="spread"><div class="head"><span class="eyebrow">Dataset ready</span><h1>${esc(S.session.name)}</h1></div>
-      <button class="btn primary lg" data-go="scan">Scan for risks →</button></div>
+  const frozen = S.session.released;
+  return `<div class="panel ready"><div class="spread"><div class="head"><span class="eyebrow">${frozen ? "🔒 Released · data frozen" : "Dataset ready"}</span>
+        <div class="row"><h1>${esc(S.session.name)}</h1><button class="btn small" data-modal="rename">✎ Rename</button><button class="btn small" data-modal="duplicate">⧉ Duplicate</button></div></div>
+      <button class="btn primary lg" data-go="scan">${S.scan ? "See the risk scan →" : "Scan for risks →"}</button></div>
     <div class="facts4"><div><b>${fmt(T.length)}</b><span>tables</span></div><div><b>${fmt(rows)}</b><span>rows</span></div><div><b>${fmt(cols)}</b><span>columns</span></div>${mb ? `<div><b>${(mb / 2 ** 20).toFixed(1)} MB</b><span>on this computer</span></div>` : ""}</div>
     <p class="small">Next, the scan reads every column, finds what identifies people and how the tables connect, and replays an attack on one person.</p></div>`;
 }
@@ -170,13 +172,19 @@ function workspacePanel() {
         <div><b>${esc(x.name)}</b><span class="small">${plural(x.tables.length, "table")} · ${(x.bytes / 2 ** 20).toFixed(1)} MB · ${esc(when(x.created_at))}</span></div>
         <div class="dots" title="scanned, planned, approved, released"><i class="${st.scanned ? "on" : ""}"></i><i class="${st.planned ? "on" : ""}"></i><i class="${st.approved ? "on" : ""}"></i><i class="${x.releases ? "on" : ""}"></i><span>${x.releases ? plural(x.releases, "release") : st.planned ? "planned" : st.scanned ? "scanned" : "new"}</span></div>
         <div class="small">${r ? `Last: <b>${esc(r.recipient)}</b> · ${r.singled_out_after != null ? `singled out ${pct(r.singled_out_before)} → <b>${pct(r.singled_out_after)}</b>` : r.epsilon != null ? `statistics, ε ${r.epsilon}` : ""}` : esc(x.receiver || "")}</div>
-        <button class="btn small" data-open="${esc(x.id)}">${S.session?.id === x.id ? "Open ✓" : "Open"}</button></div>`;
+        <div class="row wsactions"><button class="btn small ${S.session?.id === x.id ? "" : "primary"}" data-open="${esc(x.id)}">${S.session?.id === x.id ? "Open ✓" : "Open"}</button>
+          <button class="btn small" data-modal-for="duplicate|${esc(x.id)}" title="Start again with the same tables">⧉ Duplicate</button>
+          <button class="btn small" data-modal-for="rename|${esc(x.id)}">✎ Rename</button>
+          <button class="btn small danger" data-delete-ds="${esc(x.id)}" ${x.released ? `disabled title="Released datasets stay as the record of their releases"` : ""}>🗑 Delete</button></div></div>`;
     }).join("")}</div></div>`;
 }
 function tablesPanel(tables) {
   const t = tables.find(x => x.name === S.table) || tables[0];
-  return `<div class="panel"><div class="spread"><h2>What is inside</h2><span class="small">first rows of each table${S.mask && !S.scan ? " · text hidden until the scan knows which columns are personal" : ""}</span></div>
-    <div class="pills">${tables.map(x => `<button data-table="${esc(x.name)}" aria-pressed="${x.name === t.name}">${esc(x.name)} · ${fmt(x.rows)}</button>`).join("")}</div>
+  const frozen = S.session.released, removable = !frozen && tables.length > 1;
+  return `<div class="panel"><div class="spread"><div><h2>What is inside</h2><span class="small">${plural(tables.length, "table")} · first rows of each${S.mask && !S.scan ? " · text hidden until the scan knows which columns are personal" : ""}</span></div>
+      ${frozen ? "" : `<button class="btn" data-add-tables>＋ Add tables</button><input type="file" id="addfiles" accept=".csv,.zip" multiple hidden>`}</div>
+    ${frozen ? `<div class="callout safe">🔒 This dataset has releases, so its tables are frozen: each release must stay traceable to exactly this data. To change the tables, <button class="btn small" data-modal="duplicate">⧉ Duplicate it</button> and edit the copy.</div>` : ""}
+    <div class="pills tablepills">${tables.map(x => `<span class="tpill ${x.name === t.name ? "on" : ""}"><button data-table="${esc(x.name)}" aria-pressed="${x.name === t.name}">${esc(x.name)} · ${fmt(x.rows)}</button>${removable ? `<button class="x" data-remove-table="${esc(x.name)}" aria-label="Remove ${esc(x.name)}" title="Remove this table">✕</button>` : ""}</span>`).join("")}</div>
     ${grid(t.preview, t.columns, t.name)}</div>`;
 }
 function grid(rows, columns, table) {
@@ -718,9 +726,24 @@ function recordModal({ table, i }) {
   return dialog(`One record of <span class="mono">${esc(table)}</span>, before and after`, `<div class="tablewrap free"><table><thead><tr><th>Column</th><th>Raw (stays here)</th><th>Released</th><th>Protection</th></tr></thead><tbody>${rows}</tbody></table></div>`,
     `<button class="btn" data-record="${esc(table)}|${(i + t.pairs.length - 1) % t.pairs.length}">← Previous</button><button class="btn" data-record="${esc(table)}|${(i + 1) % t.pairs.length}">Next →</button>`);
 }
+function datasetOf(m) { return S.sessions.find(x => x.id === (m.id || S.session?.id)) || S.session; }
+function renameModal(m) {
+  const d = datasetOf(m);
+  return dialog("Rename the dataset", `<label class="field">Name<input type="text" id="dsrename" value="${esc(d.name)}" autofocus></label>
+    <p class="small">Letters, digits, '-' and '_'; other characters become '_'.</p>${busy("rename")}`,
+    `<button class="btn" data-close>Cancel</button><button class="btn primary" data-rename="${esc(d.id)}">Save</button>`);
+}
+function duplicateModal(m) {
+  const d = datasetOf(m);
+  return dialog("Duplicate the dataset", `<p>A new dataset with the same ${plural(d.tables.length, "table")} and your column corrections. You can add or remove tables, then scan, plan and release again.</p>
+    <p class="small">The original${d.released ? " and its releases stay" : " stays"} exactly as ${d.released ? "they are" : "it is"}.</p>
+    <label class="field">Name of the copy<input type="text" id="dsdupname" value="${esc(d.name)}-copy" autofocus></label>${busy("duplicate")}`,
+    `<button class="btn" data-close>Cancel</button><button class="btn primary" data-duplicate="${esc(d.id)}">Create the copy and open it</button>`);
+}
+const confirmModal = m => dialog(m.title, `<p>${m.text}</p>${busy("confirm")}`, `<button class="btn" data-close>Cancel</button><button class="btn ${m.danger ? "risk" : "primary"}" data-confirm>${m.yes}</button>`);
 const compareModal = () => dialog("Two releases side by side", compareReleases(S.cmp), `<button class="btn primary" data-close>Close</button>`);
 const receiverModal = () => dialog("Describe the receiver", customForm(), `<button class="btn" data-close>Cancel</button><button class="btn primary" data-make="custom">Make the plan</button>${busy("plan")}`);
-const MODALS = { column: columnModal, change: changeModal, release: releaseModal, publish: publishModal, record: recordModal, compare: compareModal, receiver: receiverModal };
+const MODALS = { rename: renameModal, duplicate: duplicateModal, confirm: confirmModal, column: columnModal, change: changeModal, release: releaseModal, publish: publishModal, record: recordModal, compare: compareModal, receiver: receiverModal };
 
 /* ---------------------------------------------------------------- events */
 function wire() {
@@ -738,6 +761,33 @@ function wire() {
   page.querySelectorAll("[data-scan]").forEach(b => (b.onclick = runScan));
   page.querySelectorAll("[data-pick-files]").forEach(b => (b.onclick = () => $("#files")?.click()));
   page.querySelectorAll("[data-close]").forEach(b => (b.onclick = closeModal));
+  page.querySelectorAll("[data-new]").forEach(b => (b.onclick = newDataset));
+  page.querySelectorAll("[data-modal-for]").forEach(b => (b.onclick = () => { const [kind, id] = b.dataset.modalFor.split("|"); openModal(kind, { id }); }));
+  page.querySelectorAll("[data-confirm]").forEach(b => (b.onclick = () => { const run = S.modal.run; act("confirm", async () => { await run(); S.modal = null; }); }));
+  // typed values are read before act() redraws the dialog
+  page.querySelectorAll("[data-rename]").forEach(b => (b.onclick = () => { const name = $("#dsrename").value; act("rename", async () => {
+    const d = await api(`/api/sessions/${b.dataset.rename}/rename`, { body: { name } });
+    if (S.session?.id === d.id) S.session = d;
+    S.sessions = await api("/api/sessions"); S.modal = null; toast(`Renamed to ${d.name}.`);
+  }); }));
+  page.querySelectorAll("[data-duplicate]").forEach(b => (b.onclick = () => { const name = $("#dsdupname").value; act("duplicate", async () => {
+    const d = await api(`/api/sessions/${b.dataset.duplicate}/duplicate`, { body: { name } });
+    S.modal = null; openSession(d); toast(`Created ${d.name}. Add or remove tables, then scan.`); window.scrollTo(0, 0);
+  }); }));
+  page.querySelectorAll("[data-add-tables]").forEach(b => (b.onclick = () => $("#addfiles").click()));
+  page.querySelectorAll("#addfiles").forEach(inp => (inp.onchange = () => addTables(inp.files)));
+  page.querySelectorAll("[data-remove-table]").forEach(b => (b.onclick = () => {
+    const table = b.dataset.removeTable;
+    openModal("confirm", { title: `Remove ${esc(table)}?`, yes: "Remove the table", danger: true,
+      text: `<b>${esc(table)}</b> leaves this dataset (your original file is not touched). ${S.scan ? "The scan and plan start over, because the data changed." : ""}`,
+      run: async () => dataChanged(await api(`/api/sessions/${sid()}/tables/${encodeURIComponent(table)}`, { method: "DELETE" }), `Removed ${table}.`) });
+  }));
+  page.querySelectorAll("[data-delete-ds]").forEach(b => (b.onclick = () => {
+    const d = S.sessions.find(x => x.id === b.dataset.deleteDs);
+    openModal("confirm", { title: `Delete ${esc(d.name)}?`, yes: "Delete it", danger: true,
+      text: `The dataset's local copy, scan and plan are deleted from this computer. It was never released. This cannot be undone.`,
+      run: async () => { await api(`/api/sessions/${d.id}`, { method: "DELETE" }); if (S.session?.id === d.id) newDataset(); S.sessions = await api("/api/sessions"); toast(`Deleted ${d.name}.`); } });
+  }));
   page.querySelectorAll("[data-modal]").forEach(b => (b.onclick = () => openModal(b.dataset.modal)));
   page.querySelectorAll("[data-col]").forEach(b => (b.onclick = e => { e.stopPropagation(); openModal("column", { i: +b.dataset.col }); }));
   page.querySelectorAll("[data-record]").forEach(b => (b.onclick = () => { const [table, i] = b.dataset.record.split("|"); openModal("record", { table, i: +i }); }));
@@ -870,10 +920,10 @@ function loadCompare() {
   act("compare", async () => { S.compare = await api(`/api/sessions/${sid()}/compare`, { body: { scenario_ids: S.cat.receivers.map(r => r.id) } }); });
 }
 const mb = n => (n / 2 ** 20).toFixed(n < 10 * 2 ** 20 ? 1 : 0);
-function uploadWithProgress(form) {  // XMLHttpRequest reports upload progress; fetch does not
+function uploadWithProgress(form, url = "/api/sessions/upload") {  // XMLHttpRequest reports upload progress; fetch does not
   return new Promise((resolve, reject) => {
     const x = new XMLHttpRequest();
-    x.open("POST", "/api/sessions/upload");
+    x.open("POST", url);
     x.upload.onprogress = e => { if (e.lengthComputable) setProgress(e.loaded / e.total, `${mb(e.loaded)} of ${mb(e.total)} MB copied`); };
     x.upload.onload = () => setProgress(null, "Reading your tables: counting rows and columns…");
     x.onload = () => { let d = {}; try { d = JSON.parse(x.responseText); } catch (e) { /* not JSON */ } x.status < 300 ? resolve(d) : reject(new Error(d.error || `upload failed (${x.status})`)); };
@@ -890,6 +940,28 @@ async function upload(files) {
     setProgress(0, `0 of ${mb(size)} MB copied`);
     openSession(await uploadWithProgress(form));
   });
+}
+async function addTables(files) {
+  if (!files?.length) return;
+  const form = new FormData(), list = [...files], size = list.reduce((n, f) => n + f.size, 0);
+  list.forEach(f => form.append("files", f));
+  await withProgress(`Adding ${plural(list.length, "file")} to ${S.session.name}`, "Starting…", async () => {
+    setProgress(0, `0 of ${mb(size)} MB copied`);
+    dataChanged(await uploadWithProgress(form, `/api/sessions/${sid()}/tables`), `Added ${list.map(f => f.name).join(", ")}.`);
+  });
+}
+/* the tables changed: what was built on them starts over */
+async function dataChanged(overview, message) {
+  const hadScan = !!S.scan;
+  Object.assign(S, { session: overview, scan: null, plan: null, results: null, tradeoff: null, example: null, compare: null, table: null, step: "data" });
+  S.sessions = await api("/api/sessions");
+  toast(message + (hadScan ? " Scan again to see the new risks." : ""));
+}
+/* start fresh from any step; the current work stays saved in the workspace */
+function newDataset() {
+  Object.assign(S, { session: null, scan: null, plan: null, results: null, history: [], viewing: null, picked: [], cmp: null, tradeoff: null, example: null, compare: null, table: null, receiverChoice: null, custom: null, modal: null, step: "data" });
+  remember(); render(); window.scrollTo(0, 0);
+  api("/api/sessions").then(x => { S.sessions = x; render(); }).catch(() => {});
 }
 async function withProgress(title, detail, fn, extra) {
   startProgress(title, detail, extra);

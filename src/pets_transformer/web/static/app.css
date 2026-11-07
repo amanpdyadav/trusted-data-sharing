@@ -498,3 +498,18 @@ table.example tr.t-keep td.after { color: var(--muted); font-weight: 500; }
   table.example td.after { grid-column: 1 / -1; }
   table.example td.after::before { content: "→ "; color: var(--muted); font-weight: 400; }
 }
+
+/* ---------------------------------------------------------------- managing datasets */
+.btn.newds { width: 100%; justify-content: center; border-style: dashed; font-weight: 600; }
+.btn.newds:hover { border-style: solid; }
+.btn.danger:not(:disabled):hover { border-color: var(--risk); color: var(--risk); }
+.tablepills { gap: 6px; }
+.tpill { display: inline-flex; align-items: stretch; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); overflow: hidden; }
+.tpill.on { background: var(--ink); border-color: var(--ink); }
+.tpill > button { border: 0; background: transparent; padding: 6px 12px; cursor: pointer; font-size: 13px; color: inherit; }
+.tpill.on > button { color: var(--bg); }
+.tpill > button.x { padding: 6px 10px 6px 4px; color: var(--muted); }
+.tpill > button.x:hover { color: var(--risk); }
+.tpill.on > button.x { color: color-mix(in srgb, var(--bg) 70%, transparent); }
+.wsactions { justify-content: flex-end; gap: 6px; }
+.item { grid-template-columns: minmax(0, 1.3fr) minmax(0, .9fr) minmax(0, 1.2fr) auto; }
