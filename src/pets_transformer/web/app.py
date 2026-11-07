@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from pets_transformer.config import Settings
+from pets_transformer.contracts import PrivacyRole, Subtype, TrustLevel
 from pets_transformer.keys import MissingKeyError
 from pets_transformer.web.service import ActionEdit, App, Override
 from pets_transformer.web.workspace import Workspace, WorkspaceError
@@ -86,7 +87,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @api.get("/api/catalogue")
     def catalogue() -> dict[str, Any]:
-        return {"samples": svc.samples(), "receivers": svc.scenarios()}
+        return {
+            "samples": svc.samples(), "receivers": svc.scenarios(),
+            "roles": [r.value for r in PrivacyRole], "subtypes": [x.value for x in Subtype],
+            "trust_levels": [t.value for t in TrustLevel], "codelists": sorted(svc.policy().codelists),
+        }  # fmt: skip
 
     @api.post("/api/sessions/sample")
     def open_sample(req: SampleRequest) -> dict[str, Any]:

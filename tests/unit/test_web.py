@@ -115,3 +115,14 @@ def test_user_errors_are_explained(client: TestClient) -> None:
     assert bad.status_code == 400
     assert "CSV" in bad.json()["error"]
     assert client.get("/api/sessions/nope").json()["error"].startswith("unknown session")
+
+
+def test_the_page_and_its_assets_are_served(client: TestClient) -> None:
+    page = client.get("/")
+    assert page.status_code == 200
+    assert "/static/app.js" in page.text
+    assert client.get("/static/app.js").status_code == 200
+    assert client.get("/static/app.css").status_code == 200
+    catalogue = client.get("/api/catalogue").json()
+    assert "direct_identifier" in catalogue["roles"]
+    assert "diagnosis_group" in catalogue["codelists"]
