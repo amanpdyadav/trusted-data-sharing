@@ -9,6 +9,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 from evaluation.attacks import ReplayResult
+from evaluation.scrap_sweep import SweepResult
 from pets_transformer.contracts import Metrics
 
 DEFAULT_FILE = Path(__file__).with_name("targets.yaml")
@@ -24,6 +25,7 @@ class Targets(BaseModel):
     sensitive_attribute_recall_min: float = Field(ge=0, le=1)
     text_leakage_max: float = Field(ge=0, le=1)
     text_recall_min: float = Field(ge=0, le=1)
+    sweep_exposed_max: int = Field(default=0, ge=0)
 
 
 def load_targets(scenario_id: str | None = None, path: Path = DEFAULT_FILE) -> Targets:
@@ -55,7 +57,9 @@ def attack_defeated(r: ReplayResult, minimum: int) -> bool:
     return r.candidates_left == 0 or r.target_among_candidates is False or r.candidates_left >= minimum
 
 
-def release_gates(metrics: Metrics, replays: Sequence[ReplayResult], t: Targets) -> list[Gate]:
+def release_gates(
+    metrics: Metrics, replays: Sequence[ReplayResult], t: Targets, sweep: SweepResult | None = None
+) -> list[Gate]:
     gates = [
         Gate(
             "combined score",
@@ -79,6 +83,15 @@ def release_gates(metrics: Metrics, replays: Sequence[ReplayResult], t: Targets)
         )
         for r in replays
     ]
+    if sweep is not None:
+        gates.append(
+            Gate(
+                "post and news sweep",
+                f"{sweep.exposed} of {sweep.scraps} scraps leave the real visit in a group of 1-4",
+                f"<= {t.sweep_exposed_max}",
+                sweep.exposed <= t.sweep_exposed_max,
+            )
+        )
     return gates
 
 

@@ -26,6 +26,7 @@ from evaluation.targets import Gate, detection_gates, load_targets, text_gates
 from pets_transformer.config import Settings
 from pets_transformer.contracts import DetectionReport, Plan
 from pets_transformer.envfile import load_env_file
+from pets_transformer.io import read_table
 from pets_transformer.keys import DerivedKeyProvider, KeyScope
 
 
@@ -42,6 +43,8 @@ def _print_scored(s: Scored) -> None:
     print(f"  privacy {m.privacy} · utility {m.utility} · combined {m.composite}")
     for before, after in s.replays:
         print(f"  demo attack {after.case_id}: {before.candidates_left} before -> {after.candidates_left} after")
+    if s.sweep is not None:
+        print(f"  post and news sweep: {s.sweep.summary()}")
     _print_gates(s.gates)
     print(f"  details: {s.run.out_dir}/scorecard.html · history: {RESULTS / 'history.csv'}")
 
@@ -68,6 +71,24 @@ def cmd_validate(args: argparse.Namespace) -> int:
     scored = score_run(run)
     _print_scored(scored)
     return 0 if scored.passed or not args.gate else 1
+
+
+def cmd_sweep(args: argparse.Namespace) -> int:
+    """Replay every public post and news clip on a release and list the scraps that still expose someone."""
+    from evaluation.scrap_sweep import sweep  # noqa: PLC0415  (slow import of the package data, only when asked)
+
+    release = Path(args.release)
+    rel = read_table(release / "ed_visits.csv")
+    rowmap = Path(args.rowmaps or release) / "rowmap_ed_visits.csv"
+    ids = None
+    if rowmap.exists():
+        rm = read_table(rowmap).astype({"protected_row": int}).sort_values("protected_row")
+        ids = rm["original_record_id"].tolist() if len(rm) == len(rel) else None
+    result = sweep(Settings.from_env().package_root, rel, ids, k=args.k)
+    print(f"post and news sweep on {release}: {result.summary()}")
+    for r in result.worst[: args.show]:
+        print(f"  {r.case_id}: " + " -> ".join(f"{s.label} {s.candidates}" for s in r.funnel if s.applied))
+    return 0 if result.exposed == 0 or not args.gate else 1
 
 
 def cmd_baseline(args: argparse.Namespace) -> int:
@@ -172,6 +193,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     b = sub.add_parser("baseline", help="score the package quickstart output as our 'before'")
     b.set_defaults(func=cmd_baseline)
+
+    sw = sub.add_parser("sweep", help="replay every public post and news clip on a release (health)")
+    sw.add_argument("--release", required=True)
+    sw.add_argument("--rowmaps", help="folder with rowmap_ed_visits.csv (default: the release folder)")
+    sw.add_argument("--k", type=int, default=5)
+    sw.add_argument("--show", type=int, default=5, help="list this many exposing scraps")
+    sw.add_argument("--gate", action="store_true", help="exit 1 if any scrap exposes someone")
+    sw.set_defaults(func=cmd_sweep)
 
     d = sub.add_parser("detect", help="score a detection.json")
     d.add_argument("--detection", required=True)

@@ -8,7 +8,7 @@ OUT ?= out/health-s1
 RELEASE ?= $(OUT)/release
 ROWMAPS ?= $(OUT)/private
 
-.PHONY: install fmt lint typecheck test test-all schemas check release baseline validate detect-score detect-all text-score redact-eval web
+.PHONY: install fmt lint typecheck test test-all schemas check release baseline validate sweep detect-score detect-all text-score redact-eval web
 
 install:  ## create/refresh the dev environment (+ the organisers' pets-eval toolkit for evaluation)
 	$(UV) pip install -p $(PY) -e ".[dev,web]"
@@ -51,6 +51,9 @@ baseline:  ## score the package quickstart output: our measured 'before'
 #   make release validate PLAN=plans/health-s2.yaml RECEIVER=public OUT=out/health-s2 SCENARIO=HEALTH-S2
 validate:  ## score a release (defaults to the last `make release` output): make release validate
 	$(PY) -m evaluation validate --release $(RELEASE) --rowmaps $(ROWMAPS) --scenario $(or $(SCENARIO),HEALTH-S1) $(if $(RUN_ID),--run-id $(RUN_ID)) --gate
+
+sweep:  ## replay every public post and news clip on a release: make release sweep
+	$(PY) -m evaluation sweep --release $(RELEASE) --rowmaps $(ROWMAPS) --gate
 
 detect-score:  ## score a detection file: make detect-score DETECTION=out/health/detection.json
 	$(PY) -m evaluation detect --detection $(DETECTION) --gate
