@@ -2,10 +2,11 @@
 
 from datetime import UTC, datetime
 
+import numpy as np
 import pandas as pd
 
 from pets_transformer.assess import attack
-from pets_transformer.assess.riskscan import find_links
+from pets_transformer.assess.riskscan import TableLink, find_links
 from pets_transformer.contracts import ColumnDetection, DetectionReport, Plan, PrivacyRole, Subtype
 
 R, S = PrivacyRole, Subtype
@@ -82,3 +83,34 @@ def test_release_attack_reports_withheld_and_removed_rows() -> None:
     assert withheld.outcome == "withheld"
     copy = attack.ReleasedCopy(plan, {"visits": pd.DataFrame({"visit_id": ["c3"]})}, {"visits": ["V3"]})
     assert attack.on_release(DET, FRAMES, attack.Target("visits", 0), copy).outcome == "removed"
+
+
+def test_trail_follows_keys_both_ways_and_says_what_each_table_gives_away() -> None:
+    det = DET.model_copy(update={"columns": [*DET.columns, _c("labs", "crp", R.SENSITIVE_ATTRIBUTE, S.MEASUREMENT),
+                                             _c("towns", "town", R.RECORD_KEY, S.RECORD_ID),
+                                             _c("towns", "mayor", R.DIRECT_IDENTIFIER, S.PERSON_NAME)]})  # fmt: skip
+    frames = {**FRAMES, "labs": FRAMES["labs"].assign(crp=["5", "80", "1"]),
+              "towns": pd.DataFrame({"town": ["A", "B"], "mayor": ["Mia", "Max"]})}  # fmt: skip
+    links = [*find_links(det, frames), TableLink("visits", "town", "towns", "town", 1.0, "same record")]
+    hops = attack.trail(det, frames, links, attack.Target("visits", 0))
+    assert [(h.table, h.rows, h.via) for h in hops] == [
+        ("visits", 2, ""),
+        ("labs", 2, "visit_id"),
+        ("towns", 1, "town"),
+    ]
+    assert hops[0].learnt == {"hetu": "H1", "name": "Ann"}  # the facts the outsider brought are not repeated
+    assert hops[1].learnt == {"crp": "5 · 80"}
+
+
+def test_another_person_can_be_picked_at_random() -> None:
+    frames = {
+        "visits": pd.DataFrame({
+            "visit_id": [f"V{i}" for i in range(8)], "hetu": ["H1", "H1", "H2", "H2", "H3", "H3", "H4", "H4"],
+            "name": list("AABBCCDD"), "born": ["1", "1", "2", "2", "3", "3", "4", "4"], "town": ["A"] * 8,
+            "arrived": [f"t{i}" for i in range(8)],
+        }),
+        "labs": FRAMES["labs"],
+    }  # fmt: skip
+    picked = {attack.pick_target(DET, frames, (), np.random.default_rng(seed)) for seed in range(12)}
+    assert len(picked) > 1  # different people on different tries
+    assert all(t is not None and t.table == "visits" for t in picked)

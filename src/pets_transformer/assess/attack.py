@@ -70,25 +70,60 @@ def person_column(det: DetectionReport, table: str) -> str | None:
     return next((c.column for c in det.columns if c.table == table and c.subtype in PERSON_KEYS), None)
 
 
-def pick_target(det: DetectionReport, frames: Mapping[str, pd.DataFrame]) -> Target | None:
+CANDIDATES = 25  # people tried when choosing whom to attack: enough to find a rich trail, quick on big data
+MAX_SHOWN = 3  # distinct values shown per column in the trail
+MAX_TEXT = 90  # characters of one value: a readable line
+
+
+def pick_target(
+    det: DetectionReport,
+    frames: Mapping[str, pd.DataFrame],
+    links: Sequence[TableLink] = (),
+    rng: np.random.Generator | None = None,
+) -> Target | None:
     """Someone an attacker would go after, in the table with the most personal facts about people.
 
-    With a person key: a person with a few records (more to unlock). Without: the first row nobody resembles.
+    With a person key, a few people with several records are tried, and the one whose records reach the most
+    linked tables is attacked (with rng: one of those, at random). Without a person key: a row nobody resembles.
     """
     tables = sorted((t for t in frames if background(det, t)), key=lambda t: -len(_personal(det, t)))
     for table in tables:
         frame, key = frames[table], person_column(det, table)
         if key is not None:
-            ids = frame[key].astype(str)
-            counts = ids[ids != ""].value_counts()
-            several = counts[(counts > 1) & (counts <= 5)]  # a few records, not a test account
-            if not counts.empty:
-                value = (several if not several.empty else counts).index[0]
-                return Target(table, int(np.flatnonzero(ids.to_numpy() == value)[0]))
+            ids = frame[key].astype(str).to_numpy()
+            counts = pd.Series(ids[ids != ""]).value_counts()
+            pool = counts[(counts > 1) & (counts <= 5)]  # a few records, not a test account
+            values = list((pool if not pool.empty else counts).index)
+            if values:
+                picked = values[:CANDIDATES] if rng is None else list(rng.permutation(values)[:CANDIDATES])
+                targets = [Target(table, int(np.flatnonzero(ids == v)[0])) for v in picked]
+                return _richest(det, frames, links, targets, rng)
         sizes = group_sizes(frame, background(det, table))
-        if (sizes == 1).any():
-            return Target(table, int(np.flatnonzero((sizes == 1).to_numpy())[0]))
+        alone = np.flatnonzero((sizes == 1).to_numpy())
+        if len(alone):
+            return Target(table, int(alone[0] if rng is None else rng.choice(alone[:1000])))
     return None
+
+
+def _richest(
+    det: DetectionReport,
+    frames: Mapping[str, pd.DataFrame],
+    links: Sequence[TableLink],
+    targets: Sequence[Target],
+    rng: np.random.Generator | None,
+) -> Target:
+    """Prefer people the facts single out, then those whose records span the most tables and rows."""
+
+    def score(t: Target) -> tuple[int, int, int]:
+        frame = frames[t.table]
+        alone = _matches(frame, frame.iloc[t.row], background(det, t.table), person_column(det, t.table)) == 1
+        found = reach(det, frames, links, t)
+        return int(alone), len(found), sum(found.values())
+
+    scored = [(score(t), t) for t in targets]
+    best = max(s[:2] for s, _ in scored)
+    top = [t for s, t in scored if s[:2] == best]
+    return top[0] if rng is None else top[int(rng.integers(len(top)))]
 
 
 def _matches(frame: pd.DataFrame, row: pd.Series, columns: Sequence[str], person: str | None) -> int:
@@ -166,19 +201,69 @@ def on_release(
     )  # fmt: skip
 
 
+@dataclass(frozen=True)
+class Hop:
+    """One table on the attacker's trail: how it was reached and what it gives away about the person."""
+
+    table: str
+    rows: int
+    via: str = ""  # the key followed into this table ("" for the table the outsider searched)
+    from_table: str = ""
+    learnt: dict[str, str] = field(default_factory=dict)  # column -> the values found (a few, summarised)
+
+
+def _found(
+    det: DetectionReport, frames: Mapping[str, pd.DataFrame], links: Sequence[TableLink], target: Target
+) -> list[tuple[Hop, pd.DataFrame]]:
+    """The person's rows, then every table reached by following keys from rows already found, in either direction."""
+    frame = frames[target.table]
+    key = person_column(det, target.table)
+    row = frame.iloc[target.row]
+    person = frame[frame[key].astype(str) == str(row[key])] if key else frame.iloc[[target.row]]
+    found: dict[str, tuple[Hop, pd.DataFrame]] = {target.table: (Hop(target.table, len(person)), person)}
+    grew = True
+    while grew:  # multi-hop: transactions -> cards -> customers
+        grew = False
+        for link in links:
+            for have, want, have_col, want_col in (
+                (link.to_table, link.from_table, link.to_column, link.from_column),
+                (link.from_table, link.to_table, link.from_column, link.to_column),
+            ):
+                if have in found and want not in found:
+                    values = set(found[have][1][have_col].astype(str)) - {""}
+                    rows = frames[want][frames[want][want_col].astype(str).isin(values)]
+                    if len(rows):
+                        found[want] = (Hop(want, len(rows), via=want_col, from_table=have), rows)
+                        grew = True
+    return list(found.values())
+
+
 def reach(
     det: DetectionReport, frames: Mapping[str, pd.DataFrame], links: Sequence[TableLink], target: Target
 ) -> dict[str, int]:
     """Rows unlocked once the target row is known: the same person's other rows, then rows linked by keys."""
-    frame = frames[target.table]
-    key = next((c for c in det.columns if c.table == target.table and c.subtype in PERSON_KEYS), None)
-    row = frame.iloc[target.row]
-    person = frame[frame[key.column] == row[key.column]] if key else frame.iloc[[target.row]]
-    found = {target.table: person}
-    for link in links:  # tables pointing at rows already found (lab results -> visits)
-        if link.to_table in found and link.from_table not in found:
-            values = set(found[link.to_table][link.to_column].astype(str)) - {""}
-            rows = frames[link.from_table][frames[link.from_table][link.from_column].astype(str).isin(values)]
-            if len(rows):
-                found[link.from_table] = rows
-    return {t: len(f) for t, f in found.items()}
+    return {hop.table: hop.rows for hop, _ in _found(det, frames, links, target)}
+
+
+# what a trail shows per table, in this order: who it is, what is sensitive about them, what was written
+SHOWN_PER_ROLE = ((R.DIRECT_IDENTIFIER, 3), (R.SENSITIVE_ATTRIBUTE, 3), (R.FREE_TEXT, 1))
+
+
+def trail(
+    det: DetectionReport, frames: Mapping[str, pd.DataFrame], links: Sequence[TableLink], target: Target
+) -> list[Hop]:
+    """What each table on the way gives away: identifiers, sensitive facts and free text, a few values each."""
+    facts = set(background(det, target.table))
+    hops = []
+    for hop, rows in _found(det, frames, links, target):
+        own = [c for c in det.columns if c.table == hop.table and c.column not in facts]
+        cols = [c for role, limit in SHOWN_PER_ROLE for c in [c for c in own if c.privacy_role is role][:limit]]
+        learnt = {}
+        for c in cols:
+            seen = [v for v in dict.fromkeys(rows[c.column].astype(str)) if v and v != "nan"]
+            if seen:
+                text = [v if len(v) <= MAX_TEXT else v[: MAX_TEXT - 1] + "…" for v in seen[:MAX_SHOWN]]
+                more = f" +{len(seen) - MAX_SHOWN} more" if len(seen) > MAX_SHOWN else ""
+                learnt[c.column] = " · ".join(text) + more
+        hops.append(replace(hop, learnt=learnt))
+    return hops
