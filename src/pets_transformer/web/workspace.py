@@ -2,6 +2,7 @@
 
 <out>/web/<session>/session.json, detection.json, plan.json, scenario.json   the work so far (reloaded on start)
 <out>/web/<session>/scan.json   the last risk scan (slow on large data), dropped when a detection changes
+<out>/web/<session>/plan_versions/v001.json ...   every version of the plan, to compare and to go back to
 <out>/web/<session>/data/      the tables the user uploaded or picked (CSV)
 <out>/web/<session>/release/   the latest protected tables + manifest.json (what may be shared)
 <out>/web/<session>/private/   row maps (never offered for download)
@@ -52,6 +53,7 @@ class Session:
     published: bool = False  # the release was downloaded: its privacy budget is spent
     frames: dict[str, pd.DataFrame] = field(default_factory=dict)
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds"))
+    plan_version: int = 0  # the version the current plan is (0: no plan yet)
 
     @property
     def data(self) -> Path:
@@ -73,8 +75,8 @@ class Session:
 
     def save(self) -> None:
         """Write the work so far, so the session survives a restart of the app."""
-        (self.root / "session.json").write_text(json.dumps({"id": self.id, "name": self.name,
-                                                            "created_at": self.created_at}))  # fmt: skip
+        meta = {"id": self.id, "name": self.name, "created_at": self.created_at, "plan_version": self.plan_version}
+        (self.root / "session.json").write_text(json.dumps(meta))
         for name, model in (("detection", self.detections), ("plan", self.plan), ("scenario", self.scenario)):
             path = self.root / f"{name}.json"
             if model is None:
@@ -93,7 +95,40 @@ class Session:
         return cls(
             meta["id"], meta["name"], root, detections=read("detection", DetectionReport),
             scenario=read("scenario", Scenario), plan=read("plan", Plan), created_at=meta["created_at"],
+            plan_version=meta.get("plan_version", 0),
         )  # fmt: skip
+
+    # -------------------------------------------------------- plan versions
+    @property
+    def versions_dir(self) -> Path:
+        return self.root / "plan_versions"
+
+    def record_plan(self, note: str) -> int:
+        """Keep the current plan as a new version with a plain note of what changed."""
+        if self.plan is None:
+            return 0
+        n = len(list(self.versions_dir.glob("v*.json"))) + 1
+        self.versions_dir.mkdir(exist_ok=True)
+        scenario = self.scenario.model_dump(mode="json") if self.scenario else None
+        entry = {
+            "version": n, "created_at": datetime.now(UTC).isoformat(timespec="seconds"), "note": note,
+            "plan": self.plan.model_dump(mode="json"), "scenario": scenario,
+        }  # fmt: skip
+        (self.versions_dir / f"v{n:03d}.json").write_text(json.dumps(entry), encoding="utf-8")
+        self.plan_version = n
+        self.save()
+        return n
+
+    def plan_versions(self) -> list[dict[str, Any]]:
+        return [json.loads(p.read_text(encoding="utf-8")) for p in sorted(self.versions_dir.glob("v*.json"))]
+
+    def plan_at(self, version: int) -> tuple[Plan, Scenario | None, dict[str, Any]]:
+        path = self.versions_dir / f"v{version:03d}.json"
+        if not path.exists():
+            raise WorkspaceError(f"no plan version {version}")
+        entry = json.loads(path.read_text(encoding="utf-8"))
+        scenario = Scenario.model_validate(entry["scenario"]) if entry["scenario"] else None
+        return Plan.model_validate(entry["plan"]), scenario, entry
 
     # -------------------------------------------------------- releases kept for download and comparison
     @property
@@ -136,6 +171,21 @@ class Session:
         if not RELEASE_ID.match(release_id) or not (folder / "results.json").exists():
             raise WorkspaceError(f"unknown release {release_id!r}")
         return folder
+
+    @property
+    def released(self) -> bool:
+        return any(self.releases_dir.glob("*/results.json"))
+
+    def editable(self) -> None:
+        if self.released:
+            raise WorkspaceError("this dataset has releases, so its data is frozen; duplicate it to change the data")
+
+    def start_over(self) -> None:
+        """The tables changed: the scan, the plan and any unreleased run no longer fit them."""
+        self.detections = self.scenario = self.plan = self.outcome = None
+        self.frames, self.published = {}, False
+        self._scan_file.unlink(missing_ok=True)
+        self.save()
 
     def changed(self, what: str) -> None:
         """Clear what was built on a changed step: new detections need a new plan, a new plan a new run."""
@@ -188,25 +238,73 @@ class Workspace:
 
     def from_uploads(self, name: str, files: list[tuple[str, bytes]]) -> Session:
         """CSV files, or ZIP archives of CSV files. File names become table names."""
-        tables: dict[str, bytes] = {}
-        for filename, content in files:
-            if len(content) > MAX_UPLOAD_BYTES:
-                raise WorkspaceError(f"{filename} is larger than {MAX_UPLOAD_BYTES // 2**20} MB")
-            if filename.lower().endswith(".zip"):
-                with zipfile.ZipFile(BytesIO(content)) as z:
-                    for member in z.namelist():
-                        if member.lower().endswith(".csv") and not member.startswith("__MACOSX"):
-                            tables[_table_name(member)] = z.read(member)
-            elif filename.lower().endswith(".csv"):
-                tables[_table_name(filename)] = content
-            else:
-                raise WorkspaceError(f"{filename}: upload CSV files or a ZIP of CSV files")
-        if not tables:
-            raise WorkspaceError("no CSV tables found in the upload")
+        tables = _read_uploads(files)
         session = self._new(name)
         for table, content in tables.items():
             (session.data / f"{table}.csv").write_bytes(content)
         return session
+
+    # ------------------------------------------------------------ managing datasets
+    def add_tables(self, session: Session, files: list[tuple[str, bytes]]) -> list[str]:
+        """Add tables to a dataset that has no releases yet (a table with the same name is replaced)."""
+        session.editable()
+        tables = _read_uploads(files)
+        for table, content in tables.items():
+            (session.data / f"{table}.csv").write_bytes(content)
+        session.start_over()
+        return sorted(tables)
+
+    def remove_table(self, session: Session, table: str) -> None:
+        session.editable()
+        path = session.data / f"{table}.csv"
+        if not TABLE_NAME.match(table) or not path.exists():
+            raise WorkspaceError(f"no table {table!r} in {session.name}")
+        if len(list(session.data.glob("*.csv"))) == 1:
+            raise WorkspaceError("a dataset needs at least one table; start a new dataset instead")
+        path.unlink()
+        session.start_over()
+
+    def duplicate(self, session: Session, name: str = "") -> Session:
+        """A new dataset with the same tables and the same column corrections, ready to change and release again."""
+        copy = self._new(name or f"{session.name}-copy")
+        for path in sorted(session.data.glob("*.csv")):
+            shutil.copy2(path, copy.data / path.name)
+        copy.detections = session.detections
+        copy.save()
+        return copy
+
+    def rename(self, session: Session, name: str) -> None:
+        session.name = _clean_name(name)
+        session.save()
+
+    def delete(self, session: Session) -> None:
+        """Remove a dataset that was never released. Released ones stay: each release must stay traceable."""
+        if session.released:
+            raise WorkspaceError(f"{session.name} has releases and stays as their record; duplicate it to start again")
+        if session.root.parent.resolve() != self.root.resolve():
+            raise WorkspaceError("refusing to delete a folder outside the workspace")
+        shutil.rmtree(session.root)
+        del self.sessions[session.id]
+
+
+def _read_uploads(files: list[tuple[str, bytes]]) -> dict[str, bytes]:
+    """Table name -> CSV bytes, from CSV files and ZIP archives of CSV files."""
+    tables: dict[str, bytes] = {}
+    for filename, content in files:
+        if len(content) > MAX_UPLOAD_BYTES:
+            raise WorkspaceError(f"{filename} is larger than {MAX_UPLOAD_BYTES // 2**20} MB")
+        if filename.lower().endswith(".zip"):
+            with zipfile.ZipFile(BytesIO(content)) as z:
+                for member in z.namelist():
+                    if member.lower().endswith(".csv") and not member.startswith("__MACOSX"):
+                        tables[_table_name(member)] = z.read(member)
+        elif filename.lower().endswith(".csv"):
+            tables[_table_name(filename)] = content
+        else:
+            raise WorkspaceError(f"{filename}: upload CSV files or a ZIP of CSV files")
+    if not tables:
+        raise WorkspaceError("no CSV tables found in the upload")
+    return tables
 
 
 def _table_name(filename: str) -> str:

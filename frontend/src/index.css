@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Colour tokens (HSL). Red-orange = exposure in the raw data, blue = protection, amber = what an outsider may
+   know or what needs a decision, green = done / approved. Light by default; `.dark` on <html> for dark. */
+@layer base {
+  :root {
+    --background: 210 20% 95%; --foreground: 207 44% 10%;
+    --card: 0 0% 100%; --card-foreground: 207 44% 10%;
+    --popover: 0 0% 100%; --popover-foreground: 207 44% 10%;
+    --primary: 207 44% 10%; --primary-foreground: 0 0% 100%;
+    --secondary: 210 20% 96%; --secondary-foreground: 207 44% 10%;
+    --muted: 210 20% 96%; --muted-foreground: 208 13% 38%;
+    --accent: 210 20% 93%; --accent-foreground: 207 44% 10%;
+    --destructive: 21 88% 40%; --destructive-foreground: 0 0% 100%;
+    --border: 210 18% 86%; --input: 210 18% 80%; --ring: 224 74% 49%;
+    --risk: 21 88% 40%; --risk-soft: 22 85% 93%;
+    --safe: 224 74% 49%; --safe-soft: 223 80% 94%;
+    --warn: 42 100% 28%; --warn-soft: 44 72% 90%;
+    --ok: 149 63% 29%; --ok-soft: 145 45% 91%;
+    --radius: 0.75rem;
+    color-scheme: light;
+  }
+  .dark {
+    --background: 208 37% 7%; --foreground: 207 30% 92%;
+    --card: 207 33% 11%; --card-foreground: 207 30% 92%;
+    --popover: 207 33% 12%; --popover-foreground: 207 30% 92%;
+    --primary: 207 30% 92%; --primary-foreground: 208 37% 7%;
+    --secondary: 207 33% 14%; --secondary-foreground: 207 30% 92%;
+    --muted: 207 33% 14%; --muted-foreground: 208 15% 64%;
+    --accent: 207 30% 17%; --accent-foreground: 207 30% 92%;
+    --destructive: 20 100% 66%; --destructive-foreground: 208 37% 7%;
+    --border: 207 29% 19%; --input: 207 25% 26%; --ring: 222 100% 75%;
+    --risk: 20 100% 66%; --risk-soft: 18 60% 13%;
+    --safe: 222 100% 75%; --safe-soft: 223 57% 18%;
+    --warn: 42 77% 60%; --warn-soft: 43 49% 12%;
+    --ok: 148 57% 60%; --ok-soft: 148 50% 13%;
+    color-scheme: dark;
+  }
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground font-sans antialiased; font-size: 15px; }
+  h1, h2 { @apply font-display font-extrabold tracking-tight; font-stretch: 112%; text-wrap: balance; }
+}
+
+@layer components {
+  .eyebrow { @apply text-[11.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground; }
+  .big-number { @apply font-display font-extrabold tabular-nums; font-stretch: 112%; }
+  /* the attack replay plays its stages one after another */
+  .play .stage { @apply animate-reveal; }
+  .play .stage:nth-child(2) { animation-delay: .7s; }
+  .play .stage:nth-child(3) { animation-delay: 1.4s; }
+  .play .stage:nth-child(4) { animation-delay: 2.1s; }
+  .play .verdict { @apply animate-reveal; animation-delay: 2.8s; }
+  .play .trail > * { @apply animate-reveal; }
+  .play .trail > :nth-child(1) { animation-delay: 2.9s; } .play .trail > :nth-child(2), .play .trail > :nth-child(3) { animation-delay: 3.4s; }
+  .play .trail > :nth-child(4), .play .trail > :nth-child(5) { animation-delay: 3.9s; } .play .trail > :nth-child(n+6) { animation-delay: 4.4s; }
+}
+
+/* the connection map (an SVG drawn from the risk scan) */
+.map text { fill: hsl(var(--foreground)); font-family: "IBM Plex Sans", sans-serif; }
+.map .muted { fill: hsl(var(--muted-foreground)); }
+.map .node { fill: hsl(var(--card)); stroke: hsl(var(--input)); stroke-width: 1.5; }
+.map .node.hot { stroke: hsl(var(--risk)); stroke-width: 2; fill: hsl(var(--risk-soft)); }
+.map .outside { fill: hsl(var(--risk-soft)); stroke: hsl(var(--risk)); stroke-width: 1.5; }
+.map .edge { stroke: hsl(var(--input)); stroke-width: 2; fill: none; }
+.map .edge.out { stroke: hsl(var(--risk)); stroke-dasharray: 5 5; }
+.map .lab { fill: hsl(var(--card)); stroke: hsl(var(--input)); }
+@media (prefers-reduced-motion: no-preference) { .map .edge.out { animation: flow 1.4s linear infinite; } @keyframes flow { to { stroke-dashoffset: -20 } } }
+@media (prefers-reduced-motion: reduce) { .play .stage, .play .verdict, .play .trail > * { animation: none !important; } }

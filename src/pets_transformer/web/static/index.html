@@ -5,23 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>PETs Transformer</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100,800;110,800;125,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="/static/app.css">
+<script>/* the chosen theme, before the page draws (light unless changed) */
+  try { var t = localStorage.getItem("pets.theme") || "light";
+    if (t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches)) document.documentElement.classList.add("dark"); } catch (e) {}
+</script>
+  <script type="module" crossorigin src="/static/assets/index-T-ecNUTA.js"></script>
+  <link rel="stylesheet" crossorigin href="/static/assets/index--xSu0fsV.css">
 </head>
 <body>
-<div class="shell">
-  <aside class="rail">
-    <div class="brand"><span class="mark" aria-hidden="true">PT</span><div><b>PETs Transformer</b><span>Beyond Syntax · safe data sharing</span></div></div>
-    <nav class="steps" id="steps" aria-label="Steps"></nav>
-    <div class="ticker" id="ticker" hidden></div>
-    <div class="railfoot">
-      <label class="switch"><input type="checkbox" id="mask" checked> Hide personal values on screen</label>
-      <span><span class="lock">● Runs on this computer only.</span> Files stay in a local folder; nothing is sent anywhere.</span>
-    </div>
-  </aside>
-  <main><header class="topbar" id="topbar"></header><div class="page" id="page"></div></main>
-</div>
-<dialog id="modal" class="modal" aria-label="Details"></dialog>
-<div id="toast" class="toast" role="status" hidden></div>
-<script src="/static/app.js"></script>
+<div id="root"></div>
 </body>
 </html>
