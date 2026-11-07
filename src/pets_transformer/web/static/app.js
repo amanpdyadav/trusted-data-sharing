@@ -871,11 +871,24 @@ function customScenario() {
   return { ...base, needs, targets: { k: +C.k } };
 }
 
+/* ---------------------------------------------------------------- theme: light (default), dark, or follow the system */
+function applyTheme(theme) {
+  if (theme === "system") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = theme;
+  try { localStorage.setItem("pets.theme", theme); } catch (e) { /* storage off: the choice lasts this visit */ }
+  document.querySelectorAll("[data-theme-set]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.themeSet === theme)));
+}
+function wireTheme() {
+  let theme = "light"; try { theme = localStorage.getItem("pets.theme") || "light"; } catch (e) { /* storage off */ }
+  document.querySelectorAll("[data-theme-set]").forEach(b => (b.onclick = () => applyTheme(b.dataset.themeSet)));
+  applyTheme(theme);
+}
+
 /* ---------------------------------------------------------------- start */
 (async () => {
   const d = $("#modal");
   d.addEventListener("close", () => { if (S.modal) { S.modal = null; render(); } });  // Esc
   d.addEventListener("click", e => { if (e.target === d) closeModal(); });  // a click on the backdrop
+  wireTheme();
   const mask = $("#mask");
   mask.onchange = () => { S.mask = mask.checked; render(); };
   render();  // draw at once; reopening earlier work follows and may take a while on large data

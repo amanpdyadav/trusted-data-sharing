@@ -6,6 +6,10 @@
 <title>PETs Transformer</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100,800;110,800;125,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="/static/app.css">
+<script>/* the chosen theme, before the page draws (light unless changed) */
+  try { var t = localStorage.getItem("pets.theme") || "light"; if (t !== "system") document.documentElement.dataset.theme = t; }
+  catch (e) { document.documentElement.dataset.theme = "light"; }
+</script>
 </head>
 <body>
 <div class="shell">
@@ -14,6 +18,7 @@
     <nav class="steps" id="steps" aria-label="Steps"></nav>
     <div class="ticker" id="ticker" hidden></div>
     <div class="railfoot">
+      <div class="theme" role="group" aria-label="Colour theme"><button data-theme-set="light">☀ Light</button><button data-theme-set="dark">☾ Dark</button><button data-theme-set="system">Auto</button></div>
       <label class="switch"><input type="checkbox" id="mask" checked> Hide personal values on screen</label>
       <span><span class="lock">● Runs on this computer only.</span> Files stay in a local folder; nothing is sent anywhere.</span>
     </div>

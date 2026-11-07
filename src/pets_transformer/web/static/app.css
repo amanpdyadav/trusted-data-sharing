@@ -405,3 +405,9 @@ main { padding-top: 0; }
 .tb-text { flex: 1 1 auto; }
 .topbar-in > .row { flex: 0 0 auto; flex-wrap: nowrap; }
 @media (max-width: 600px) { .topbar .long { display: none; } }
+
+/* ---------------------------------------------------------------- theme switch */
+:root[data-theme="light"] { color-scheme: light; }
+.theme { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 10px; padding: 2px; background: var(--sunk); align-self: flex-start; }
+.theme button { border: 0; background: transparent; padding: 5px 10px; border-radius: 8px; font-size: 12.5px; cursor: pointer; color: var(--muted); }
+.theme button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .15); font-weight: 600; }
