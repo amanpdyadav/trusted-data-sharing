@@ -94,11 +94,12 @@ const worstTable = () => S.scan ? [...S.scan.risk.tables].sort((a, b) => b.uniqu
 /* ---------------------------------------------------------------- 1 data */
 function dataView() {
   if (S.progress && S.step === "data") return `${head(1, "Bring the data you want to share")}${progressCard()}`;
-  if (S.session) return `${readyPanel()}${tablesPanel(S.session.tables)}
+  const steps = guide(["Upload your files or pick an example", "Look at what is inside", "Scan for risks"], [!!S.session, !!S.session, !!S.scan]);
+  if (S.session) return `${steps}${readyPanel()}${tablesPanel(S.session.tables)}
     <details class="switcher" ${S.switchOpen ? "open" : ""}><summary><span>Load different data or reopen earlier work</span><span class="small">${plural(S.sessions.length, "dataset")} in your workspace</span></summary>
       <div class="page">${loaders()}${workspacePanel()}</div></details>`;
   return `${head(1, "Bring the data you want to share", "Drop the tables as CSV files (or one ZIP), pick an example, or reopen earlier work. Files are copied into a local folder on this computer; nothing is uploaded anywhere.")}
-    ${loaders()}${workspacePanel()}`;
+    ${steps}${loaders()}${workspacePanel()}`;
 }
 function loaders() {
   const samples = S.cat?.samples || [];
@@ -153,7 +154,7 @@ function topBar() {
     case "plan": return S.plan ? bar(`Plan for <b>${recipient}</b>${S.plan.reviews.length ? ` · ${plural(S.plan.reviews.length, "item")} to check` : ""}`, btn("data-go=approve", "Review & approve →"))
       : bar("Pick who receives the data.", btn('data-receiver="custom"', "Describe your own…", ""));
     case "approve": return S.plan.plan.approved ? bar(`Approved by <b>${esc(S.plan.plan.approved_by)}</b>`, btn("data-go=release", "Create the release →"))
-      : bar(`Plan for <b>${recipient}</b> waits for a named approval`, btn('data-modal="approve"', "Review and approve…"));
+      : bar(`Plan for <b>${recipient}</b> waits for a named approval`, btn('data-focus="signoff"', "Sign off ↓"));
     case "release": return S.results ? bar(`<b>${esc(S.results.release_id)}</b> · ${plural(S.results.files.length, "file")} + manifest`,
       `${S.plan?.plan.approved && !S.viewing ? btn('data-modal="release"', "New release…", "") : ""}<a class="btn safe" href="/api/sessions/${sid()}/releases/${encodeURIComponent(S.results.release_id)}/release.zip" data-download>Download<span class="long"> release (.zip)</span></a>`)
       : bar(`Approved by <b>${esc(S.plan.plan.approved_by)}</b> · nothing released yet`, btn('data-modal="release"', "Create the release…"));
@@ -192,6 +193,7 @@ function scanView() {
   const joined = new Set(R.links.flatMap(l => [l.from_table, l.to_table])).size;
   const special = R.tables.filter(t => t.special_category).map(t => t.table);
   return `${head(2, "What could go wrong if this data were shared as it is", "Found from the data itself: which columns identify people, what outsiders could match, and how the tables connect.")}
+  ${guide(["See how one person is found", "Follow the trail to see what leaks", "Fix any column labelled wrong, then choose a receiver"], [true, true, false])}
   <div class="kpis">
     ${kpi(worst.unique_share >= 0.5 ? "risk" : "warn", pct(worst.unique_share), `of rows in <b>${esc(worst.table)}</b> can be singled out on facts an outsider may know`)}
     ${kpi(outside.length ? "risk" : "ok", fmt(outside.length), "columns match public registers, social media or leaked lists")}
@@ -304,15 +306,140 @@ function detailOptions(c, forStatistics) {
   if (forStatistics && c.subtype === "DIAGNOSIS_CODE" && S.cat.codelists.includes("diagnosis_group")) return ["diagnosis_group"];
   return [""];
 }
-function planView() {
-  const recv = S.cat.receivers;
-  const custom = S.receiverChoice === "custom";
-  return `${head(3, "Who gets the data, and for what?", "The receiver decides the protection. A research group under contract can get coded rows; the public gets noisy statistics only. Pick one, or describe your own.")}
-  <div class="cards">${recv.map(r => `<button class="choice" data-receiver="${esc(r.id)}" aria-pressed="${S.receiverChoice === r.id}"><span class="k">${esc(r.trust_level.replace(/_/g, " "))} · ${r.kind === "statistics" ? "statistics only" : "rows"}</span><b>${esc(r.recipient)}</b><span class="small">${esc(r.purpose)}</span><span class="small mono">${esc(r.id)}</span></button>`).join("")}
-    <button class="choice" data-receiver="custom" aria-pressed="${custom}"><span class="k">your own</span><b>Describe a receiver</b><span class="small">Who they are, how far they are trusted, and which columns they need.</span></button></div>
-  ${busy("plan")}
-  ${S.plan ? planPanel() : ""}`;
+/* plain words for each protection, used on the board, in dialogs and on the approve page */
+const LANES = [
+  ["keep", "✓", "Shared as is", "The receiver sees the real value."],
+  ["generalise", "🔍", "Made less exact", "Rounded or grouped: a birth date becomes an age group, a time becomes an hour."],
+  ["pseudonymise", "🔒", "Replaced by a code", "The same person always gets the same code; the real value stays here."],
+  ["redact_text", "📝", "Personal details hidden", "Names, numbers and addresses inside the text are blacked out."],
+  ["drop", "✂", "Removed", "Not shared at all."],
+];
+const LANE_SHOWN = 6;  // chips per lane before "+N more"
+const laneOf = technique => LANES.find(l => l[0] === technique) || LANES[0];
+const RECEIVER_ICON = { public: "🌍", controlled_research: "🎓", contractual: "🤝", internal: "🏢" };
+function guide(steps, done) {
+  const cur = steps.findIndex((_, i) => !done[i]);
+  return `<ol class="guide">${steps.map((t, i) => `<li class="${done[i] ? "done" : i === cur ? "now" : ""}"><span>${done[i] ? "✓" : i + 1}</span>${t}</li>`).join("")}</ol>`;
 }
+function planView() {
+  const recv = S.cat.receivers, P = S.plan;
+  return `${head(3, "Who gets the data, and what will they see?", "Pick the receiver. The tool decides how each column is shared and shows you the result before anything leaves.")}
+  ${guide(["Pick who gets the data", "Check what they will receive", "Change anything that looks wrong, then continue"], [!!P, !!P, false])}
+  <div class="cards receivers">${recv.map(r => `<button class="choice" data-receiver="${esc(r.id)}" aria-pressed="${S.receiverChoice === r.id}">
+      <span class="ricon" aria-hidden="true">${RECEIVER_ICON[r.trust_level] || "📦"}</span><b>${esc(r.recipient)}</b><span class="small">${esc(r.purpose)}</span>
+      <span class="gets ${r.kind === "statistics" ? "stats" : ""}">${r.kind === "statistics" ? "Gets only counts, with a little noise" : "Gets individual records, protected"}</span></button>`).join("")}
+    <button class="choice" data-receiver="custom" aria-pressed="${S.receiverChoice === "custom"}"><span class="ricon" aria-hidden="true">✏️</span><b>Someone else</b><span class="small">Describe who they are and tick what they need.</span><span class="gets">You choose the columns</span></button></div>
+  ${busy("plan")}
+  ${P ? planPanel() : ""}`;
+}
+function planPanel() {
+  const P = S.plan.plan;
+  return `${P.actions.length ? board(P) : ""}${P.aggregates.length ? statsBoard(P) : ""}
+    ${P.actions.length ? exampleRecord() : ""}
+    ${protectionLevel(P)}
+    <details class="more"><summary>Compare with other receivers, or download the plan file</summary>
+      <div class="row"><a class="btn small" href="/api/sessions/${sid()}/download/plan.yaml">Download plan.yaml</a></div>${comparePanel()}</details>`;
+}
+function board(P) {
+  const reviews = new Set(S.plan.reviews);
+  return `<div class="panel"><div class="spread"><div><span class="eyebrow">What ${esc(S.plan.scenario?.recipient || P.scenario_id)} will receive</span><h2>How each column is shared</h2></div>
+      <div class="legend">${LANES.map(l => `<span>${l[1]} ${l[2]}</span>`).join("")}</div></div>
+    ${S.plan.reviews.length ? `<div class="callout warn">⚠ <b>${plural(S.plan.reviews.length, "column")} need${S.plan.reviews.length === 1 ? "s" : ""} a person's decision</b>: click ${S.plan.reviews.length === 1 ? "it" : "them"} below and choose.</div>` : ""}
+    ${planTables(P).map(t => {
+      const acts = P.actions.filter(a => a.table === t), shared = acts.filter(a => a.technique !== "drop").length;
+      return `<div class="btable"><div class="spread"><h3 class="mono">${esc(t)}</h3><span class="small">${shared} of ${acts.length} columns shared</span></div>
+        <div class="lanes">${LANES.map(([tech, icon, name]) => {
+          const inLane = acts.filter(a => a.technique === tech);
+          return `<div class="lane l-${tech}"><div class="lhead"><span>${icon}</span>${name}<b>${inLane.length}</b></div>
+            ${(S.openLanes?.[t + tech] ? inLane : inLane.slice(0, LANE_SHOWN)).map(a => `<button class="chip ${reviews.has(`${a.table}.${a.column}`) ? "review" : ""}" data-change="${esc(a.table)}|${esc(a.column)}" title="${esc(a.reason)}">${reviews.has(`${a.table}.${a.column}`) ? "⚠ " : ""}${esc(a.column)}</button>`).join("") || `<span class="small">none</span>`}
+            ${inLane.length > LANE_SHOWN && !S.openLanes?.[t + tech] ? `<button class="chip more" data-lane="${esc(t + tech)}">+${inLane.length - LANE_SHOWN} more</button>` : ""}</div>`;
+        }).join("")}</div></div>`;
+    }).join("")}
+    ${S.plan.withheld_tables.length ? `<p class="small">Not shared at all: ${esc(S.plan.withheld_tables.join(", "))}.</p>` : ""}
+    <p class="small">Click any column to see why, and to change how it is shared.</p></div>`;
+}
+function statsBoard(P) {
+  return `<div class="panel"><span class="eyebrow">What ${esc(S.plan.scenario?.recipient || P.scenario_id)} will receive</span><h2>Only counts, never individual records</h2>
+    <div class="cards">${P.aggregates.map(a => `<div class="panel flat"><span class="ricon" aria-hidden="true">📊</span><b>${esc(a.name.replace(/_/g, " "))}</b>
+      <span class="small">Counted by ${a.dimensions.map(d => esc((d.name || d.column).replace(/_/g, " "))).join(" and ")}</span></div>`).join("")}</div>
+    <p class="small">A little random noise is added to every number, so nobody can tell whether one particular person is in the data. Each person is counted at most ${P.differential_privacy.max_rows_per_unit} times.</p></div>`;
+}
+/* the attacked person's record (or the first rows), now and as the receiver will get it */
+function exampleRecord() {
+  const E = S.example;
+  if (!E) return `<div class="panel"><h2>One record, now and as they will see it</h2><p class="small">Preparing an example… <span class="busy"></span></p></div>`;
+  const T = E.tables.find(x => x.table === S.exTable) || E.tables[0];
+  if (!T || !T.rows.length) return "";
+  const i = Math.min(S.exRow || 0, T.rows.length - 1), r = T.rows[i], P = S.plan.plan;
+  const techOf = c => P.actions.find(x => x.table === T.table && x.column === c)?.technique || "drop";
+  const order = c => LANES.findIndex(l => l[0] === techOf(c));
+  const rows = Object.keys(r.raw).sort((x, y) => order(x) - order(y)).map(c => {
+    const tech = techOf(c), [, icon, name] = laneOf(tech);
+    const after = tech === "drop" ? `<span class="gone">removed</span>` : esc(r.after[T.renamed[c] || c] ?? "");
+    return `<tr class="t-${tech}"><td class="col">${esc(c)}</td><td class="c-${roleOf(T.table, c)}">${esc(clip(shown(T.table, c, r.raw[c]), 60))}</td><td class="arrow">→</td><td class="after">${after}</td><td class="small">${icon} ${name}</td></tr>`;
+  }).join("");
+  return `<div class="panel"><div class="spread"><div><span class="eyebrow">Example</span><h2>One record, now and as they will see it</h2></div>
+      <div class="row">${E.tables.length > 1 ? `<div class="pills">${E.tables.map(x => `<button data-extable="${esc(x.table)}" aria-pressed="${x.table === T.table}">${esc(x.table)}</button>`).join("")}</div>` : ""}
+      <button class="btn small" data-exrow="${(i + T.rows.length - 1) % T.rows.length}">←</button><span class="small">${i + 1} of ${T.rows.length}</span><button class="btn small" data-exrow="${(i + 1) % T.rows.length}">→</button></div></div>
+    ${i === 0 && S.scan?.attack?.before.table === T.table ? `<p class="small">This is the person from the attack on the risk scan.</p>` : ""}
+    <div class="tablewrap"><table class="example"><thead><tr><th>Column</th><th>Now (stays here)</th><th></th><th>They will see</th><th>How</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="small">Some values may also be blanked in the release, so that every person has look-alikes.</p></div>`;
+}
+/* k in plain words: a slider over the levels the trade-off computed */
+function protectionLevel(P) {
+  const T = S.tradeoff;
+  if (!P.actions.length && !P.aggregates.length) return "";
+  if (!T) return `<div class="panel"><h2>How strong is the protection?</h2><p class="small">Working it out on your data… <span class="busy"></span></p></div>`;
+  if (T.k.length) {
+    const cur = T.k.findIndex(p => p.current), i = S.kPick ?? Math.max(cur, 0), p = T.k[i];
+    return `<div class="panel"><div class="spread"><div><span class="eyebrow">Protection level</span><h2>Each person hides among at least <span class="hl">${p.k}</span> people</h2></div>
+        ${i !== cur ? `<button class="btn primary" data-setk="${p.k}">Use this level</button>` : `<span class="tag ok">current plan</span>`}${busy("tradeoff")}</div>
+      <div class="slider"><div class="ends"><span>← Weaker: more details kept</span><span>Stronger: harder to find anyone →</span></div>
+        <input type="range" min="0" max="${T.k.length - 1}" step="1" value="${i}" data-kpick aria-label="Protection level">
+        <div class="ticks">${T.k.map((x, j) => `<span class="${j === cur ? "cur" : ""}">${x.k}</span>`).join("")}</div></div>
+      <div class="grid2">
+        <div class="gauge risk"><span>Chance an outsider picks the right person</span><b>${pct(p.guess_chance, 1)}</b><div class="meter"><b style="width:${Math.max(1, 100 * p.guess_chance)}%"></b></div></div>
+        <div class="gauge safe"><span>Details kept for the receiver</span><b>${pct(p.cells_kept)}</b><div class="meter safe"><b style="width:${100 * p.cells_kept}%"></b></div></div></div>
+      <p class="small">Stronger protection blanks more values. Computed on your data; nothing is released.</p></div>`;
+  }
+  if (T.epsilon.length) {
+    const i = S.ePick ?? Math.max(T.epsilon.findIndex(x => x.current), 0), p = T.epsilon[i];
+    return `<div class="panel"><span class="eyebrow">Noise level</span><h2>Published numbers are off by about <span class="hl">${pct(p.mean_error)}</span> on average</h2>
+      <div class="slider"><div class="ends"><span>← More noise, more privacy</span><span>Less noise, more exact →</span></div>
+        <input type="range" min="0" max="${T.epsilon.length - 1}" step="1" value="${i}" data-epick aria-label="Noise level"></div>
+      <p class="small">Privacy budget ε ${p.epsilon}${p.current ? " (the receiver's agreement)" : ""}. The budget is set by the agreement with the receiver; this shows what a different budget would mean.</p></div>`;
+  }
+  return "";
+}
+/* change how one column is shared, in plain words */
+function changeModal({ table, column }) {
+  const a = S.plan.plan.actions.find(x => x.table === table && x.column === column);
+  const c = S.scan.detections.columns.find(d => d.table === table && d.column === column);
+  const opts = techniqueOptions(a, c), current = currentOption(a);
+  const ex = S.example?.tables.find(x => x.table === table)?.rows[0];
+  const review = S.plan.reviews.includes(`${table}.${column}`);
+  return dialog(`<span class="mono">${esc(table)}.${esc(column)}</span>`, `
+    <p><b>What it is:</b> ${esc(ROLE_LABEL[c?.privacy_role] || "")}${ex ? ` · for example <span class="mono">${esc(clip(shown(table, column, ex.raw[column]), 50))}</span>` : ""}</p>
+    ${review ? `<p><b>Why it asks you:</b> the tool was not sure what this column holds, so a person should decide.</p>
+      <details class="small"><summary>Details</summary>${esc(a.reason.replace(/^REVIEW:?\s*/, ""))}</details>`
+      : `<p class="small"><b>Why:</b> ${esc(a.reason)}</p>`}
+    ${review ? `<div class="callout warn">⚠ The tool could not decide this one on its own. Choose how it should be shared.</div>` : ""}
+    <div class="options">${opts.map(([key, params]) => { const [tech, icon, name, help] = laneOf(key.split(":")[0]); const detail = key.includes(":") ? key.split(":")[1].replace(/_/g, " ") : "";
+      return `<button class="option ${key === current ? "on" : ""}" data-choose="${esc(table)}|${esc(column)}|${esc(key)}" data-params='${esc(JSON.stringify(params))}'><span class="oicon">${icon}</span><span><b>${name}${detail ? `: ${esc(detail)}` : ""}</b><span class="small">${help}</span></span>${key === current ? `<span class="tag ok">now</span>` : ""}</button>`; }).join("")}</div>${busy("plan")}`,
+  `<button class="btn primary" data-close>Done</button>`);
+}
+function techniqueOptions(a, c) {
+  const opts = [["keep", {}], ["drop", {}], ["pseudonymise", { length: 16 }]];
+  const sub = c?.subtype || "";
+  if (["TIMESTAMP", "DATE"].includes(sub)) TIME_UNITS.forEach(u => opts.push([`generalise:${u}`, { to: "time", unit: u }]));
+  if (sub === "BIRTH_DATE") opts.push(["generalise:age_band", { ...a.params, to: "age_band", width: 10, top: 80, rename_to: "age" }]);
+  if (["DIAGNOSIS_CODE", "POSTCODE"].includes(sub)) opts.push(["generalise:truncate 3", { to: "truncate", length: 3 }]);
+  if (c?.privacy_role === "free_text") opts.push(["redact_text", a.technique === "redact_text" ? a.params : {}]);
+  const current = currentOption(a);
+  if (!opts.some(o => o[0] === current)) opts.push([current, a.params]);
+  return opts;
+}
+const currentOption = a => a.technique === "generalise" ? `generalise:${a.params.to === "time" ? a.params.unit : a.params.to === "truncate" ? "truncate 3" : a.params.to}` : a.technique;
 function customForm() {
   const C = S.custom, det = S.scan.detections.columns.filter(c => c.privacy_role !== "record_key");
   const pub = C.trust_level === "public";
@@ -340,64 +467,6 @@ function techniqueCounts(P) {
   P.actions.forEach(a => (counts[a.technique] = (counts[a.technique] || 0) + 1));
   return Object.entries(counts).map(([t, n]) => `<span class="tech ${t}">${n} ${t}</span>`).join(" ");
 }
-function planPanel() {
-  const P = S.plan.plan;
-  const rows = planTables(P).map(t => {
-    const acts = P.actions.filter(a => a.table === t), out = acts.filter(a => a.technique !== "drop").length;
-    return `<tr class="group"><td colspan="4"><b class="mono">${esc(t)}</b> <span class="small">· ${out} of ${acts.length} columns leave · ${techniqueCounts({ actions: acts })}</span></td></tr>` + acts.map(a => {
-      const c = S.scan.detections.columns.find(d => d.table === a.table && d.column === a.column), role = c?.privacy_role || "";
-      return `<tr class="${a.reason.startsWith("REVIEW") ? "review" : ""}"><td class="col">${esc(a.column)}</td><td class="c-${role}">${ROLE_LABEL[role] || ""}</td>
-      <td>${techniqueSelect(a, c)}</td><td class="small">${esc(a.reason)}</td></tr>`;
-    }).join("");
-  }).join("");
-  const stats = P.aggregates.length ? `<div class="panel flat"><h3>Published statistics · ε ${P.epsilon} per release, ${P.differential_privacy.max_rows_per_unit} records per person, one person = one ${esc(P.differential_privacy.unit)}</h3>
-    <div class="stack">${P.aggregates.map((a, i) => `<div style="flex:${a.epsilon};background:${i % 2 ? "var(--ink)" : "var(--safe)"}" title="${esc(a.name)}">${a.epsilon}</div>`).join("")}</div>
-    <div class="tablewrap"><table><thead><tr><th>Table</th><th>Counted by</th><th>ε</th><th>Why</th></tr></thead><tbody>${P.aggregates.map(a => `<tr><td class="col">${esc(a.name)}</td><td>${a.dimensions.map(d => esc(d.name || d.column)).join(" × ")}</td><td class="num">${a.epsilon}</td><td class="small">${esc(a.reason)}</td></tr>`).join("")}</tbody></table></div></div>` : "";
-  const qis = Object.entries(P.quasi_identifiers);
-  return `<div class="panel safe"><div class="spread"><div><span class="eyebrow">The plan</span><h2>${esc(S.plan.scenario?.recipient || P.scenario_id)}</h2></div>
-      <div class="row"><a class="btn" href="/api/sessions/${sid()}/download/plan.yaml">Download plan.yaml</a><button class="btn primary" data-go="approve">Review & approve →</button></div></div>
-    <div class="row">${techniqueCounts(P)}${P.aggregates.length ? `<span class="tech statistics">${P.aggregates.length} statistics tables</span>` : ""}</div>
-    ${S.plan.reviews.length ? `<div class="callout warn">Needs a person's decision: ${esc(S.plan.reviews.join(", "))}</div>` : ""}
-    ${S.plan.withheld_tables.length ? `<p class="small">Tables that stay here entirely: ${esc(S.plan.withheld_tables.join(", "))}.</p>` : ""}
-    ${qis.length ? `<p class="small">Checked together so that every row has at least <b>${P.k_target - 1}</b> look-alikes: ${qis.map(([t, q]) => `${esc(t)} (${esc(q.join(", "))})`).join("; ")}.</p>` : ""}
-    ${rows ? `<div class="tablewrap"><table><thead><tr><th>Column</th><th>What it is</th><th>Protection</th><th>Why</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p class="small">No rows are released.</p>`}</div>
-  ${stats}
-  <div class="panel">${tabs("plan", [["tradeoff", "Privacy versus usefulness"], ["receivers", "Same data, other receivers"]])}
-    ${S.tabs.plan === "tradeoff" ? tradeoffPanel() : comparePanel()}</div>`;
-}
-function techniqueSelect(a, c) {
-  const opts = [["keep", {}], ["drop", {}], ["pseudonymise", { length: 16 }]];
-  const sub = c?.subtype || "";
-  if (["TIMESTAMP", "DATE"].includes(sub)) TIME_UNITS.forEach(u => opts.push([`generalise:${u}`, { to: "time", unit: u }]));
-  if (sub === "BIRTH_DATE") opts.push(["generalise:age_band", { ...a.params, to: "age_band", width: 10, top: 80, rename_to: "age" }]);
-  if (["DIAGNOSIS_CODE", "POSTCODE"].includes(sub)) opts.push(["generalise:truncate 3", { to: "truncate", length: 3 }]);
-  if (c?.privacy_role === "free_text") opts.push(["redact_text", a.technique === "redact_text" ? a.params : {}]);
-  const current = a.technique === "generalise" ? `generalise:${a.params.to === "time" ? a.params.unit : a.params.to === "truncate" ? "truncate 3" : a.params.to}` : a.technique;
-  if (!opts.some(o => o[0] === current)) opts.push([current, a.params]);
-  return `<select class="tech ${a.technique}" data-action="${esc(a.table)}|${esc(a.column)}" aria-label="Protection of ${esc(a.column)}">${opts.map(([k, p]) => `<option value="${esc(k)}" data-params='${esc(JSON.stringify(p))}' ${k === current ? "selected" : ""}>${esc(k.replace(":", " → "))}</option>`).join("")}</select>`;
-}
-function lineChart(points, xKey, series, xLabel) {
-  const W = 460, H = 200, L = 40, B = 34, T = 12, Rm = 12, n = points.length;
-  const x = i => L + (i * (W - L - Rm)) / Math.max(1, n - 1), y = v => T + (1 - v) * (H - T - B);
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map(v => `<line class="grid" x1="${L}" x2="${W - Rm}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v * 100}%</text>`).join("");
-  const xs = points.map((p, i) => `<text x="${x(i)}" y="${H - B + 16}" text-anchor="middle">${p[xKey]}</text>`).join("");
-  const now = points.findIndex(p => p.current);
-  const lines = series.map(([key, cls]) => {
-    const pts = points.map((p, i) => [x(i), y(Math.min(1, p[key] ?? 0))]);
-    return `<polyline class="l${cls}" points="${pts.map(p => p.join(",")).join(" ")}"/>${pts.map((p, i) => `<circle class="p${cls}" cx="${p[0]}" cy="${p[1]}" r="4"><title>${points[i][xKey]}: ${pct(points[i][key], 1)}</title></circle>`).join("")}`;
-  }).join("");
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Trade-off chart">${ticks}${now >= 0 ? `<line class="now" x1="${x(now)}" x2="${x(now)}" y1="${T}" y2="${H - B}"/>` : ""}${lines}${xs}<text x="${(W + L) / 2}" y="${H - 2}" text-anchor="middle">${xLabel}</text></svg>`;
-}
-function tradeoffPanel() {
-  const T = S.tradeoff;
-  if (!T) return `<p class="small">Working out how privacy and usefulness move with k and ε, on your data, without releasing anything… <span class="busy"></span></p>`;
-  const k = T.k.length ? `<div class="legend"><span><i style="background:var(--risk)"></i>attacker's chance to pick the right person</span><span><i style="background:var(--safe)"></i>values kept</span></div>
-    ${lineChart(T.k, "k", [["guess_chance", 1], ["cells_kept", 2]], "k: each person looks like at least k-1 others")}
-    <div class="row"><span class="small">Use k =</span>${T.k.map(p => `<button class="btn small" data-setk="${p.k}" ${p.current ? "disabled" : ""}>${p.k}</button>`).join("")}${busy("tradeoff")}</div>` : "";
-  const e = T.epsilon.length ? `<div class="legend"><span><i style="background:var(--risk)"></i>average error of published numbers</span></div>
-    ${lineChart(T.epsilon, "epsilon", [["mean_error", 1]], "ε per release: more budget, less noise, more privacy loss")}` : "";
-  return `<div class="grid2" style="align-items:start"><div>${k}${e}</div><div class="callout safe small">Computed on your data without releasing anything. The dashed line is the current plan. Click a value of k to use it; the plan then needs approval again.</div></div>`;
-}
 function comparePanel() {
   const C = S.compare;
   if (!C) return `<p class="small">Compare what each receiver would get from the same columns.</p><div class="row"><button class="btn" data-compare>Compare receivers</button>${busy("compare")}</div>`;
@@ -409,16 +478,32 @@ function comparePanel() {
 
 /* ---------------------------------------------------------------- 4 approve */
 function approveView() {
-  const P = S.plan.plan, rev = S.plan.reviews;
-  return `${head(4, "Review and approve", "Nothing leaves until a named person approves the plan. The approval is written into the plan and into every release manifest.")}
-  <div class="grid3">
-    <div class="panel"><span class="eyebrow">Receiver</span><b>${esc(S.plan.scenario?.recipient || P.scenario_id)}</b><span class="small">${esc(S.plan.scenario?.purpose || "")}</span></div>
-    <div class="panel"><span class="eyebrow">What leaves</span><div class="row">${techniqueCounts(P)}</div><span class="small">${planTables(P).length ? `Tables: ${esc(planTables(P).join(", "))}` : ""}${P.aggregates.length ? ` ${P.aggregates.length} statistics tables, ε ${P.epsilon}` : ""}</span></div>
-    <div class="panel ${rev.length ? "risk" : "safe"}"><span class="eyebrow">Open questions</span><b>${rev.length ? rev.length + " to check" : "none"}</b><span class="small">${esc(rev.join(", "))}</span></div></div>
-  ${P.approved ? `<div class="panel safe"><div class="spread"><div><span class="eyebrow">Approved</span><h2>Approved by ${esc(P.approved_by)}</h2><p class="small">Recorded in the plan and in every release manifest.</p></div>
-      <div class="row"><button class="btn" data-modal="approve">Approve again</button><button class="btn primary lg" data-go="release">Create the release →</button></div></div></div>`
-    : `<div class="panel ready"><div class="spread"><div><span class="eyebrow">Needs your approval</span><h2>Check what leaves, then sign it off</h2><p class="small">The dialog lists every table and column that leaves${rev.length ? " and the questions to check" : ""}.</p></div>
-      <button class="btn primary lg" data-modal="approve">Review and approve…</button></div></div>`}`;
+  const P = S.plan.plan, rev = S.plan.reviews, recipient = esc(S.plan.scenario?.recipient || P.scenario_id);
+  const removed = P.actions.filter(a => a.technique === "drop").length;
+  const leaving = planTables(P).map(t => {
+    const acts = P.actions.filter(a => a.table === t && a.technique !== "drop");
+    return `<div class="leave"><b class="mono">${esc(t)}</b><span class="small">${plural(acts.length, "column")}</span>
+      <div class="row">${LANES.slice(0, 4).map(([tech, icon, name]) => { const n = acts.filter(a => a.technique === tech).length; return n ? `<span class="tag" title="${name}">${icon} ${n} ${name.toLowerCase()}</span>` : ""; }).join("")}</div></div>`;
+  }).join("");
+  const signed = P.approved && !S.reapprove;
+  return `${head(4, "Check what leaves, then sign it off", "Nothing is shared until a named person approves. Your name is written into the plan and into the release.")}
+  ${guide(["Check what leaves and what stays", "Tick the checks", "Type your name and approve"], [signed, signed, signed])}
+  <div class="grid2 leaves">
+    <div class="panel safe"><span class="eyebrow">↗ Leaves your organisation</span><h2>To ${recipient}</h2>
+      ${leaving}${P.aggregates.length ? `<div class="leave"><b>📊 ${plural(P.aggregates.length, "table")} of counts</b><span class="small">with a little noise, never individual records</span></div>` : ""}
+      ${S.plan.scenario?.purpose ? `<p class="small">Purpose: ${esc(S.plan.scenario.purpose)}</p>` : ""}</div>
+    <div class="panel"><span class="eyebrow">🏠 Stays here</span><h2>Never leaves this computer</h2>
+      <ul class="plain">${S.plan.withheld_tables.length ? `<li>Tables not shared: <span class="mono">${esc(S.plan.withheld_tables.join(", "))}</span></li>` : ""}
+        ${removed ? `<li>${plural(removed, "column")} removed from the shared tables</li>` : ""}
+        <li>The original data, with real names and numbers</li><li>The row maps that link codes back to real records</li><li>The secret key behind the codes</li></ul></div></div>
+  ${signed ? `<div class="panel ready"><div class="spread"><div><span class="eyebrow">✓ Approved</span><h2>Signed off by ${esc(P.approved_by)}</h2><p class="small">Recorded in the plan and in every release.</p></div>
+      <div class="row"><button class="btn" data-reapprove>Change approval</button><button class="btn primary lg" data-go="release">Create the release →</button></div></div></div>`
+    : `<div class="panel signoff" id="signoff"><span class="eyebrow">Sign off</span><h2>Before you approve</h2>
+      <label class="check"><input type="checkbox" data-check> <span><b>The receiver needs this data</b> for ${S.plan.scenario?.purpose ? esc(S.plan.scenario.purpose.toLowerCase()) : "the agreed purpose"}.</span></label>
+      ${rev.length ? `<label class="check"><input type="checkbox" id="confirmrev" data-check ${S.confirmReview ? "checked" : ""}> <span><b>I checked the ${plural(rev.length, "column")} the tool could not decide:</b> <span class="mono">${esc(rev.join(", "))}</span> <button class="btn small" data-go="plan">Look again</button></span></label>` : ""}
+      <label class="check"><input type="checkbox" data-check> <span><b>I am allowed to approve</b> sharing this data with ${recipient}.</span></label>
+      <div class="row"><label class="field grow">Your full name<input type="text" id="approver" value="${esc(S.approver ?? "")}" placeholder="e.g. Maria Virtanen"></label>
+        <button class="btn primary lg" data-approve disabled>Approve and continue</button>${busy("approve")}</div></div>`}`;
 }
 
 /* ---------------------------------------------------------------- 5 release & proof */
@@ -436,6 +521,7 @@ function releaseView() {
   const m = R.summary, kept = valuesKept(R), A = R.attack;
   const banner = S.viewing ? `<div class="banner"><span>Viewing an earlier release: <b>${esc(m.release_id)}</b>, made ${esc(when(m.created_at))}.</span>${S.history[0] && S.history[0].release_id !== m.release_id ? `<button class="btn small" data-view="${esc(S.history[0].release_id)}">Open the latest</button>` : ""}</div>` : "";
   return `${head(5, "Release and proof", `<b>${esc(m.release_id)}</b> for ${esc(m.recipient)} · approved by ${esc(m.approved_by || "–")} · ${esc(when(m.created_at))}`)}
+  ${guide(["Create the release", "Check the proof: the same attack should now fail", "Download it and send it to the receiver"], [true, true, !!R.published])}
   ${banner}${create}
   <div class="kpis">
     ${m.singled_out_after != null ? kpi("safe", `${pct(m.singled_out_after)} <s>${pct(m.singled_out_before)}</s>`, "of people singled out on what an outsider knows (raw value struck through)") : ""}
@@ -605,21 +691,6 @@ function columnModal({ i }) {
     <p class="small">A change here is kept as a reviewer's correction (with your name in the evidence) and the plan follows it.</p>${busy("scan")}`,
   `<button class="btn primary" data-close>Done</button>`);
 }
-function approveModal() {
-  const P = S.plan.plan, rev = S.plan.reviews;
-  const leaving = planTables(P).map(t => {
-    const acts = P.actions.filter(a => a.table === t && a.technique !== "drop");
-    return `<div class="leave"><b class="mono">${esc(t)}</b><div class="row">${acts.map(a => `<span class="tech ${a.technique}" title="${esc(a.reason)}">${esc(a.column)}${a.technique !== "keep" ? ` · ${esc(a.technique)}` : ""}</span>`).join("")}</div></div>`;
-  }).join("");
-  return dialog("Approve the plan", `
-    <p class="small">For <b>${esc(S.plan.scenario?.recipient || P.scenario_id)}</b>${S.plan.scenario?.purpose ? `: ${esc(S.plan.scenario.purpose)}` : ""}.</p>
-    <div><span class="eyebrow">What leaves</span>${leaving || `<p class="small">No rows.</p>`}${P.aggregates.length ? `<p class="small">${plural(P.aggregates.length, "statistics table")} with noise, ε ${P.epsilon} per release.</p>` : ""}
-      ${S.plan.withheld_tables.length ? `<p class="small">Stays here: ${esc(S.plan.withheld_tables.join(", "))}.</p>` : ""}</div>
-    ${rev.length ? `<div class="callout warn"><b>Check before approving</b><ul class="plain">${rev.map(r => `<li class="mono">${esc(r)}</li>`).join("")}</ul>
-      <label class="row small"><input type="checkbox" id="confirmrev" ${S.confirmReview ? "checked" : ""}> I checked these questions</label></div>` : ""}
-    <label class="field">Approved by<input type="text" id="approver" value="${esc(S.approver ?? P.approved_by ?? "")}" placeholder="Your full name" autofocus></label>${busy("approve")}`,
-  `<button class="btn" data-close>Cancel</button><button class="btn primary" data-approve>Approve the plan</button>`);
-}
 function releaseModal() {
   const P = S.plan.plan;
   return dialog("Create the release", `
@@ -649,7 +720,7 @@ function recordModal({ table, i }) {
 }
 const compareModal = () => dialog("Two releases side by side", compareReleases(S.cmp), `<button class="btn primary" data-close>Close</button>`);
 const receiverModal = () => dialog("Describe the receiver", customForm(), `<button class="btn" data-close>Cancel</button><button class="btn primary" data-make="custom">Make the plan</button>${busy("plan")}`);
-const MODALS = { column: columnModal, approve: approveModal, release: releaseModal, publish: publishModal, record: recordModal, compare: compareModal, receiver: receiverModal };
+const MODALS = { column: columnModal, change: changeModal, release: releaseModal, publish: publishModal, record: recordModal, compare: compareModal, receiver: receiverModal };
 
 /* ---------------------------------------------------------------- events */
 function wire() {
@@ -711,14 +782,28 @@ function wire() {
   page.querySelectorAll("[data-make]").forEach(b => (b.onclick = () => act("plan", async () => {
     S.plan = await api(`/api/sessions/${sid()}/plan`, { body: { custom: customScenario() } }); planChanged(); S.compare = null; S.modal = null;
   })));
-  page.querySelectorAll("[data-action]").forEach(sel => (sel.onchange = () => {
-    const [table, column] = sel.dataset.action.split("|"), opt = sel.selectedOptions[0];
-    const body = { table, column, technique: opt.value.split(":")[0], params: JSON.parse(opt.dataset.params || "{}") };
+  page.querySelectorAll("[data-change]").forEach(b => (b.onclick = () => { const [table, column] = b.dataset.change.split("|"); S.boardSeen = true; openModal("change", { table, column }); }));
+  page.querySelectorAll("[data-choose]").forEach(b => (b.onclick = () => {
+    const [table, column, key] = b.dataset.choose.split("|");
+    const body = { table, column, technique: key.split(":")[0], params: JSON.parse(b.dataset.params || "{}") };
     act("plan", async () => { S.plan = await api(`/api/sessions/${sid()}/plan/action`, { body }); planChanged(); });
   }));
-  page.querySelectorAll("[data-tradeoff]").forEach(b => (b.onclick = () => act("tradeoff", async () => { S.tradeoff = await api(`/api/sessions/${sid()}/tradeoff`); })));
+  page.querySelectorAll("[data-lane]").forEach(b => (b.onclick = () => { S.openLanes = { ...S.openLanes, [b.dataset.lane]: true }; render(); }));
+  page.querySelectorAll("[data-extable]").forEach(b => (b.onclick = () => { S.exTable = b.dataset.extable; S.exRow = 0; render(); }));
+  page.querySelectorAll("[data-exrow]").forEach(b => (b.onclick = () => { S.exRow = +b.dataset.exrow; render(); }));
+  page.querySelectorAll("[data-kpick]").forEach(r => (r.oninput = () => { S.kPick = +r.value; render(); $("[data-kpick]")?.focus(); }));
+  page.querySelectorAll("[data-epick]").forEach(r => (r.oninput = () => { S.ePick = +r.value; render(); $("[data-epick]")?.focus(); }));
+  page.querySelectorAll("[data-reapprove]").forEach(b => (b.onclick = () => { S.reapprove = true; render(); }));
+  page.querySelectorAll("[data-focus]").forEach(b => (b.onclick = () => { const el = $("#" + b.dataset.focus); el?.scrollIntoView({ behavior: "smooth", block: "center" }); el?.querySelector("input[type=checkbox]")?.focus(); }));
+  const signoff = $("#signoff");
+  if (signoff) {  // approve unlocks when every check is ticked and a name is typed
+    const ready = () => { const ok = [...signoff.querySelectorAll("[data-check]")].every(c => c.checked) && ($("#approver").value.trim().length > 1); signoff.querySelector("[data-approve]").disabled = !ok; };
+    signoff.querySelectorAll("[data-check]").forEach(c => c.addEventListener("change", ready));
+    $("#approver").addEventListener("input", ready);
+    ready();
+  }
   page.querySelectorAll("[data-setk]").forEach(b => (b.onclick = () => act("tradeoff", async () => {
-    S.plan = await api(`/api/sessions/${sid()}/plan/k`, { body: { k: +b.dataset.setk } }); planChanged();
+    S.plan = await api(`/api/sessions/${sid()}/plan/k`, { body: { k: +b.dataset.setk } }); planChanged(); S.kPick = null;
     S.tradeoff = await api(`/api/sessions/${sid()}/tradeoff`);
   })));
   page.querySelectorAll("[data-compare]").forEach(b => (b.onclick = loadCompare));
@@ -731,7 +816,7 @@ function wire() {
     const body = { by: (S.approver ?? approver.value).trim(), confirm_review: !!S.confirmReview };
     act("approve", async () => {
       S.plan = await api(`/api/sessions/${sid()}/approve`, { body });
-      S.modal = null;
+      S.modal = null; S.reapprove = false;
       toast(`Approved by ${S.plan.plan.approved_by}.`);
     });
   }));
@@ -776,7 +861,9 @@ async function download(href) {
 }
 function planChanged() {
   S.confirmReview = false; S.results = null; S.viewing = null; S.tradeoff = null;
-  const plan = S.plan;  // the trade-off loads by itself; a newer plan wins
+  const plan = S.plan;  // the example and the trade-off load by themselves; a newer plan wins
+  S.example = null;
+  api(`/api/sessions/${sid()}/plan/example`).then(e => { if (S.plan === plan) { S.example = e; render(); } }).catch(() => {});
   api(`/api/sessions/${sid()}/tradeoff`).then(t => { if (S.plan === plan) { S.tradeoff = t; render(); } }).catch(() => {});
 }
 function loadCompare() {
