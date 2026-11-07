@@ -121,7 +121,9 @@ def test_the_page_and_its_assets_are_served(client: TestClient) -> None:
     page = client.get("/")
     assert page.status_code == 200
     assert "/static/app.js" in page.text
-    assert client.get("/static/app.js").status_code == 200
+    script = client.get("/static/app.js")
+    assert script.status_code == 200
+    assert script.headers["cache-control"] == "no-cache"  # an updated app is never served stale
     assert client.get("/static/app.css").status_code == 200
     catalogue = client.get("/api/catalogue").json()
     assert "direct_identifier" in catalogue["roles"]

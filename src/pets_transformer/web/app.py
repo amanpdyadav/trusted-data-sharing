@@ -181,6 +181,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return FileResponse(STATIC / "index.html")
 
     api.mount("/static", StaticFiles(directory=STATIC), name="static")
+
+    @api.middleware("http")
+    async def recheck_page(request: Request, call_next: Any) -> Response:
+        response: Response = await call_next(request)
+        if not request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-cache"  # the browser rechecks, so an updated app is never stale
+        return response
+
     return api
 
 
