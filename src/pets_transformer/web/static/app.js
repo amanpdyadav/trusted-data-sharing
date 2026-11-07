@@ -279,8 +279,8 @@ function approveView() {
     <div class="panel"><span class="eyebrow">Columns</span><div class="row">${Object.entries(counts).map(([t, n]) => `<span class="tech ${t}">${n} ${t}</span>`).join("")}</div>${P.aggregates.length ? `<span class="small">${P.aggregates.length} statistics tables, ε ${P.epsilon}</span>` : ""}</div>
     <div class="panel ${rev.length ? "risk" : "safe"}"><span class="eyebrow">Open questions</span><b>${rev.length ? rev.length + " to check" : "none"}</b><span class="small">${esc(rev.join(", "))}</span></div></div>
   <div class="panel">${P.approved ? `<div class="callout safe">Approved by <b>${esc(P.approved_by)}</b>.</div>` : ""}
-    <div class="row"><label class="field">Approved by<input type="text" id="approver" value="${esc(P.approved_by || "")}" placeholder="Your name"></label>
-    ${rev.length ? `<label class="row small"><input type="checkbox" id="confirmrev"> I checked the open questions</label>` : ""}
+    <div class="row"><label class="field">Approved by<input type="text" id="approver" value="${esc(S.approver ?? P.approved_by ?? "")}" placeholder="Your name"></label>
+    ${rev.length ? `<label class="row small"><input type="checkbox" id="confirmrev" ${S.confirmReview ? "checked" : ""}> I checked the open questions</label>` : ""}
     <button class="btn primary" data-approve>${P.approved ? "Approve again" : "Approve the plan"}</button>${busy("approve")}</div></div>
   ${P.approved ? `<div class="row"><button class="btn primary" data-go="release">Create the release →</button></div>` : ""}`;
 }
@@ -376,30 +376,40 @@ function wire() {
   page.querySelectorAll("[data-stat]").forEach(sel => (sel.onchange = () => { S.custom.stats[+sel.dataset.stat][+sel.dataset.pos] = sel.value; }));
   page.querySelectorAll("[data-addstat]").forEach(b => (b.onclick = () => { S.custom.stats.push(["", "", ""]); render(); }));
   page.querySelectorAll("[data-make]").forEach(b => (b.onclick = () => act("plan", async () => {
-    S.plan = await api(`/api/sessions/${sid()}/plan`, { body: { custom: customScenario() } }); S.results = null; S.tradeoff = null; S.compare = null;
+    S.plan = await api(`/api/sessions/${sid()}/plan`, { body: { custom: customScenario() } }); S.confirmReview = false; S.results = null; S.tradeoff = null; S.compare = null;
   })));
   page.querySelectorAll("[data-action]").forEach(sel => (sel.onchange = () => {
     const [table, column] = sel.dataset.action.split("|"), opt = sel.selectedOptions[0];
     const body = { table, column, technique: opt.value.split(":")[0], params: JSON.parse(opt.dataset.params || "{}") };
-    act("plan", async () => { S.plan = await api(`/api/sessions/${sid()}/plan/action`, { body }); S.results = null; S.tradeoff = null; });
+    act("plan", async () => { S.plan = await api(`/api/sessions/${sid()}/plan/action`, { body }); S.confirmReview = false; S.results = null; S.tradeoff = null; });
   }));
   page.querySelectorAll("[data-tradeoff]").forEach(b => (b.onclick = () => act("tradeoff", async () => { S.tradeoff = await api(`/api/sessions/${sid()}/tradeoff`); })));
   page.querySelectorAll("[data-setk]").forEach(b => (b.onclick = () => act("tradeoff", async () => {
-    S.plan = await api(`/api/sessions/${sid()}/plan/k`, { body: { k: +b.dataset.setk } }); S.results = null;
+    S.plan = await api(`/api/sessions/${sid()}/plan/k`, { body: { k: +b.dataset.setk } }); S.confirmReview = false; S.results = null;
     S.tradeoff = await api(`/api/sessions/${sid()}/tradeoff`);
   })));
   page.querySelectorAll("[data-compare]").forEach(b => (b.onclick = () => act("compare", async () => {
     S.compare = await api(`/api/sessions/${sid()}/compare`, { body: { scenario_ids: S.cat.receivers.map(r => r.id) } });
   })));
-  page.querySelectorAll("[data-approve]").forEach(b => (b.onclick = () => act("approve", async () => {
-    S.plan = await api(`/api/sessions/${sid()}/approve`, { body: { by: $("#approver").value, confirm_review: !!$("#confirmrev")?.checked } });
-    toast(`Approved by ${S.plan.plan.approved_by}.`);
-  })));
-  page.querySelectorAll("[data-run]").forEach(b => (b.onclick = () => act("run", async () => {
-    S.lastReceiver = $("#receiver").value;
-    S.results = await api(`/api/sessions/${sid()}/run`, { body: { receiver: S.lastReceiver } });
-    toast(`Release ${S.results.release_id} created.`);
-  })));
+  // typed values live in S, so the redraws done by act() (busy spinner, errors) keep them
+  const approver = $("#approver"), confirmrev = $("#confirmrev"), receiver = $("#receiver");
+  if (approver) approver.oninput = () => (S.approver = approver.value);
+  if (confirmrev) confirmrev.onchange = () => (S.confirmReview = confirmrev.checked);
+  if (receiver) receiver.oninput = () => (S.lastReceiver = receiver.value);
+  page.querySelectorAll("[data-approve]").forEach(b => (b.onclick = () => {
+    const body = { by: (S.approver ?? approver.value).trim(), confirm_review: !!S.confirmReview };
+    act("approve", async () => {
+      S.plan = await api(`/api/sessions/${sid()}/approve`, { body });
+      toast(`Approved by ${S.plan.plan.approved_by}.`);
+    });
+  }));
+  page.querySelectorAll("[data-run]").forEach(b => (b.onclick = () => {
+    S.lastReceiver = receiver.value.trim();
+    act("run", async () => {
+      S.results = await api(`/api/sessions/${sid()}/run`, { body: { receiver: S.lastReceiver } });
+      toast(`Release ${S.results.release_id} created.`);
+    });
+  }));
   page.querySelectorAll("[data-textview]").forEach(b => (b.onclick = () => { S.textView = b.dataset.textview; render(); }));
   page.querySelectorAll("[data-download]").forEach(a => (a.onclick = async e => {
     e.preventDefault();
@@ -424,7 +434,7 @@ function openSession(s) {
 function runScan() { act("scan", async () => { S.scan = await api(`/api/sessions/${sid()}/scan`, { method: "POST" }); }); }
 function makePlan(body) {
   act("plan", async () => {
-    S.plan = await api(`/api/sessions/${sid()}/plan`, { body }); S.results = null; S.tradeoff = null; S.compare = null;
+    S.plan = await api(`/api/sessions/${sid()}/plan`, { body }); S.confirmReview = false; S.results = null; S.tradeoff = null; S.compare = null;
   });
 }
 function newCustom() {
