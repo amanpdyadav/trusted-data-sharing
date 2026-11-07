@@ -17,6 +17,7 @@ import pandas as pd
 
 from pets_transformer import __version__
 from pets_transformer.contracts import ColumnDetection, DetectionReport, Evidence, EvidenceKind, PrivacyRole, Subtype
+from pets_transformer.detect.base import ColumnDetector
 from pets_transformer.detect.names import hint_for, id_kind, tokens
 from pets_transformer.detect.profile import ColumnProfile, profile_column
 from pets_transformer.sources import TableSource
@@ -224,7 +225,12 @@ class RuleBasedDetector:
         return _demote_reference_table(found)
 
 
-def detect_source(source: TableSource, dataset: str, detector: RuleBasedDetector | None = None) -> DetectionReport:
-    d = detector or RuleBasedDetector()
+def detect_source(source: TableSource, dataset: str, detector: ColumnDetector | None = None) -> DetectionReport:
+    """Detect every table of a source. Default: the combined detector (this one plus the layered detector)."""
+    if detector is None:
+        from pets_transformer.detect.combined import CombinedDetector  # noqa: PLC0415  (combined imports this module)
+
+        detector = CombinedDetector()
+    d = detector
     columns = [c for t in source.table_names() for c in d.detect(t, source.read(t))]
     return DetectionReport(dataset=dataset, generated_at=datetime.now(UTC), tool_version=__version__, columns=columns)
