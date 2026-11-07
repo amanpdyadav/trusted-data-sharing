@@ -68,8 +68,11 @@ make detect-all                # score column detection on every labelled datase
 ```
 
 The last command writes the data for the web app's **Mosaic attack** and **Release audit** screens (sidebar, under
-"Show the risk"): one public post followed across datasets with raw data, with names removed, and with our release;
-and every check, decision and file fingerprint of the release.
+"Show the risk"). Mosaic attack: pick any of the public posts or news clips that lead to one verified person, then
+step through it one clue and one dataset at a time (Back / Next / Play) while a link graph shows how the datasets join
+(time · town · sex · stay · symptoms, then birth date + postcode, then name + postcode). Three modes: raw data
+shared, names removed everywhere, and our release, where the chain breaks. Release audit: every check, decision and
+file fingerprint of the release.
 
 | HEALTH-S1 (self-assessed) | Combined score | Usefulness | Post and news sweep |
 |---|---|---|---|

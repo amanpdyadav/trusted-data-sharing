@@ -102,9 +102,8 @@ def cmd_screens(args: argparse.Namespace) -> int:
               rowmap_dir=rowmaps, out_dir=RESULTS / "runs" / run_id)  # fmt: skip
     scored = score_run(run)
     _print_scored(scored)
-    worst = scored.sweep.worst if scored.sweep else []
     for name, data in (("audit", screens.audit(scored, Path(args.plan) if args.plan else None)),
-                       ("mosaic", screens.mosaic(root, release, rowmaps, worst))):  # fmt: skip
+                       ("mosaic", screens.mosaic(root, release, rowmaps))):  # fmt: skip
         print(f"  screen data: {screens.write(name, data)}")
     return 0
 

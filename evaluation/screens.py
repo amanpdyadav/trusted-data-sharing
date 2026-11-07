@@ -18,10 +18,9 @@ from typing import Any
 
 import yaml
 
-from evaluation.attack_cases import DEMO_CASES
+from evaluation import mosaic_chain
 from evaluation.attacks import AttackCase, ReplayResult, replay
 from evaluation.runner import Scored
-from evaluation.scrap_sweep import build_cases
 from pets_transformer.io import read_table
 
 TRACE = Path("demo/mosaic_trace.json")
@@ -54,25 +53,11 @@ def _replay_on(case: AttackCase, folder: Path, rowmaps: Path) -> dict[str, Any] 
     return _funnel(replay(case, frame, _ids(rowmaps, case.table, len(frame))))
 
 
-def mosaic(package_root: Path, release: Path, rowmaps: Path, worst: list[ReplayResult]) -> dict[str, Any]:
-    """The two demo cases in all three modes, plus the scraps that come closest on our release (from the sweep)."""
-    trace = (
-        {p["source_id"]: p for p in json.loads(TRACE.read_text(encoding="utf-8"))["people"]} if TRACE.exists() else {}
-    )
-    quickstart = package_root / "results" / "quickstart" / "health"
-    cases = []
-    for case in DEMO_CASES:
-        cases.append({
-            "id": case.id, "description": case.description, "kind": case.scrap.split("/")[-1].split("_")[0],
-            "raw": trace.get(case.id, {}).get("steps", []),
-            "names": _replay_on(case, quickstart, quickstart),
-            "ours": _replay_on(case, release, rowmaps),
-        })  # fmt: skip
-    by_id = {c.id: c for c in build_cases(package_root)} if worst else {}
-    for r in worst[:3]:
-        c = by_id[r.case_id]
-        cases.append({"id": c.id, "description": c.description, "kind": c.scrap.split()[-1], "raw": [],
-                      "names": _replay_on(c, quickstart, quickstart), "ours": _funnel(r)})  # fmt: skip
+def mosaic(package_root: Path, release: Path, rowmaps: Path) -> dict[str, Any]:
+    """Every public post and news clip that leads to one verified person: raw and names-removed chains, plus a replay
+    on our release (evaluation/mosaic_chain.py)."""
+    frame = read_table(release / "ed_visits.csv")
+    cases = mosaic_chain.build(package_root, frame, _ids(rowmaps, "ed_visits", len(frame)))
     return {"created_utc": datetime.now(UTC).isoformat(timespec="seconds"), "release": str(release), "cases": cases}
 
 

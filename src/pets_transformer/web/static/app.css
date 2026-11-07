@@ -414,3 +414,20 @@ main { padding-top: 0; }
 .row.wrap { flex-wrap: wrap; gap: 10px; }
 .row.between { justify-content: space-between; }
 div.col { display: flex; flex-direction: column; gap: 10px; }
+.select { font: inherit; padding: 7px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); max-width: 100%; min-width: 0; flex: 1 1 260px; }
+.bignum { font: 800 52px/1 var(--display, inherit); font-variant-numeric: tabular-nums; }
+.bignum.risk { color: var(--risk); } .bignum.safe { color: var(--safe); }
+.graphwrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 8px 12px; }
+.graphwrap svg { display: block; }
+.gnode rect { fill: var(--sunk); stroke: var(--line); stroke-width: 1.5; transition: fill .3s, stroke .3s; }
+.gnode.lit rect { fill: var(--risk-soft); stroke: var(--risk); stroke-width: 2; }
+.gnode.lit.pub rect { fill: var(--safe-soft); stroke: var(--safe); }
+.gnode.cut rect { stroke-dasharray: 5 4; opacity: .5; }
+.gnode .gk { font: 600 10px var(--mono, monospace); letter-spacing: .08em; text-transform: uppercase; fill: var(--muted); }
+.gnode .gn { font: 600 13px var(--body, sans-serif); fill: var(--ink); }
+.gedge line { stroke: var(--line-strong); stroke-width: 2; stroke-dasharray: 5 4; }
+.gedge.on line { stroke: var(--risk); stroke-dasharray: none; } .gedge.on path { fill: var(--risk); }
+.gedge.broken line { stroke: var(--safe); }
+.gedge .gl { font: 500 10.5px var(--mono, monospace); fill: var(--muted); }
+.gedge.on .gl { fill: var(--ink); } .gedge.broken .gl { fill: var(--safe); }
+@media (prefers-reduced-motion: reduce) { .gnode rect { transition: none; } }

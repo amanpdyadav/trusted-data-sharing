@@ -588,7 +588,7 @@ function compareReleases([a, b]) {
 
 /* ---------------------------------------------------------------- presentation screens (from the main branch) */
 const MODES = [["raw", "Raw data shared"], ["names", "Names removed"], ["ours", "Our release"]];
-S.screens = {}; S.mcase = 0; S.mmode = "raw"; S.mstep = null;
+S.screens = {}; S.mkind = "post"; S.mcase = null; S.mmode = "names"; S.mtick = null; S.mplay = null;
 function screenData(name) {
   if (S.screens[name] === undefined) {
     S.screens[name] = null;
@@ -612,35 +612,90 @@ function funnelBars(f, safe) {
     <div class="row between"><span class="small">${esc(label)}</span><b class="num">${fmt(n)}</b></div>
     <div class="meter ${safe && i === f.length - 1 ? "safe" : ""}"><b style="width:${Math.max(1.5, 100 * Math.log10(n + 1) / top)}%"></b></div></div>`).join("")}</div>`;
 }
+/* one "tick" per clue on the hospital step, one per dataset after it: the chain is revealed step by step */
+function mosaicTicks(chain) {
+  const ticks = [];
+  chain.forEach((st, i) => {
+    const rows = st.funnel?.length || 0;
+    if (st.id === "ed" && rows > 1) for (let r = 2; r <= rows; r++) ticks.push([i, r]);
+    else ticks.push([i, rows]);
+  });
+  return ticks;
+}
+function linkGraph(chain, upto, broken) {
+  const w = 150, gap = 96, h = 104, n = chain.length, width = n * w + (n - 1) * gap + 8;
+  const node = (st, i) => {
+    const x = 4 + i * (w + gap), lit = broken ? i === 0 : i <= upto, cut = broken && i > 0;
+    const cls = cut ? "gnode cut" : lit ? (st.kind === "public" ? "gnode lit pub" : "gnode lit") : "gnode";
+    return `<g class="${cls}"><rect x="${x}" y="22" width="${w}" height="56" rx="12"/>
+      <text x="${x + 12}" y="44" class="gk">${esc(st.kind === "public" ? "public" : st.kind === "release" ? "release" : "if shared")}</text>
+      <text x="${x + 12}" y="64" class="gn">${esc(clip(st.dataset, 18))}</text></g>`;
+  };
+  const edge = (st, i) => {
+    if (i === 0) return "";
+    const x1 = 4 + (i - 1) * (w + gap) + w, x2 = x1 + gap, on = !broken && i <= upto;
+    const brk = broken && i === 1;
+    return `<g class="gedge ${on ? "on" : ""} ${brk ? "broken" : ""}"><line x1="${x1}" y1="50" x2="${x2 - 6}" y2="50"/>
+      ${on ? `<path d="M${x2 - 8},45 L${x2},50 L${x2 - 8},55 Z"/>` : ""}
+      <text x="${(x1 + x2) / 2}" y="${brk ? 38 : i % 2 ? 98 : 14}" text-anchor="middle" class="gl">${esc(brk ? "chain breaks" : clip(st.link || "", 36))}</text></g>`;
+  };
+  return `<div class="graphwrap"><svg viewBox="0 0 ${width} ${h}" width="${width}" height="${h}" role="img" aria-label="How the datasets link up">
+    ${chain.map(edge).join("")}${chain.map(node).join("")}</svg></div>`;
+}
 function mosaicView() {
   const d = screenData("mosaic");
   if (!d || d.error) return head(0, "Mosaic attack", "From one public post or news clip to a full profile.") + notBuilt(d, "mosaic data");
-  const c = d.cases[Math.min(S.mcase, d.cases.length - 1)];
+  const ofKind = d.cases.filter(c => c.kind === S.mkind);
+  const c = ofKind.find(x => x.id === S.mcase) || ofKind[0] || d.cases[0];
+  S.mcase = c.id;
   const modes = MODES.filter(([k]) => k !== "raw" || c.raw.length);
-  if (!modes.some(([k]) => k === S.mmode)) S.mmode = modes[0][0];
-  const picker = `<div class="pills">${d.cases.map((x, i) => `<button data-mcase="${i}" aria-pressed="${i === S.mcase}">${esc(x.id)}</button>`).join("")}</div>`;
-  const modePills = `<div class="pills">${modes.map(([k, l]) => `<button data-mmode="${k}" aria-pressed="${k === S.mmode}">${l}</button>`).join("")}</div>`;
+  if (!modes.some(([k]) => k === S.mmode)) S.mmode = "names";
+  const counts = { post: d.cases.filter(x => x.kind === "post").length, news: d.cases.filter(x => x.kind === "news").length };
+  const picker = `<div class="row wrap">
+      <div class="pills">${[["post", "Public posts"], ["news", "News clips"]].map(([k, l]) => `<button data-mkind="${k}" aria-pressed="${k === S.mkind}">${l} <span class="count">${counts[k]}</span></button>`).join("")}</div>
+      <select id="mcase" class="select" aria-label="Pick a scrap">${ofKind.map(x => `<option value="${esc(x.id)}" ${x.id === c.id ? "selected" : ""}>${esc(x.id)} · ${esc(clip(x.label, 24))}: ${esc(clip(x.text, 60))}</option>`).join("")}</select>
+      <div class="pills">${modes.map(([k, l]) => `<button data-mmode="${k}" aria-pressed="${k === S.mmode}">${l}</button>`).join("")}</div></div>`;
+  const quote = c.names[0]?.quote;
+  const scrap = quote ? `<blockquote class="quote"><b>${esc(S.mask ? maskValue(quote.who) : quote.who)}</b> <span class="small">${esc(quote.when)}</span><br>${esc(quote.text)}</blockquote>` : "";
   let body;
-  if (S.mmode === "raw") {
-    const i = S.mstep == null ? c.raw.length - 1 : Math.min(S.mstep, c.raw.length - 1), st = c.raw[i];
-    const known = Object.assign({}, ...c.raw.slice(0, i + 1).map(x => x.revealed || {}));
-    body = `<div class="pills">${c.raw.map((x, j) => `<button data-mstep="${j}" aria-pressed="${j === i}">${j + 1}. ${esc(x.dataset)}</button>`).join("")}</div>
-      <div class="grid2"><div class="panel ${st.kind === "public" ? "" : "risk"}"><span class="tag ${st.kind === "public" ? "safe" : "risk"}">${st.kind === "public" ? "public" : "if shared"}</span>
-        <h2>${esc(st.title)}</h2><p class="small"><code>${esc(st.file)}</code></p><p>${esc(st.how)}</p>
-        ${st.known?.text ? `<blockquote class="quote">${esc(st.known.text)}</blockquote>` : ""}${st.funnel?.length ? funnelBars(st.funnel, false) : ""}
-        ${st.verified ? `<span class="tag ok">verified against ground truth</span>` : ""}</div>
-      <div class="panel"><span class="eyebrow">What the attacker now knows</span>
-        ${Object.entries(known).map(([k, v]) => `<div class="row between"><span class="small">${esc(k)}</span><b>${esc(S.mask ? maskValue(v) : v)}</b></div>`).join("") || `<p class="small">Only the post.</p>`}</div></div>`;
+  if (S.mmode === "ours") {
+    const r = c.ours;
+    body = linkGraph([c.names[0], { dataset: "Our release", kind: "release", link: "" }, ...c.names.slice(2)], 0, true)
+      + `<div class="grid2"><div class="panel ${r.holds ? "safe" : "risk"}"><h2>Same scrap, our release</h2>${funnelBars(r.funnel, r.holds)}</div>
+         <div class="panel"><span class="eyebrow">What the attacker now knows</span><div class="bignum ${r.holds ? "safe" : "risk"}">${fmt(r.candidates)}</div>
+         <p class="small">visits still fit${r.target_in ? ", the real one among them" : ""}. ${r.holds ? "No single visit, no birth date, postcode or name: nothing to join to other data." : "Below k = 5 for this attacker: a residual risk we report."}</p></div></div>`;
   } else {
-    const r = c[S.mmode];
-    body = !r ? `<div class="panel flat"><p class="small">This release is not built on this machine.</p></div>`
-      : `<div class="panel ${r.holds ? "safe" : "risk"}"><h2>${S.mmode === "ours" ? "Same scrap, our release" : "Same scrap, names removed (package quickstart)"}</h2>
-        ${funnelBars(r.funnel, r.holds)}
-        <p><b>${fmt(r.candidates)}</b> visits still fit${r.target_in === true ? ", the real visit among them" : r.target_in === false ? "; the real visit is not among them" : ""}.
-        ${r.holds ? "The chain breaks here: no single visit, nothing to join to other data." : "Below k = 5 for this attacker: a residual risk we report."}</p></div>`;
+    const chain = c[S.mmode], ticks = mosaicTicks(chain);
+    const t = S.mtick == null || S.mtick >= ticks.length ? ticks.length - 1 : S.mtick;
+    const [si, rowsShown] = ticks[t], st = chain[si];
+    const shownFunnel = (st.funnel || []).slice(0, Math.max(rowsShown, 1));
+    const left = shownFunnel.length ? shownFunnel[shownFunnel.length - 1][1] : null;
+    const stepDone = rowsShown >= (st.funnel?.length || 0);  // a step's facts appear once its funnel has narrowed fully
+    const known = Object.assign({}, ...chain.slice(0, stepDone ? si + 1 : si).map(x => x.revealed || {}));
+    const nav = `<div class="row"><button class="btn" data-mtick="back" ${t === 0 ? "disabled" : ""}>Back</button>
+      <button class="btn primary" data-mtick="next" ${t >= ticks.length - 1 ? "disabled" : ""}>Next ${si === 0 || st.id === "ed" ? "clue" : "link"}</button>
+      <button class="btn" data-mtick="play">${S.mplay ? "Stop" : "Play"}</button><button class="btn" data-mtick="restart">Restart</button>
+      <span class="small">step ${t + 1} of ${ticks.length}</span></div>`;
+    body = linkGraph(chain, si, false) + nav
+      + `<div class="grid2"><div class="panel ${st.kind === "public" ? "" : "risk"}"><span class="tag ${st.kind === "public" ? "safe" : "risk"}">${st.kind === "public" ? "public" : st.kind === "release" ? "release, names removed" : "if shared"}</span>
+          <h2>${esc(st.title)}</h2><p class="small"><code>${esc(st.file)}</code></p><p>${esc(st.how)}</p>
+          ${si === 0 ? scrap + (st.clues?.length ? `<p class="small">Clues read from it: ${st.clues.map(esc).join(" · ")}</p>` : "") : ""}
+          ${shownFunnel.length ? funnelBars(shownFunnel, false) : ""}
+          ${st.verified ? `<span class="tag ok">verified against ground truth</span>` : ""}</div>
+        <div class="panel"><span class="eyebrow">What the attacker now knows</span>
+          ${left != null ? `<div class="bignum risk">${fmt(left)}</div><p class="small">${left === 1 ? "record left: one person" : "records still fit"}</p>` : ""}
+          ${Object.entries(known).map(([k, v]) => `<div class="row between"><span class="small">${esc(k)}</span><b>${esc(S.mask ? maskValue(v) : v)}</b></div>`).join("") || `<p class="small">Only the post.</p>`}</div></div>`;
   }
-  return head(0, "Mosaic attack", "One public scrap, followed across datasets. Switch the mode to see what removing names does, and what our release does.")
-    + `<div class="panel flat"><div class="row between wrap">${picker}${modePills}</div><p class="small">${esc(c.description)}</p></div>` + body;
+  return head(0, "Mosaic attack", "Pick a public post or a news clip and follow it across datasets, one clue at a time. Switch the mode to see what removing names does, and what our release does.")
+    + `<div class="panel flat">${picker}</div>` + body;
+}
+function mosaicStep(dir) {
+  const d = S.screens.mosaic, c = d?.cases.find(x => x.id === S.mcase);
+  if (!c || S.mmode === "ours") return;
+  const n = mosaicTicks(c[S.mmode]).length, cur = S.mtick == null || S.mtick >= n ? n - 1 : S.mtick;
+  S.mtick = dir === "restart" ? 0 : Math.max(0, Math.min(n - 1, cur + (dir === "back" ? -1 : 1)));
+  if (S.mplay && S.mtick >= n - 1) { clearInterval(S.mplay); S.mplay = null; }
+  render();
 }
 function auditView() {
   const d = screenData("audit");
@@ -745,9 +800,19 @@ function wire() {
   }));
   page.querySelectorAll("[data-play]").forEach(b => (b.onclick = () => { S.play = ""; render(); requestAnimationFrame(() => play(b.dataset.play)); }));
   page.querySelectorAll("[data-table]").forEach(b => (b.onclick = () => { S.table = b.dataset.table; render(); }));
-  page.querySelectorAll("[data-mcase]").forEach(b => (b.onclick = () => { S.mcase = +b.dataset.mcase; S.mstep = null; render(); }));
-  page.querySelectorAll("[data-mmode]").forEach(b => (b.onclick = () => { S.mmode = b.dataset.mmode; render(); }));
-  page.querySelectorAll("[data-mstep]").forEach(b => (b.onclick = () => { S.mstep = +b.dataset.mstep; render(); }));
+  const stopPlay = () => { if (S.mplay) { clearInterval(S.mplay); S.mplay = null; } };
+  page.querySelectorAll("[data-mkind]").forEach(b => (b.onclick = () => { stopPlay(); S.mkind = b.dataset.mkind; S.mcase = null; S.mtick = 0; render(); }));
+  page.querySelectorAll("[data-mmode]").forEach(b => (b.onclick = () => { stopPlay(); S.mmode = b.dataset.mmode; S.mtick = 0; render(); }));
+  const mc = $("#mcase"); if (mc) mc.onchange = () => { stopPlay(); S.mcase = mc.value; S.mtick = 0; render(); };
+  page.querySelectorAll("[data-mtick]").forEach(b => (b.onclick = () => {
+    const what = b.dataset.mtick;
+    if (what === "play") {
+      if (S.mplay) { stopPlay(); render(); return; }
+      if (S.mtick == null || S.mtick === 0 || b.dataset.atEnd) S.mtick = 0;
+      S.mplay = setInterval(() => mosaicStep("next"), 1600); render(); return;
+    }
+    stopPlay(); mosaicStep(what);
+  }));
   page.querySelectorAll("[data-sample]").forEach(b => (b.onclick = () => withProgress(`Opening the ${b.dataset.sample.replace(/_/g, " ")} example`, "Copying the tables into your workspace and reading them…",
     async () => openSession(await api("/api/sessions/sample", { body: { name: b.dataset.sample } })))));
   page.querySelectorAll("[data-scan]").forEach(b => (b.onclick = runScan));
