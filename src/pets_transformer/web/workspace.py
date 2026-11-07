@@ -112,7 +112,12 @@ class Session:
 
     def releases(self) -> list[dict[str, object]]:
         """Summaries of every release, newest first."""
-        found = [json.loads(p.read_text(encoding="utf-8")) for p in self.releases_dir.glob("*/summary.json")]
+        found = []
+        for folder in (p.parent for p in self.releases_dir.glob("*/results.json")):
+            summary = folder / "summary.json"
+            if not summary.exists():  # kept by an earlier version: write the summary once
+                summary.write_text(json.dumps(json.loads((folder / "results.json").read_text())["summary"]))
+            found.append(json.loads(summary.read_text(encoding="utf-8")))
         return sorted(found, key=lambda r: str(r["created_at"]), reverse=True)
 
     # -------------------------------------------------------- the last risk scan, kept because it is slow on big data
