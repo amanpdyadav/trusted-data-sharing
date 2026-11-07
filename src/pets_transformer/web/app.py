@@ -3,6 +3,7 @@
 Run with `pets-transformer web`. It listens on 127.0.0.1 only: the data never leaves this machine.
 """
 
+import json
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -192,6 +193,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def detection_json(sid: str) -> PlainTextResponse:
         body = svc.detection_json(session(sid))
         return PlainTextResponse(body, media_type="application/json", headers=_attachment("detection.json"))
+
+    @api.get("/api/screens/{name}")
+    def screen(name: str) -> dict[str, Any]:
+        """Data for the presentation screens, written by `python -m evaluation screens` (results/screens/)."""
+        if name not in ("mosaic", "audit"):
+            raise HTTPException(404, f"no screen called {name}")
+        path = Path("results") / "screens" / f"{name}.json"
+        if not path.exists():
+            raise HTTPException(404, f"{path} not found: run `python -m evaluation screens`")
+        data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+        return data
 
     @api.get("/api/{rest:path}")
     def unknown(rest: str) -> None:

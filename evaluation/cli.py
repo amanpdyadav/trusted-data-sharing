@@ -91,6 +91,24 @@ def cmd_sweep(args: argparse.Namespace) -> int:
     return 0 if result.exposed == 0 or not args.gate else 1
 
 
+def cmd_screens(args: argparse.Namespace) -> int:
+    """Score a release and write the data for the web app's Mosaic attack and Release audit screens."""
+    from evaluation import screens  # noqa: PLC0415
+
+    root = Settings.from_env().package_root
+    release, rowmaps = Path(args.release), Path(args.rowmaps or args.release)
+    run_id = args.run_id or "screens-" + datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    run = Run(run_id=run_id, dataset="health", scenario_id=args.scenario, package_root=root, release=release,
+              rowmap_dir=rowmaps, out_dir=RESULTS / "runs" / run_id)  # fmt: skip
+    scored = score_run(run)
+    _print_scored(scored)
+    worst = scored.sweep.worst if scored.sweep else []
+    for name, data in (("audit", screens.audit(scored, Path(args.plan) if args.plan else None)),
+                       ("mosaic", screens.mosaic(root, release, rowmaps, worst))):  # fmt: skip
+        print(f"  screen data: {screens.write(name, data)}")
+    return 0
+
+
 def cmd_baseline(args: argparse.Namespace) -> int:
     quickstart = Settings.from_env().package_root / "results" / "quickstart" / "health"
     if not (quickstart / "ed_visits.csv").exists():
@@ -193,6 +211,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     b = sub.add_parser("baseline", help="score the package quickstart output as our 'before'")
     b.set_defaults(func=cmd_baseline)
+
+    sc = sub.add_parser("screens", help="score a release and write the web app's mosaic and audit screen data")
+    sc.add_argument("--release", required=True)
+    sc.add_argument("--rowmaps")
+    sc.add_argument("--plan", help="the plan YAML used for the release (shown as decisions)")
+    sc.add_argument("--scenario", default="HEALTH-S1")
+    sc.add_argument("--run-id")
+    sc.set_defaults(func=cmd_screens)
 
     sw = sub.add_parser("sweep", help="replay every public post and news clip on a release (health)")
     sw.add_argument("--release", required=True)

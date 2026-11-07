@@ -9,6 +9,9 @@ const S = {
 const STEPS = [
   ["data", "Data"], ["scan", "Risk scan"], ["plan", "Receiver & plan"], ["approve", "Review & approve"], ["release", "Release & proof"],
 ];
+/* presentation screens: always open, filled from `python -m evaluation screens` (results/screens/*.json) */
+const SCREENS = [["mosaic", "Mosaic attack"], ["audit", "Release audit"]];
+const isScreen = step => SCREENS.some(([k]) => k === step);
 const ROLE_LABEL = {
   direct_identifier: "identifies a person", quasi_identifier: "outsider may know it", sensitive_attribute: "sensitive fact",
   technical_identifier: "link / code", record_key: "row key", free_text: "free text", non_sensitive: "harmless",
@@ -57,6 +60,7 @@ function stepsDone() {
   return { data: !!S.session, scan: !!S.scan, plan: !!S.plan, approve: !!S.plan?.plan.approved, release: !!S.results };
 }
 function canOpen(step) {
+  if (isScreen(step)) return true;
   const d = stepsDone();
   return { data: true, scan: d.data, plan: d.scan, approve: d.plan, release: d.approve || d.release }[step];
 }
@@ -64,7 +68,9 @@ function render() {
   const done = stepsDone();
   $("#steps").innerHTML = STEPS.map(([k, label], i) =>
     `<button data-step="${k}" ${k === S.step ? 'aria-current="step"' : ""} class="${done[k] && k !== S.step ? "done" : ""}" ${canOpen(k) ? "" : "disabled"}>
-      <span class="n">${done[k] && k !== S.step ? "✓" : i + 1}</span>${label}</button>`).join("");
+      <span class="n">${done[k] && k !== S.step ? "✓" : i + 1}</span>${label}</button>`).join("")
+    + `<span class="eyebrow navsep">Show the risk</span>` + SCREENS.map(([k, label]) =>
+    `<button data-step="${k}" ${k === S.step ? 'aria-current="step"' : ""}><span class="n">${k === "mosaic" ? "◎" : "✓"}</span>${label}</button>`).join("");
   renderTicker();
   $("#topbar").innerHTML = topBar();
   $("#page").innerHTML = VIEWS[S.step]();
@@ -139,6 +145,7 @@ function setProgress(pct, detail) {
 setInterval(() => { const e = $("#elapsed"); if (e && S.progress) e.textContent = Math.round((Date.now() - S.progress.started) / 1000) + " s"; }, 1000);
 /* the step and its main action, pinned to the top of the screen on every step */
 function topBar() {
+  if (isScreen(S.step)) return screenBar();
   const n = STEPS.findIndex(([k]) => k === S.step), label = `Step ${n + 1} of 5 · ${STEPS[n][1]}`;
   const bar = (info, action = "") => `<div class="topbar-in"><div class="tb-text"><span class="eyebrow">${label}</span><span class="small">${info}</span></div><div class="row">${action}</div></div>`;
   const btn = (attrs, text, cls = "primary") => `<button class="btn ${cls}" ${attrs}>${text}</button>`;
@@ -578,7 +585,83 @@ function compareReleases([a, b]) {
       ${changed.map(c => `<tr class="changed"><td class="col">${esc(c)}</td><td><span class="tech ${(a.techniques[c] || "withheld").split(":")[0]}">${esc(a.techniques[c] || "withheld")}</span></td><td><span class="tech ${(b.techniques[c] || "withheld").split(":")[0]}">${esc(b.techniques[c] || "withheld")}</span></td></tr>`).join("")}</tbody></table></div>` : `<p class="small">Every column is treated the same way; only k or ε differ.</p>`}</div></div>`;
 }
 
-const VIEWS = { data: dataView, scan: scanView, plan: planView, approve: approveView, release: releaseView };
+
+/* ---------------------------------------------------------------- presentation screens (from the main branch) */
+const MODES = [["raw", "Raw data shared"], ["names", "Names removed"], ["ours", "Our release"]];
+S.screens = {}; S.mcase = 0; S.mmode = "raw"; S.mstep = null;
+function screenData(name) {
+  if (S.screens[name] === undefined) {
+    S.screens[name] = null;
+    api(`/api/screens/${name}`).then(d => { S.screens[name] = d; render(); })
+      .catch(e => { S.screens[name] = { error: e.message }; render(); });
+  }
+  return S.screens[name];
+}
+function screenBar() {
+  const label = SCREENS.find(([k]) => k === S.step)[1];
+  const d = S.screens[S.step];
+  const info = d && !d.error ? `Built ${when(d.created_utc)} · every number from <code>python -m evaluation screens</code>` : "Presentation screen";
+  return `<div class="topbar-in"><div class="tb-text"><span class="eyebrow">${label}</span><span class="small">${info}</span></div></div>`;
+}
+const notBuilt = (d, what) => d === null ? `<div class="panel flat"><p class="small">Loading ${what}… <span class="busy"></span></p></div>`
+  : `<div class="panel risk"><b>No ${what} yet.</b><p class="small">${esc(d.error)}</p><p class="small">Build it with
+     <code>make release</code> then <code>python -m evaluation screens --release out/health-s1/release --rowmaps out/health-s1/private --plan plans/health-s1.yaml</code>.</p></div>`;
+function funnelBars(f, safe) {
+  const top = Math.log10((f[0]?.[1] || 1) + 1);
+  return `<div class="col">${f.map(([label, n, applied], i) => `<div class="frow ${applied === false ? "skipped" : ""}">
+    <div class="row between"><span class="small">${esc(label)}</span><b class="num">${fmt(n)}</b></div>
+    <div class="meter ${safe && i === f.length - 1 ? "safe" : ""}"><b style="width:${Math.max(1.5, 100 * Math.log10(n + 1) / top)}%"></b></div></div>`).join("")}</div>`;
+}
+function mosaicView() {
+  const d = screenData("mosaic");
+  if (!d || d.error) return head(0, "Mosaic attack", "From one public post or news clip to a full profile.") + notBuilt(d, "mosaic data");
+  const c = d.cases[Math.min(S.mcase, d.cases.length - 1)];
+  const modes = MODES.filter(([k]) => k !== "raw" || c.raw.length);
+  if (!modes.some(([k]) => k === S.mmode)) S.mmode = modes[0][0];
+  const picker = `<div class="pills">${d.cases.map((x, i) => `<button data-mcase="${i}" aria-pressed="${i === S.mcase}">${esc(x.id)}</button>`).join("")}</div>`;
+  const modePills = `<div class="pills">${modes.map(([k, l]) => `<button data-mmode="${k}" aria-pressed="${k === S.mmode}">${l}</button>`).join("")}</div>`;
+  let body;
+  if (S.mmode === "raw") {
+    const i = S.mstep == null ? c.raw.length - 1 : Math.min(S.mstep, c.raw.length - 1), st = c.raw[i];
+    const known = Object.assign({}, ...c.raw.slice(0, i + 1).map(x => x.revealed || {}));
+    body = `<div class="pills">${c.raw.map((x, j) => `<button data-mstep="${j}" aria-pressed="${j === i}">${j + 1}. ${esc(x.dataset)}</button>`).join("")}</div>
+      <div class="grid2"><div class="panel ${st.kind === "public" ? "" : "risk"}"><span class="tag ${st.kind === "public" ? "safe" : "risk"}">${st.kind === "public" ? "public" : "if shared"}</span>
+        <h2>${esc(st.title)}</h2><p class="small"><code>${esc(st.file)}</code></p><p>${esc(st.how)}</p>
+        ${st.known?.text ? `<blockquote class="quote">${esc(st.known.text)}</blockquote>` : ""}${st.funnel?.length ? funnelBars(st.funnel, false) : ""}
+        ${st.verified ? `<span class="tag ok">verified against ground truth</span>` : ""}</div>
+      <div class="panel"><span class="eyebrow">What the attacker now knows</span>
+        ${Object.entries(known).map(([k, v]) => `<div class="row between"><span class="small">${esc(k)}</span><b>${esc(S.mask ? maskValue(v) : v)}</b></div>`).join("") || `<p class="small">Only the post.</p>`}</div></div>`;
+  } else {
+    const r = c[S.mmode];
+    body = !r ? `<div class="panel flat"><p class="small">This release is not built on this machine.</p></div>`
+      : `<div class="panel ${r.holds ? "safe" : "risk"}"><h2>${S.mmode === "ours" ? "Same scrap, our release" : "Same scrap, names removed (package quickstart)"}</h2>
+        ${funnelBars(r.funnel, r.holds)}
+        <p><b>${fmt(r.candidates)}</b> visits still fit${r.target_in === true ? ", the real visit among them" : r.target_in === false ? "; the real visit is not among them" : ""}.
+        ${r.holds ? "The chain breaks here: no single visit, nothing to join to other data." : "Below k = 5 for this attacker: a residual risk we report."}</p></div>`;
+  }
+  return head(0, "Mosaic attack", "One public scrap, followed across datasets. Switch the mode to see what removing names does, and what our release does.")
+    + `<div class="panel flat"><div class="row between wrap">${picker}${modePills}</div><p class="small">${esc(c.description)}</p></div>` + body;
+}
+function auditView() {
+  const d = screenData("audit");
+  if (!d || d.error) return head(0, "Release audit", "Who the release is for, what was done, what was measured, what risk is left.") + notBuilt(d, "audit data");
+  const failed = d.gates.filter(g => g.status === "FAIL"), sc = d.scores, sw = d.sweep;
+  const gateRows = [...d.gates].sort((a, b) => (a.status === "FAIL" ? 0 : 1) - (b.status === "FAIL" ? 0 : 1)).map(g =>
+    `<tr><td><span class="tag ${g.status === "PASS" ? "ok" : g.status === "FAIL" ? "risk" : ""}">${g.status}</span></td><td>${esc(g.name)}</td><td class="small">${esc(g.value)}</td><td class="small">${esc(g.target)}</td></tr>`).join("");
+  return head(0, `Release audit · ${esc(d.scenario)}`, `Run <code>${esc(d.run_id)}</code>${d.approved_by ? ` · plan approved by ${esc(d.approved_by)}` : " · <b>plan not yet approved</b>"}.`)
+    + (failed.length ? `<div class="panel risk"><b>${plural(failed.length, "check")} failing.</b><p class="small">${failed.map(g => esc(g.name)).join(", ")}</p></div>`
+      : `<div class="panel safe"><b>All ${d.gates.length} checks pass.</b></div>`)
+    + `<div class="kpis">${kpi("safe", sc.composite?.toFixed(3) ?? "–", "combined score")}${kpi("", sc.utility?.toFixed(3) ?? "–", "usefulness kept")}
+       ${kpi(sc.share_below_k ? "risk" : "safe", pct(sc.share_below_k, 1), "rows in groups under k")}${sw ? kpi(sw.exposed ? "risk" : "safe", fmt(sw.exposed), `of ${fmt(sw.scraps)} posts and clips expose someone`) : ""}</div>`
+    + `<div class="panel"><h2>Checks</h2><div class="tablewrap"><table><thead><tr><th></th><th>Check</th><th>Measured</th><th>Target</th></tr></thead><tbody>${gateRows}</tbody></table></div></div>`
+    + (sw ? `<div class="panel"><h2>Every public post and news clip, replayed</h2><p class="small">${fmt(sw.scraps)} scraps · one visit left ${sw.single} (real ${sw.single_target}) · median group ${fmt(sw.median_candidates)}.</p>
+       ${sw.worst.map(w => `<details><summary>${esc(w.id)}: ${fmt(w.candidates)} left</summary>${funnelBars(w.funnel, false)}</details>`).join("") || `<p class="small">No scrap gets close.</p>`}</div>` : "")
+    + `<div class="panel"><h2>Decisions per column</h2><div class="tablewrap"><table><thead><tr><th>Column</th><th>Protection</th><th>Why</th></tr></thead><tbody>${d.decisions.map(a =>
+       `<tr><td class="col">${esc(a.table)}.${esc(a.column)}</td><td>${esc(a.technique)}${a.params ? ` <span class="small">${esc(JSON.stringify(a.params))}</span>` : ""}</td><td class="small">${esc(a.reason)}</td></tr>`).join("")}</tbody></table></div></div>`
+    + (d.manifest?.files ? `<div class="panel"><h2>Released files</h2><div class="tablewrap"><table><thead><tr><th>File</th><th>SHA-256</th></tr></thead><tbody>${d.manifest.files.map(f =>
+       `<tr><td>${esc(f.name || f.path)}</td><td class="small"><code title="${esc(f.sha256)}">${esc(String(f.sha256 || "").slice(0, 16))}…</code></td></tr>`).join("")}</tbody></table></div></div>` : "");
+}
+const VIEWS = { data: dataView, scan: scanView, plan: planView, approve: approveView, release: releaseView, mosaic: mosaicView, audit: auditView };
 
 /* ---------------------------------------------------------------- dialogs: one native <dialog>, filled from S.modal */
 function openModal(kind, data = {}) { S.modal = { kind, ...data }; render(); }
@@ -662,6 +745,9 @@ function wire() {
   }));
   page.querySelectorAll("[data-play]").forEach(b => (b.onclick = () => { S.play = ""; render(); requestAnimationFrame(() => play(b.dataset.play)); }));
   page.querySelectorAll("[data-table]").forEach(b => (b.onclick = () => { S.table = b.dataset.table; render(); }));
+  page.querySelectorAll("[data-mcase]").forEach(b => (b.onclick = () => { S.mcase = +b.dataset.mcase; S.mstep = null; render(); }));
+  page.querySelectorAll("[data-mmode]").forEach(b => (b.onclick = () => { S.mmode = b.dataset.mmode; render(); }));
+  page.querySelectorAll("[data-mstep]").forEach(b => (b.onclick = () => { S.mstep = +b.dataset.mstep; render(); }));
   page.querySelectorAll("[data-sample]").forEach(b => (b.onclick = () => withProgress(`Opening the ${b.dataset.sample.replace(/_/g, " ")} example`, "Copying the tables into your workspace and reading them…",
     async () => openSession(await api("/api/sessions/sample", { body: { name: b.dataset.sample } })))));
   page.querySelectorAll("[data-scan]").forEach(b => (b.onclick = runScan));

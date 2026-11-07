@@ -405,3 +405,12 @@ main { padding-top: 0; }
 .tb-text { flex: 1 1 auto; }
 .topbar-in > .row { flex: 0 0 auto; flex-wrap: nowrap; }
 @media (max-width: 600px) { .topbar .long { display: none; } }
+
+/* presentation screens (mosaic attack, release audit) */
+.navsep { display: block; padding: 14px 10px 4px; }
+.frow { display: flex; flex-direction: column; gap: 4px; }
+.frow.skipped { opacity: .5; }
+.quote { margin: 0; padding: 8px 0 8px 14px; border-left: 3px solid var(--risk); font-size: 17px; }
+.row.wrap { flex-wrap: wrap; gap: 10px; }
+.row.between { justify-content: space-between; }
+div.col { display: flex; flex-direction: column; gap: 10px; }
