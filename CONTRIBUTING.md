@@ -33,7 +33,8 @@ src/pets_transformer/
   aggregate/   published statistics with differential privacy, and the privacy budget ledger
   assess/      our own checks: risk scan, attack replay and trail, look-alikes, usefulness
   report/      fingerprints for the manifest
-  web/         the local web app: workspace (sessions), service (what it does), app (HTTP), static (page)
+  web/         the local web app's backend: workspace (sessions), service (what it does), app (HTTP);
+               static/ holds the built page (from frontend/, committed so `make web` needs no Node)
   pipeline.py  run an approved plan and write a release
   sources.py   where tables come from (CSV now; database later)
   keys.py      secret keys from the environment, one derived key per receiver
@@ -44,7 +45,31 @@ scenarios/     receivers as YAML presets
 examples/      sample shared files (kept in step with the contracts)
 tests/         unit/, integration/ (needs the data package), test_architecture.py (rule guards)
 docs/          user guide and how it works
+frontend/      the web app's source: React + TypeScript + shadcn/ui (see "The web app" below)
 ```
+
+## The web app (`frontend/`)
+
+React + TypeScript, built with Vite, styled with Tailwind and [shadcn/ui](https://ui.shadcn.com) components
+(Radix underneath). The build goes to `src/pets_transformer/web/static/` and is committed, so users only need Python.
+
+```
+frontend/src/
+  lib/api.ts          typed calls to the local API (one interface per response)
+  lib/store.ts        the app's state and every user action (zustand); errors become toasts here
+  lib/format.ts       numbers, dates, on-screen masking, plain words for privacy roles
+  lib/lanes.ts        how a column can be shared, in plain words
+  App.tsx             the frame: rail, top bar with the step's main action
+  components/common   shared pieces (page head, "what to do here", headline tiles, progress)
+  components/dialogs  name and confirm dialogs
+  components/ui/      shadcn/ui components (Button, Dialog, DropdownMenu, Tabs, Accordion, ...)
+  steps/              one file per step: DataStep, RiskScan, PlanStep, Approve, Release
+```
+
+To change it: run `make web` (the API) and `make ui-dev` (live reload at http://localhost:5173), edit, then
+`make ui` to rebuild into the package and commit both the source and the build. Needs Node 18 or newer.
+Rules: every number comes from the API; personal values go through `useShown` (masking); new controls use the
+shadcn components rather than hand-made HTML.
 
 ## Principles we hold each other to
 

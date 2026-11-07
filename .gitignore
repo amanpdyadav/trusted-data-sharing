@@ -42,3 +42,7 @@ web/dist/
 
 # Generated screen data (python -m evaluation screens)
 results/screens/
+
+# Web app sources build into src/pets_transformer/web/static (committed); dependencies are not
+frontend/node_modules/
+frontend/*.tsbuildinfo

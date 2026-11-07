@@ -4,7 +4,8 @@ This guide walks through the web app. Start it with `make web` and open http://1
 
 The bar at the top of the screen always shows which step you are on and the next thing to do (top right).
 The switch **Hide personal values on screen** (left, on by default) masks names, ID codes and free text, so you
-can share your screen safely. It only changes what you see, not the data.
+can share your screen safely. It only changes what you see, not the data. Next to it, **Light / Dark / Auto** sets the
+colours (light by default; Auto follows your computer's setting).
 
 ## 1. Data
 
@@ -37,25 +38,29 @@ The scan reads every column and shows what could go wrong if the data were share
 
 ## 3. Receiver & plan
 
-Choose who gets the data. The receiver decides how strong the protection must be.
+Each step starts with a short "what to do here" strip. On this step:
 
-- **A preset receiver**, for example a research group under contract (gets coded rows) or the public (gets noisy
-  statistics only).
-- **Describe your own:** name the receiver, the purpose, how far they are trusted, and tick the columns they need.
-  For a public receiver, choose what to count instead.
+1. **Pick who gets the data.** Each card says what that receiver gets: individual records (protected) or only
+   counts. Choose **Someone else** to describe your own receiver and tick the columns they need.
+2. **Check what they will receive.** Every column sits in one of five lanes:
+   ✓ Shared as is · 🔍 Made less exact · 🔒 Replaced by a code · 📝 Personal details hidden · ✂ Removed.
+   Below the lanes, **One record, now and as they will see it** shows a real record (the person from the attack)
+   before and after, for example `1958-02-07 → 60-69`.
+3. **Change anything that looks wrong.** Click a column to see why it was chosen and pick another way to share
+   it. Columns marked ⚠ need your decision.
 
-The plan lists every column, grouped by table, with its protection and the reason. You can change a protection
-in the list. Two tabs help you choose:
-
-- **Privacy versus usefulness:** what each value of k or ε (epsilon) would cost, computed on your data without
-  releasing anything. Click a value of k to use it.
-- **Same data, other receivers:** what each receiver would get from the same columns.
+**Protection level** shows, as a slider, how many look-alikes each person has. Moving it shows the chance that an
+outsider picks the right person and how many details the receiver keeps. Click **Use this level** to apply it.
 
 ## 4. Review & approve
 
-Click **Review and approve**. The dialog lists every column that leaves, the tables that stay here, and any
-questions a person must check. Tick that you checked them, type your name and approve. The approval is written
-into the plan and into every release.
+Two tiles sum up what **leaves your organisation** and what **stays on this computer**. Below them, the tables
+are listed on the left (all selected; search, filter or tick the ones you want) and their fields on the right,
+each with what happens to it: shared as is, made less exact, replaced by a code, removed, counted only, or stays
+here. Tick the checks
+(the receiver needs the data, any undecided columns were checked, you may approve), type your full name and click
+**Approve and continue**. The button only unlocks when every check is ticked. Your name is written into the plan
+and into every release.
 
 ## 5. Release & proof
 

@@ -1,6 +1,7 @@
 """The local web app end to end on a small synthetic dataset: upload, scan, plan, review, approve, run, download."""
 
 import io
+import re
 import zipfile
 from pathlib import Path
 
@@ -111,6 +112,16 @@ def test_full_release_flow_and_downloads(client: TestClient, sid: str) -> None:
     assert "approved_by: Test Steward" in client.get(f"/api/sessions/{sid}/download/plan.yaml").text
 
 
+def test_plan_example_shows_records_before_and_after(client: TestClient, sid: str) -> None:
+    _ok(client.post(f"/api/sessions/{sid}/scan"))
+    _ok(client.post(f"/api/sessions/{sid}/plan", json={"custom": RECEIVER}))
+    (visits,) = _ok(client.get(f"/api/sessions/{sid}/plan/example"))["tables"]
+    first = visits["rows"][0]
+    assert visits["renamed"]["date_of_birth"] in first["after"]  # made less exact, under its released name
+    assert "patient_name" not in first["after"]  # removed
+    assert first["after"]["hetu"] != first["raw"]["hetu"]  # replaced by a code
+
+
 def test_tradeoff_and_override(settings: Settings, client: TestClient, sid: str) -> None:
     first = _ok(client.post(f"/api/sessions/{sid}/scan"))
     kept = settings.out_dir / "web" / sid / "scan.json"
@@ -138,11 +149,13 @@ def test_user_errors_are_explained(client: TestClient) -> None:
 def test_the_page_and_its_assets_are_served(client: TestClient) -> None:
     page = client.get("/")
     assert page.status_code == 200
-    assert "/static/app.js" in page.text
-    script = client.get("/static/app.js")
-    assert script.status_code == 200
-    assert script.headers["cache-control"] == "no-cache"  # an updated app is never served stale
-    assert client.get("/static/app.css").status_code == 200
+    assets = re.findall(r'(?:src|href)="(/static/assets/[^"]+)"', page.text)  # the built React app (frontend/)
+    assert any(a.endswith(".js") for a in assets)
+    assert any(a.endswith(".css") for a in assets)
+    for asset in assets:
+        served = client.get(asset)
+        assert served.status_code == 200
+        assert served.headers["cache-control"] == "no-cache"  # an updated app is never served stale
     catalogue = client.get("/api/catalogue").json()
     assert "direct_identifier" in catalogue["roles"]
     assert "diagnosis_group" in catalogue["codelists"]
@@ -180,3 +193,66 @@ def test_every_release_is_kept_compared_and_survives_a_restart(
     assert not any("rowmap" in n for n in zipfile.ZipFile(io.BytesIO(z.content)).namelist())
     assert restarted.get(f"/api/sessions/{sid}/releases/..%2Fplan").status_code in {400, 404}  # no path tricks
     assert restarted.get(f"/api/sessions/{sid}/releases/nope").status_code == 400
+
+
+def test_tables_can_be_added_and_removed_until_the_dataset_is_released(client: TestClient, sid: str) -> None:
+    _ok(client.post(f"/api/sessions/{sid}/scan"))
+    extra = [("files", ("notes.csv", b"note_id,visit_id,text\nN1,V001,hello\n", "text/csv"))]
+    added = _ok(client.post(f"/api/sessions/{sid}/tables", files=extra))
+    assert sorted(t["name"] for t in added["tables"]) == ["labs", "notes", "visits"]
+    assert not added["steps"]["scanned"]  # new data needs a new scan
+    removed = _ok(client.delete(f"/api/sessions/{sid}/tables/notes"))
+    assert sorted(t["name"] for t in removed["tables"]) == ["labs", "visits"]
+    assert client.delete(f"/api/sessions/{sid}/tables/..%2Fvisits").status_code >= 400  # no path tricks
+    assert client.delete(f"/api/sessions/{sid}/tables/missing").status_code == 400
+    assert "visits" in [t["name"] for t in _ok(client.get(f"/api/sessions/{sid}"))["tables"]]
+
+    _ok(client.post(f"/api/sessions/{sid}/scan"))
+    _ok(client.post(f"/api/sessions/{sid}/plan", json={"custom": RECEIVER}))
+    _ok(client.post(f"/api/sessions/{sid}/approve", json={"by": "Test Steward", "confirm_review": True}))
+    _ok(client.post(f"/api/sessions/{sid}/run", json={"receiver": "uni"}))
+    frozen = client.post(f"/api/sessions/{sid}/tables", files=extra)
+    assert frozen.status_code == 400
+    assert "duplicate" in frozen.json()["error"]
+    assert client.delete(f"/api/sessions/{sid}").status_code == 400  # a released dataset stays as the record
+
+    copy = _ok(client.post(f"/api/sessions/{sid}/duplicate", json={"name": "clinic v2"}))
+    assert copy["name"] == "clinic_v2"
+    assert not copy["released"]
+    assert sorted(t["name"] for t in copy["tables"]) == ["labs", "visits"]
+    assert _ok(client.post(f"/api/sessions/{copy['id']}/scan"))["detections"]  # corrections came along; scan works
+    _ok(client.post(f"/api/sessions/{copy['id']}/rename", json={"name": "clinic final"}))
+    assert _ok(client.delete(f"/api/sessions/{copy['id']}")) == {"deleted": copy["id"]}
+    assert [x["id"] for x in _ok(client.get("/api/sessions"))] == [sid]
+
+
+def test_plan_versions_can_be_compared_restored_and_released(client: TestClient, sid: str) -> None:
+    _ok(client.post(f"/api/sessions/{sid}/scan"))
+    _ok(client.post(f"/api/sessions/{sid}/plan", json={"custom": RECEIVER}))
+    _ok(client.post(f"/api/sessions/{sid}/approve", json={"by": "Test Steward", "confirm_review": True}))
+    _ok(
+        client.post(
+            f"/api/sessions/{sid}/plan/action", json={"table": "visits", "column": "municipality", "technique": "drop"}
+        )
+    )
+    versions = _ok(client.get(f"/api/sessions/{sid}/plan/versions"))
+    assert [v["note"] for v in versions["versions"]] == [
+        "New plan for University",
+        "Approved by Test Steward",
+        "visits.municipality: shared as is → removed",
+    ]
+    assert versions["current"] == 3
+    diff = _ok(client.get(f"/api/sessions/{sid}/plan/compare", params={"a": 2, "b": 3}))
+    assert {"what": "visits.municipality", "before": "shared as is", "after": "removed"} in diff["changes"]
+    assert "municipality" in diff["yaml_a"]
+    assert (
+        "approved_by: Test Steward" in _ok(client.get(f"/api/sessions/{sid}/plan/yaml", params={"version": 2}))["yaml"]
+    )
+
+    restored = _ok(client.post(f"/api/sessions/{sid}/plan/versions/2/restore"))
+    assert restored["plan"]["approved"]  # the approved version stays approved: release straight away
+    release = _ok(client.post(f"/api/sessions/{sid}/run", json={"receiver": "uni"}))
+    assert release["summary"]["plan_version"] == 4
+    listed = _ok(client.get(f"/api/sessions/{sid}/plan/versions"))["versions"]
+    assert listed[-1]["note"] == "Back to version 2"
+    assert listed[-1]["released_as"] == release["release_id"]

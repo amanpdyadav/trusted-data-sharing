@@ -77,6 +77,14 @@ make web
 
 Open http://127.0.0.1:8765. It listens on this computer only; files stay in a local folder.
 
+The app is a React + TypeScript front end in `frontend/`, built into `src/pets_transformer/web/static/` (the build is
+committed, so `make web` works without Node). After changing anything in `frontend/`, rebuild it (Node 18+):
+
+```bash
+make ui                         # npm ci + type check + build into the package
+make ui-dev                     # live reload at http://localhost:5173 while `make web` runs
+```
+
 | Step (sidebar) | What happens | What you get |
 |---|---|---|
 | 1. Data | Upload CSV files or a ZIP, or open an example dataset | A local working copy |
@@ -277,6 +285,7 @@ Never commit: `.env`, `out/` (releases and private row maps), `challenge/` or th
 | `make baseline` says quickstart output missing | Run the pack's `examples/quickstart.py` (see [0](#0-set-up-once)) |
 | Mosaic attack or Release audit says "no data yet" | Run `python -m evaluation screens …` ([4](#4-presentation-screens)) |
 | `FileNotFoundError` for an old data path | A server started before the data moved is still running: stop it and start it again |
+| The web app shows old screens after a `git pull` | Restart `make web` (the Python side changed) and reload the page; if `frontend/` changed, run `make ui` |
 | `make web`: port 8765 in use | The app is already running: open http://127.0.0.1:8765, or stop it, or `pets-transformer web --port 8766` |
 | `validate` is slow | The sweep replays 1,050 scraps (about a minute); that is expected |
 | `pets-eval check` reports about 22 PHONE and 1 PAYMENT_CARD hits in the HEALTH-S1 release | False positives: they are our 16-character keyed pseudonyms (`visit_id`, `patient_pseudonym`) that happen to be all digits, e.g. `3602078199529040`, and match the scanner's number patterns. No real phone or card number is released. Suggested fix: give pseudonyms a letter prefix (`v…`, `pt…`) in `transform/pseudonymise.py` |

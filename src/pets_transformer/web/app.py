@@ -4,6 +4,7 @@ Run with `pets-transformer web`. It listens on 127.0.0.1 only: the data never le
 """
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -16,7 +17,7 @@ from pets_transformer.config import Settings
 from pets_transformer.contracts import PrivacyRole, Subtype, TrustLevel
 from pets_transformer.keys import MissingKeyError
 from pets_transformer.web.service import ActionEdit, App, Override
-from pets_transformer.web.workspace import Workspace, WorkspaceError
+from pets_transformer.web.workspace import Session, Workspace, WorkspaceError
 
 STATIC = Path(__file__).with_name("static")
 
@@ -31,6 +32,10 @@ class OverrideRequest(BaseModel):
     privacy_role: str
     subtype: str
     by: str = ""
+
+
+class NameRequest(BaseModel):
+    name: str = ""
 
 
 class SeedRequest(BaseModel):
@@ -70,6 +75,52 @@ def _attachment(filename: str) -> dict[str, str]:
     return {"Content-Disposition": f'attachment; filename="{filename}"'}
 
 
+def _dataset_routes(api: FastAPI, svc: App, session: Callable[[str], Session]) -> None:
+    """Managing a dataset: add or remove tables (until it is released), duplicate, rename, delete."""
+
+    @api.post("/api/sessions/{sid}/tables")
+    async def add_tables(sid: str, files: Annotated[list[UploadFile], File()]) -> dict[str, Any]:
+        s = session(sid)
+        svc.workspace.add_tables(s, [(f.filename or "table.csv", await f.read()) for f in files])
+        return svc.overview(s)
+
+    @api.delete("/api/sessions/{sid}/tables/{table}")
+    def remove_table(sid: str, table: str) -> dict[str, Any]:
+        s = session(sid)
+        svc.workspace.remove_table(s, table)
+        return svc.overview(s)
+
+    @api.post("/api/sessions/{sid}/duplicate")
+    def duplicate(sid: str, req: NameRequest) -> dict[str, Any]:
+        return svc.overview(svc.workspace.duplicate(session(sid), req.name))
+
+    @api.post("/api/sessions/{sid}/rename")
+    def rename(sid: str, req: NameRequest) -> dict[str, Any]:
+        s = session(sid)
+        svc.workspace.rename(s, req.name)
+        return svc.overview(s)
+
+    @api.delete("/api/sessions/{sid}")
+    def delete(sid: str) -> dict[str, str]:
+        svc.workspace.delete(session(sid))
+        return {"deleted": sid}
+
+
+def _screen_routes(api: FastAPI) -> None:
+    """The presentation screens' data (Mosaic attack, Release audit), written by `python -m evaluation screens`."""
+
+    @api.get("/api/screens/{name}")
+    def screen(name: str) -> dict[str, Any]:
+        """Data for the presentation screens, written by `python -m evaluation screens` (results/screens/)."""
+        if name not in ("mosaic", "audit"):
+            raise HTTPException(404, f"no screen called {name}")
+        path = Path("results") / "screens" / f"{name}.json"
+        if not path.exists():
+            raise HTTPException(404, f"{path} not found: run `python -m evaluation screens`")
+        data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+        return data
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
     svc = App(settings, Workspace(settings.out_dir / "web"))
@@ -87,7 +138,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def _bad_value(_: Request, exc: ValueError) -> JSONResponse:
         return JSONResponse({"error": str(exc)}, status_code=400)
 
-    def session(sid: str) -> Any:
+    def session(sid: str) -> Session:
         return svc.workspace.get(sid)
 
     @api.get("/api/catalogue")
@@ -113,6 +164,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         contents = [(f.filename or "table.csv", await f.read()) for f in files]
         return svc.overview(svc.workspace.from_uploads(name, contents))
 
+    _dataset_routes(api, svc, session)
+
     @api.get("/api/sessions/{sid}")
     def overview(sid: str) -> dict[str, Any]:
         return svc.overview(session(sid))
@@ -136,6 +189,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @api.get("/api/sessions/{sid}/plan")
     def plan_view(sid: str) -> dict[str, Any]:
         return svc.plan_view(session(sid))
+
+    @api.get("/api/sessions/{sid}/plan/example")
+    def plan_example(sid: str) -> dict[str, Any]:
+        return svc.plan_example(session(sid))
+
+    @api.get("/api/sessions/{sid}/plan/versions")
+    def plan_versions(sid: str) -> dict[str, Any]:
+        return svc.plan_versions(session(sid))
+
+    @api.get("/api/sessions/{sid}/plan/yaml")
+    def plan_yaml_text(sid: str, version: int | None = None) -> dict[str, str]:
+        return {"yaml": svc.plan_yaml_at(session(sid), version)}
+
+    @api.get("/api/sessions/{sid}/plan/compare")
+    def compare_plans(sid: str, a: int, b: int) -> dict[str, Any]:
+        return svc.compare_plans(session(sid), a, b)
+
+    @api.post("/api/sessions/{sid}/plan/versions/{version}/restore")
+    def restore_plan(sid: str, version: int) -> dict[str, Any]:
+        return svc.restore_plan(session(sid), version)
 
     @api.post("/api/sessions/{sid}/plan/action")
     def edit_action(sid: str, req: ActionRequest) -> dict[str, Any]:
@@ -194,16 +267,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         body = svc.detection_json(session(sid))
         return PlainTextResponse(body, media_type="application/json", headers=_attachment("detection.json"))
 
-    @api.get("/api/screens/{name}")
-    def screen(name: str) -> dict[str, Any]:
-        """Data for the presentation screens, written by `python -m evaluation screens` (results/screens/)."""
-        if name not in ("mosaic", "audit"):
-            raise HTTPException(404, f"no screen called {name}")
-        path = Path("results") / "screens" / f"{name}.json"
-        if not path.exists():
-            raise HTTPException(404, f"{path} not found: run `python -m evaluation screens`")
-        data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
-        return data
+    _screen_routes(api)
 
     @api.get("/api/{rest:path}")
     def unknown(rest: str) -> None:
