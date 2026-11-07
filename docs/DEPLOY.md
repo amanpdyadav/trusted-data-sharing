@@ -86,8 +86,13 @@ The archive contains row maps and raw uploads: treat it as sensitive data.
   `https://$APP_DOMAIN` can upload data and download releases. The container publishes no port, so Traefik is the
   only way in. To restrict access, add a Traefik middleware (`basicauth`, `forwardauth` or `ipallowlist`) to the
   router's `middlewares` label.
-- **Local AI is off.** `PETS_LLM_URL` must be a localhost address by design, so Ollama in another container cannot be
-  used. Everything works on rules alone.
+- **AI column naming (optional).** Set `PETS_LLM_ENABLED=true` and `PETS_LLM_URL` in `.env`. Ollama URLs work as
+  they are; a URL ending in `/v1` is treated as an OpenAI-style server (LiteLLM, vLLM), with `PETS_LLM_API_KEY` sent as
+  a Bearer token if set. Any host other than localhost must also be listed in `PETS_LLM_ALLOWED_HOSTS`, because sample
+  values of the unnamed columns are sent to it. The container must be able to resolve and reach that host: a Tailscale
+  `*.ts.net` name may not resolve inside Docker, so use the machine's `100.x` Tailscale IP in both settings if needed.
+  Check with `docker compose exec app python -c "import urllib.request as u; print(u.urlopen('<PETS_LLM_URL>/models').status)"`.
+  Everything works on rules alone with it off.
 - **One worker.** Sessions are folders on disk; one uvicorn process keeps writes ordered. Uploads are capped at
   500 MB by the app.
 - **Logs:** `docker compose logs -f app`.

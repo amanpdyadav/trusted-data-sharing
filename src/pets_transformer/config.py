@@ -17,6 +17,9 @@ class LlmSettings:
     model: str = "qwen2.5:7b"
     timeout_s: float = 60.0
     cache_dir: Path | None = None
+    api: str = "ollama"  # "ollama" (/api/generate) or "openai" (/chat/completions: LiteLLM, vLLM, llama.cpp...)
+    api_key: str = ""  # sent as a Bearer token when set (e.g. a LiteLLM key)
+    allowed_hosts: tuple[str, ...] = ()  # hosts besides localhost the AI may run on; empty = this machine only
 
 
 @dataclass(frozen=True)
@@ -37,6 +40,8 @@ class Settings:
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
         e = os.environ if env is None else env
         out_dir = Path(e.get("PETS_OUT_DIR", str(cls.out_dir)))
+        llm_url = e.get("PETS_LLM_URL", LlmSettings.url)
+        llm_api = e.get("PETS_LLM_API", "").strip().lower() or _guess_api(llm_url)
         scenario_dirs = tuple(Path(p) for p in e.get("PETS_SCENARIO_DIRS", "scenarios").split(os.pathsep) if p)
         return cls(
             package_root=Path(e.get("PETS_PACKAGE_ROOT", str(cls.package_root))),
@@ -46,9 +51,17 @@ class Settings:
             results_dir=Path(e.get("PETS_RESULTS_DIR", str(cls.results_dir))),
             llm=LlmSettings(
                 enabled=e.get("PETS_LLM_ENABLED", "false").strip().lower() in _TRUE,
-                url=e.get("PETS_LLM_URL", LlmSettings.url),
+                url=llm_url,
                 model=e.get("PETS_LLM_MODEL", LlmSettings.model),
                 timeout_s=float(e.get("PETS_LLM_TIMEOUT_S", LlmSettings.timeout_s)),
                 cache_dir=out_dir / ".cache" / "llm",
+                api=llm_api,
+                api_key=e.get("PETS_LLM_API_KEY", ""),
+                allowed_hosts=tuple(h.strip() for h in e.get("PETS_LLM_ALLOWED_HOSTS", "").split(",") if h.strip()),
             ),
         )
+
+
+def _guess_api(url: str) -> str:
+    """An OpenAI-style server is usually addressed by its /v1 base; anything else is taken to be Ollama."""
+    return "openai" if url.rstrip("/").endswith("/v1") else "ollama"

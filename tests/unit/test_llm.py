@@ -1,4 +1,5 @@
 import json
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -15,8 +16,12 @@ class FakeTransport:
         self.response = response
         self.calls: list[dict[str, Any]] = []
 
-    def post_json(self, url: str, payload: dict[str, Any], timeout_s: float) -> dict[str, Any]:
-        self.calls.append({"url": url, "payload": payload, "timeout_s": timeout_s})
+    def post_json(
+        self, url: str, payload: dict[str, Any], timeout_s: float, headers: Mapping[str, str] | None = None
+    ) -> dict[str, Any]:
+        self.calls.append({"url": url, "payload": payload, "timeout_s": timeout_s, "headers": dict(headers or {})})
+        if url.endswith("/chat/completions"):
+            return {"choices": [{"message": {"content": self.response}}]}
         return {"response": self.response}
 
 
@@ -63,6 +68,41 @@ def test_bad_answer_becomes_unavailable_error(bad: Any) -> None:
     llm = LocalLlm(LlmSettings(enabled=True), transport=FakeTransport(bad))
     with pytest.raises(LlmUnavailableError):
         llm.ask_json("p", SCHEMA)
+
+
+def test_a_named_host_is_allowed_and_others_still_refused() -> None:
+    LocalLlm(
+        LlmSettings(enabled=True, url="http://aipc.example.ts.net:4000/v1", allowed_hosts=("aipc.example.ts.net",))
+    )
+    with pytest.raises(ValueError, match="PETS_LLM_ALLOWED_HOSTS"):
+        LocalLlm(LlmSettings(enabled=True, url="http://other.example:4000/v1", allowed_hosts=("aipc.example.ts.net",)))
+
+
+def test_openai_api_detected_from_v1_url_and_settings_from_env() -> None:
+    llm = Settings.from_env({
+        "PETS_LLM_URL": "http://h:4000/v1", "PETS_LLM_API_KEY": "k", "PETS_LLM_ALLOWED_HOSTS": "h, other",
+    }).llm  # fmt: skip
+    assert (llm.api, llm.api_key, llm.allowed_hosts) == ("openai", "k", ("h", "other"))
+    assert Settings.from_env({}).llm.api == "ollama"
+    assert Settings.from_env({"PETS_LLM_URL": "http://h/v1", "PETS_LLM_API": "ollama"}).llm.api == "ollama"
+
+
+def test_openai_request_sends_schema_key_and_reads_the_message() -> None:
+    t = FakeTransport('```json\n{"ok": true}\n```')
+    settings = LlmSettings(enabled=True, url="http://localhost:4000/v1", model="m", api="openai", api_key="secret")
+    assert LocalLlm(settings, transport=t).ask_json("p", SCHEMA) == {"ok": True}
+    sent = t.calls[0]
+    assert sent["url"] == "http://localhost:4000/v1/chat/completions"
+    assert sent["headers"] == {"Authorization": "Bearer secret"}
+    assert sent["payload"]["temperature"] == 0
+    assert sent["payload"]["response_format"]["json_schema"]["schema"] == SCHEMA
+    assert sent["payload"]["messages"][-1] == {"role": "user", "content": "p"}
+
+
+def test_no_key_no_auth_header() -> None:
+    t = FakeTransport(json.dumps({"ok": True}))
+    LocalLlm(LlmSettings(enabled=True), transport=t).ask_json("p", SCHEMA)
+    assert t.calls[0]["headers"] == {}
 
 
 @pytest.mark.ollama

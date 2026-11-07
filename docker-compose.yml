@@ -20,8 +20,15 @@ services:
       PETS_PACKAGE_ROOT: /data/package
       PETS_SCENARIO_DIRS: /app/scenarios
       PETS_CODELIST_DIR: /app/codelists
-      # the local AI must be on localhost, which is not reachable from here; keep it off on the server
-      PETS_LLM_ENABLED: "false"
+      # optional AI for naming unnamed columns. Off unless PETS_LLM_ENABLED=true in .env.
+      # A host other than localhost must also be listed in PETS_LLM_ALLOWED_HOSTS (column samples are sent to it).
+      PETS_LLM_ENABLED: ${PETS_LLM_ENABLED:-false}
+      PETS_LLM_URL: ${PETS_LLM_URL:-http://localhost:11434}
+      PETS_LLM_API: ${PETS_LLM_API:-}
+      PETS_LLM_API_KEY: ${PETS_LLM_API_KEY:-}
+      PETS_LLM_MODEL: ${PETS_LLM_MODEL:-qwen2.5:7b}
+      PETS_LLM_TIMEOUT_S: ${PETS_LLM_TIMEOUT_S:-60}
+      PETS_LLM_ALLOWED_HOSTS: ${PETS_LLM_ALLOWED_HOSTS:-}
     volumes:
       # sessions, uploads, releases, private row maps, epsilon ledger: the state that must survive redeploys
       - pets_out:/app/out
