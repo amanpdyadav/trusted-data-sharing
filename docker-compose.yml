@@ -1,0 +1,67 @@
+# PETs Transformer on a VPS, behind an existing Traefik (run separately, on the external `traefik` network).
+# Set the variables in .env next to this file (see .env.docker.example), then: docker compose up -d --build
+# Full steps: docs/DEPLOY.md
+
+name: pets-transformer
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pets-transformer:latest
+    container_name: pets-transformer
+    restart: unless-stopped
+    environment:
+      # master secret for keyed pseudonyms (32+ chars). Losing it means old pseudonyms can no longer be reproduced.
+      PETS_MASTER_KEY: ${PETS_MASTER_KEY:?set PETS_MASTER_KEY in .env (32+ random chars)}
+      PETS_OUT_DIR: /app/out
+      PETS_RESULTS_DIR: /app/results
+      PETS_PACKAGE_ROOT: /data/package
+      PETS_SCENARIO_DIRS: /app/scenarios
+      PETS_CODELIST_DIR: /app/codelists
+      # the local AI must be on localhost, which is not reachable from here; keep it off on the server
+      PETS_LLM_ENABLED: "false"
+    volumes:
+      # sessions, uploads, releases, private row maps, epsilon ledger: the state that must survive redeploys
+      - pets_out:/app/out
+      # evaluation results and presentation screen data (seeded from the image on first start)
+      - pets_results:/app/results
+      # the TrustED data package (sample datasets), read-only; optional
+      - ${PETS_PACKAGE_HOST_DIR:-./TRUSTED_PETS_PROVING_GROUND_2026}:/data/package:ro
+    # no `ports:` on purpose: only Traefik reaches the app
+    networks:
+      - traefik
+    read_only: true
+    tmpfs:
+      - /tmp:size=1g
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik
+      - traefik.http.routers.pets.rule=Host(`${APP_DOMAIN:?set APP_DOMAIN in .env}`)
+      - traefik.http.routers.pets.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}
+      - traefik.http.routers.pets.tls=true
+      - traefik.http.routers.pets.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}
+      - traefik.http.routers.pets.middlewares=pets-auth,pets-headers
+      - traefik.http.services.pets.loadbalancer.server.port=8765
+      # the app has no login of its own and handles sensitive data: guard it with basic auth (htpasswd format)
+      - traefik.http.middlewares.pets-auth.basicauth.users=${BASIC_AUTH_USERS:?set BASIC_AUTH_USERS in .env (htpasswd -nbB user pass)}
+      - traefik.http.middlewares.pets-auth.basicauth.realm=PETs Transformer
+      - traefik.http.middlewares.pets-headers.headers.stsSeconds=31536000
+      - traefik.http.middlewares.pets-headers.headers.stsIncludeSubdomains=true
+      - traefik.http.middlewares.pets-headers.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.pets-headers.headers.frameDeny=true
+      - traefik.http.middlewares.pets-headers.headers.referrerPolicy=no-referrer
+      - traefik.http.middlewares.pets-headers.headers.customResponseHeaders.X-Robots-Tag=noindex, nofollow
+
+volumes:
+  pets_out:
+  pets_results:
+
+networks:
+  traefik:
+    external: true

@@ -1,0 +1,47 @@
+# Keep the build context small and keep data and secrets out of the image.
+.git
+.gitignore
+.claude
+.venv
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+dist
+build
+*.egg-info
+
+# secrets
+.env
+.env.*
+!.env.example
+*.key
+
+# data and outputs (mounted as volumes, never baked in)
+TRUSTED_PETS_PROVING_GROUND_2026
+challenge
+out
+.cache
+rowmap_*.csv
+results/runs
+results/screens
+*.zip
+*.mp4
+*.pdf
+*.docx
+
+# not needed at runtime
+frontend/node_modules
+frontend/*.tsbuildinfo
+presentation
+demo
+docs
+tests
+evaluation
+examples
+pets_submission
+graphify-out
+.DS_Store
