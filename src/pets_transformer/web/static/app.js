@@ -296,14 +296,20 @@ function personCard(person) {
   const tables = Object.keys(person || {});
   if (!tables.length) return `<p class="small">No person key found, so records cannot be gathered per person.</p>`;
   return `<p class="small">One person picked the way an attacker would: someone with several records. Everything below is linked through the keys on the map. Red identifies, amber is what an outsider may already know, blue is sensitive.</p>
-    ${tables.map(t => `<div class="head"><span class="eyebrow">${esc(t)} · ${plural(person[t].length, "record")}</span>
-      ${person[t].map(r => `<div class="record">${Object.entries(r).map(([k, v]) => `<span class="c-${roleOf(t, k)}"><b>${esc(k)}</b>${esc(shown(t, k, String(v).slice(0, 160)))}</span>`).join("")}</div>`).join("")}</div>`).join("")}`;
+    ${tables.map((t, ti) => acc(`pf:${t}`, `<b class="mono">${esc(t)}</b>`, `<span class="small">${plural(person[t].length, "record")}</span>`,
+      person[t].map(r => `<div class="record">${Object.entries(r).map(([k, v]) => `<span class="c-${roleOf(t, k)}"><b>${esc(k)}</b>${esc(shown(t, k, String(v).slice(0, 160)))}</span>`).join("")}</div>`).join(""), ti === 0)).join("")}`;
 }
 function detectionTable(det) {
-  return `<div class="tablewrap"><table><thead><tr><th>Column</th><th>What it is</th><th>Type</th><th>Confidence</th><th></th></tr></thead><tbody>${det.map((c, i) => `<tr class="clickable" data-col="${i}">
-    <td class="col">${esc(c.table)}.${esc(c.column)}</td><td class="c-${c.privacy_role}">${ROLE_LABEL[c.privacy_role] || c.privacy_role}${c.evidence.some(e => e.kind === "manual") ? ` <span class="tag ok">corrected</span>` : ""}</td>
-    <td class="mono small">${esc(c.subtype)}</td><td><div class="meter safe" style="width:80px"><b style="width:${100 * c.confidence}%"></b></div></td>
-    <td><button class="btn small" data-col="${i}">Details</button></td></tr>`).join("")}</tbody></table></div>`;
+  const tables = [...new Set(det.map(c => c.table))];
+  return `${tables.length > 1 ? `<div class="spread"><span></span>${accTools(tables.map(t => "dc:" + t))}</div>` : ""}` + tables.map((t, ti) => {
+    const cols = det.map((c, i) => [c, i]).filter(([c]) => c.table === t);
+    const ident = cols.filter(([c]) => c.privacy_role === "direct_identifier").length, qi = cols.filter(([c]) => c.privacy_role === "quasi_identifier").length;
+    return acc(`dc:${t}`, `<b class="mono">${esc(t)}</b>`, `<span class="small">${plural(cols.length, "column")}${ident ? ` · <span class="c-direct_identifier">${ident} identify a person</span>` : ""}${qi ? ` · <span class="c-quasi_identifier">${qi} outsider may know</span>` : ""}</span>`,
+      `<div class="tablewrap"><table><thead><tr><th>Column</th><th>What it is</th><th>Type</th><th>How sure</th><th></th></tr></thead><tbody>${cols.map(([c, i]) => `<tr class="clickable" data-col="${i}">
+      <td class="col">${esc(c.column)}</td><td class="c-${c.privacy_role}">${ROLE_LABEL[c.privacy_role] || c.privacy_role}${c.evidence.some(e => e.kind === "manual") ? ` <span class="tag ok">corrected</span>` : ""}</td>
+      <td class="mono small">${esc(c.subtype)}</td><td><div class="meter safe" style="width:80px"><b style="width:${100 * c.confidence}%"></b></div></td>
+      <td><button class="btn small" data-col="${i}">Details</button></td></tr>`).join("")}</tbody></table></div>`, ti === 0);
+  }).join("");
 }
 
 /* ---------------------------------------------------------------- 3 receiver & plan */
@@ -325,6 +331,12 @@ const LANES = [
 const LANE_SHOWN = 6;  // chips per lane before "+N more"
 const laneOf = technique => LANES.find(l => l[0] === technique) || LANES[0];
 const RECEIVER_ICON = { public: "🌍", controlled_research: "🎓", contractual: "🤝", internal: "🏢" };
+/* a collapsible section that remembers whether the user opened or closed it */
+function acc(key, title, right, body, open = false, cls = "") {
+  const isOpen = S.accOpen?.[key] ?? open;
+  return `<details class="acc ${cls}" data-acc="${esc(key)}" ${isOpen ? "open" : ""}><summary><span class="acc-title">${title}</span><span class="acc-right">${right}</span></summary><div class="acc-body">${body}</div></details>`;
+}
+const accTools = keys => `<span class="small"><button class="linkbtn" data-acc-all="${esc(keys.join("|"))}">Expand all</button> · <button class="linkbtn" data-acc-none="${esc(keys.join("|"))}">Collapse all</button></span>`;
 function guide(steps, done) {
   const cur = steps.findIndex((_, i) => !done[i]);
   return `<ol class="guide">${steps.map((t, i) => `<li class="${done[i] ? "done" : i === cur ? "now" : ""}"><span>${done[i] ? "✓" : i + 1}</span>${t}</li>`).join("")}</ol>`;
@@ -353,15 +365,17 @@ function board(P) {
   return `<div class="panel"><div class="spread"><div><span class="eyebrow">What ${esc(S.plan.scenario?.recipient || P.scenario_id)} will receive</span><h2>How each column is shared</h2></div>
       <div class="legend">${LANES.map(l => `<span>${l[1]} ${l[2]}</span>`).join("")}</div></div>
     ${S.plan.reviews.length ? `<div class="callout warn">⚠ <b>${plural(S.plan.reviews.length, "column")} need${S.plan.reviews.length === 1 ? "s" : ""} a person's decision</b>: click ${S.plan.reviews.length === 1 ? "it" : "them"} below and choose.</div>` : ""}
-    ${planTables(P).map(t => {
+    ${planTables(P).length > 1 ? `<div class="spread"><span></span>${accTools(planTables(P).map(t => "pb:" + t))}</div>` : ""}
+    ${planTables(P).map((t, ti) => {
       const acts = P.actions.filter(a => a.table === t), shared = acts.filter(a => a.technique !== "drop").length;
-      return `<div class="btable"><div class="spread"><h3 class="mono">${esc(t)}</h3><span class="small">${shared} of ${acts.length} columns shared</span></div>
+      const flagged = acts.some(a => reviews.has(`${a.table}.${a.column}`));
+      return acc(`pb:${t}`, `<b class="mono">${esc(t)}</b>${flagged ? ` <span class="tag warn">⚠ needs a decision</span>` : ""}`, `<span class="small">${shared} of ${acts.length} columns shared</span>`, `
         <div class="lanes">${LANES.map(([tech, icon, name]) => {
           const inLane = acts.filter(a => a.technique === tech);
           return `<div class="lane l-${tech}"><div class="lhead"><span>${icon}</span>${name}<b>${inLane.length}</b></div>
             ${(S.openLanes?.[t + tech] ? inLane : inLane.slice(0, LANE_SHOWN)).map(a => `<button class="chip ${reviews.has(`${a.table}.${a.column}`) ? "review" : ""}" data-change="${esc(a.table)}|${esc(a.column)}" title="${esc(a.reason)}">${reviews.has(`${a.table}.${a.column}`) ? "⚠ " : ""}${esc(a.column)}</button>`).join("") || `<span class="small">none</span>`}
             ${inLane.length > LANE_SHOWN && !S.openLanes?.[t + tech] ? `<button class="chip more" data-lane="${esc(t + tech)}">+${inLane.length - LANE_SHOWN} more</button>` : ""}</div>`;
-        }).join("")}</div></div>`;
+        }).join("")}</div>`, ti < 3 || flagged, "btable");
     }).join("")}
     ${S.plan.withheld_tables.length ? `<p class="small">Not shared at all: ${esc(S.plan.withheld_tables.join(", "))}.</p>` : ""}
     <p class="small">Click any column to see why, and to change how it is shared.</p></div>`;
@@ -542,9 +556,10 @@ function leavesStays(P, recipient) {
         <div class="pills">${[["all", "All"], ["shared", "Shared"], ["stays", "Not shared"]].map(([k, l]) => `<button data-apkind="${k}" aria-pressed="${kind === k}">${l}</button>`).join("")}</div>
         <div class="row small"><button class="linkbtn" data-apall>Select all</button>·<button class="linkbtn" data-apnone>None</button></div>
         <div class="tlist-items">${visible.map(x => `<label class="titem ${x.kind}"><input type="checkbox" data-apsel="${esc(x.t)}" ${sel.has(x.t) ? "checked" : ""}><span class="mono">${esc(x.t)}</span>${badge(x)}</label>`).join("") || `<p class="small">No table matches.</p>`}</div></div>
-      <div class="fields">${shown.length ? shown.map(x => `<div class="panel fcard ${x.kind}"><div class="spread"><h3 class="mono">${esc(x.t)}</h3>${badge(x)}</div>
-          ${x.kind === "stays" ? `<p class="small">This table is not shared. All ${plural(x.fields.length, "field")} stay here:</p><div class="row">${x.fields.map(f => `<span class="tag">${esc(f.c)}</span>`).join("")}</div>`
-            : `<div class="frows">${x.fields.map(f => `<div class="frow f-${f.cls}" title="${esc(f.why)}"><span class="mono">${esc(f.c)}</span><span class="fate">${f.icon} ${esc(f.fate)}</span></div>`).join("")}</div>`}</div>`).join("")
+      <div class="fields">${shown.length ? `<div class="spread"><span class="small">${plural(shown.length, "table")} shown</span>${accTools(shown.map(x => "ap:" + x.t))}</div>` + shown.map(x => acc(`ap:${x.t}`, `<b class="mono">${esc(x.t)}</b>`, badge(x),
+          x.kind === "stays" ? `<p class="small">This table is not shared. All ${plural(x.fields.length, "field")} stay here:</p><div class="row">${x.fields.map(f => `<span class="tag">${esc(f.c)}</span>`).join("")}</div>`
+            : `<div class="frows">${x.fields.map(f => `<div class="frow f-${f.cls}" title="${esc(f.why)}"><span class="mono">${esc(f.c)}</span><span class="fate">${f.icon} ${esc(f.fate)}</span></div>`).join("")}</div>`,
+          x.kind !== "stays", `fcard ${x.kind}`)).join("")
         : `<div class="panel"><p class="small">Select one or more tables on the left to see their fields.</p></div>`}</div>
     </div>`;
 }
@@ -640,11 +655,11 @@ function columnsTab(R) {
   if (!R.tables.length) return `<p class="small">No rows are released.</p>`;
   return R.tables.map(t => {
     const ch = t.changes, blanked = t.suppression ? Object.values(t.suppression.cells_blanked).reduce((s, x) => s + x, 0) : 0;
-    return `<div class="spread"><h3 class="mono">${esc(t.name)}: ${fmt(t.rows_in)} rows in, ${fmt(t.rows_out)} out</h3>${t.suppression ? `<span class="small">${fmt(t.suppression.rows_removed)} rows removed, ${fmt(blanked)} values blanked to reach k</span>` : ""}</div>
+    return acc(`cc:${t.name}`, `<b class="mono">${esc(t.name)}</b> <span class="small">${fmt(t.rows_in)} rows in, ${fmt(t.rows_out)} out</span>`, t.suppression ? `<span class="small">${fmt(t.suppression.rows_removed)} rows removed, ${fmt(blanked)} values blanked for k</span>` : "", `
     <div class="tablewrap"><table><thead><tr><th>Column</th><th>Protection</th><th>Values</th><th>Distinct</th><th>Released values</th></tr></thead><tbody>${ch.map(c => `<tr>
       <td class="col">${esc(c.column)}${c.released_as && c.released_as !== c.column ? ` → ${esc(c.released_as)}` : ""}</td><td><span class="tech ${c.technique}">${esc(c.technique)}</span></td>
       <td class="num">${fmt(c.filled_before)} → ${fmt(c.filled_after)}</td><td class="num">${fmt(c.distinct_before)} → ${fmt(c.distinct_after)}</td>
-      <td>${c.top_after.slice(0, 5).map(([v, s]) => `<div class="hbar"><span class="mono">${esc(v)}</span><div class="meter safe"><b style="width:${100 * s}%"></b></div><span>${pct(s)}</span></div>`).join("")}</td></tr>`).join("")}</tbody></table></div>`;
+      <td>${c.top_after.slice(0, 5).map(([v, s]) => `<div class="hbar"><span class="mono">${esc(v)}</span><div class="meter safe"><b style="width:${100 * s}%"></b></div><span>${pct(s)}</span></div>`).join("")}</td></tr>`).join("")}</tbody></table></div>`, R.tables.indexOf(t) === 0);
   }).join("");
 }
 function bucketBar(b) {
@@ -796,6 +811,11 @@ function wire() {
   page.querySelectorAll("[data-scan]").forEach(b => (b.onclick = runScan));
   page.querySelectorAll("[data-pick-files]").forEach(b => (b.onclick = () => $("#files")?.click()));
   page.querySelectorAll("[data-close]").forEach(b => (b.onclick = closeModal));
+  page.querySelectorAll("details[data-acc]").forEach(d => d.addEventListener("toggle", () => { S.accOpen = { ...S.accOpen, [d.dataset.acc]: d.open }; }));
+  page.querySelectorAll("[data-acc-all], [data-acc-none]").forEach(b => (b.onclick = () => {
+    const open = "accAll" in b.dataset, keys = (b.dataset.accAll || b.dataset.accNone).split("|");
+    S.accOpen = { ...S.accOpen, ...Object.fromEntries(keys.map(k => [k, open])) }; render();
+  }));
   page.querySelectorAll("[data-new]").forEach(b => (b.onclick = newDataset));
   page.querySelectorAll("[data-modal-for]").forEach(b => (b.onclick = () => { const [kind, id] = b.dataset.modalFor.split("|"); openModal(kind, { id }); }));
   page.querySelectorAll("[data-confirm]").forEach(b => (b.onclick = () => { const run = S.modal.run; act("confirm", async () => { await run(); S.modal = null; }); }));

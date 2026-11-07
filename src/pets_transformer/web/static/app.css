@@ -544,3 +544,21 @@ table.example tr.t-keep td.after { color: var(--muted); font-weight: 500; }
 .frow.f-drop { opacity: .75; } .frow.f-drop .mono { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--risk) 55%, transparent); }
 .frow.f-drop .fate { color: var(--risk); }
 .frow.f-stays .fate { color: var(--muted); font-weight: 500; }
+
+/* ---------------------------------------------------------------- accordions */
+details.acc { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); min-width: 0; }
+details.acc + details.acc { margin-top: 10px; }
+details.acc > summary { list-style: none; cursor: pointer; display: flex; gap: 10px 14px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 14px 16px; border-radius: 14px; }
+details.acc > summary::-webkit-details-marker { display: none; }
+details.acc > summary:hover { background: var(--sunk); }
+details.acc > summary .acc-title { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; min-width: 0; }
+details.acc > summary .acc-title::before { content: "›"; font: 700 18px/1 var(--body); color: var(--muted); transition: transform .15s; display: inline-block; width: 12px; }
+details.acc[open] > summary .acc-title::before { transform: rotate(90deg); }
+details.acc[open] > summary { border-bottom: 1px solid var(--line); border-radius: 14px 14px 0 0; }
+details.acc > .acc-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+details.acc.fcard.shared { border-top: 4px solid var(--safe); } details.acc.fcard.counts { border-top: 4px solid var(--ok); } details.acc.fcard.stays { border-top: 4px solid var(--line-strong); }
+.panel details.acc { box-shadow: none; }
+.btable.acc + .btable.acc { border-top: 1px solid var(--line); padding-top: 0; }
+.btable { padding-top: 0; }
+details.btable { display: block; }
+details.btable + details.btable { border-top: 1px solid var(--line); padding-top: 0; }
