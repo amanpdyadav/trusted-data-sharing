@@ -143,6 +143,22 @@ def _dataset_routes(api: FastAPI, svc: App, session: Callable[[str], Session]) -
         return {"deleted": sid}
 
 
+def _audit_routes(api: FastAPI, svc: App, session: Callable[[str], Session]) -> None:
+    """The Release audit page: every release made here, one release's record, and the receivers benchmark."""
+
+    @api.get("/api/audit/releases")
+    def audit_releases() -> list[dict[str, Any]]:
+        return svc.audit_releases()
+
+    @api.get("/api/audit/releases/{sid}/{rid}")
+    def audit_release(sid: str, rid: str) -> dict[str, Any]:
+        return svc.audit_release(session(sid), rid)
+
+    @api.get("/api/audit/receivers")
+    def receivers_benchmark() -> dict[str, Any]:
+        return svc.receivers_benchmark()
+
+
 def _screen_routes(api: FastAPI) -> None:
     """The presentation screens' data (Mosaic attack, Release audit), written by `python -m evaluation screens`."""
 
@@ -184,7 +200,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "samples": svc.samples(), "receivers": svc.scenarios(),
             "roles": [r.value for r in PrivacyRole], "subtypes": [x.value for x in Subtype],
             "trust_levels": [t.value for t in TrustLevel], "codelists": sorted(svc.policy().codelists),
+            "screens": svc.screens(),
         }  # fmt: skip
+
+    _audit_routes(api, svc, session)
 
     @api.get("/api/sessions")
     def sessions() -> list[dict[str, Any]]:

@@ -564,10 +564,18 @@ def raw_chain(src: Step, found: Found, t: Tables) -> list[Step]:
 
 def build(root: Path, release: pd.DataFrame, record_ids: list[str] | None, limit: int = 400) -> list[dict[str, Any]]:
     """Every scrap that leads to one verified person, richest chains first (plus a replay on our release)."""
+    return build_with_summary(root, release, record_ids, limit)[0]
+
+
+def build_with_summary(
+    root: Path, release: pd.DataFrame, record_ids: list[str] | None, limit: int = 400
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, int]]]:
+    """`build`, plus the headline counted over every scrap (before `limit`): per kind, how many scraps there are,
+    how many lead to one verified person with names removed, and how many still expose someone on our release."""
     t = tables(root)
     scraps = {s["adv_row_id"]: (s, False) for s in _scraps(root, "social_posts_health")}
     scraps |= {s["adv_row_id"]: (s, True) for s in _scraps(root, "news_clips_health")}
-    out = []
+    out: list[dict[str, Any]] = []
     for case in build_cases(root):
         scrap, news = scraps[case.id]
         found = find_visit(case, scrap, t, scrap["person_id"])
@@ -603,4 +611,12 @@ def build(root: Path, release: pd.DataFrame, record_ids: list[str] | None, limit
             -len(c["raw"]),
         )
     )
-    return out[:limit]
+    summary = {
+        kind: {
+            "scraps": sum(1 for _, is_news in scraps.values() if is_news == (kind == "news")),
+            "one_person_names_removed": sum(1 for c in out if c["kind"] == kind),
+            "exposed_on_release": sum(1 for c in out if c["kind"] == kind and not c["ours"]["holds"]),
+        }
+        for kind in ("post", "news")
+    }
+    return out[:limit], summary

@@ -39,7 +39,7 @@ export default function App() {
 }
 
 function Rail() {
-  const step = useApp(s => s.step), session = useApp(s => s.session), scan = useApp(s => s.scan), plan = useApp(s => s.plan), results = useApp(s => s.results);
+  const step = useApp(s => s.step), session = useApp(s => s.session), scan = useApp(s => s.scan), plan = useApp(s => s.plan), results = useApp(s => s.results), cat = useApp(s => s.cat);
   const done: Record<string, boolean> = { data: !!session, scan: !!scan, plan: !!plan, approve: !!plan?.plan.approved, release: !!results };
   return (
     <aside className="flex min-w-0 flex-col gap-5 border-b bg-card p-4 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto lg:border-b-0 lg:bg-transparent lg:p-5">
@@ -66,7 +66,7 @@ function Rail() {
       </nav>
       <nav aria-label="Show the risk" className="flex flex-col gap-1">
         <span className="eyebrow px-2.5 text-[10.5px]">Show the risk</span>
-        {SCREENS.map(([key, label]) => (
+        {SCREENS.filter(([key]) => key !== "mosaic" || cat?.screens?.includes("mosaic")).map(([key, label]) => (
           <button key={key} onClick={() => go(key)} aria-current={key === step ? "page" : undefined}
             className={cn("flex items-center gap-3 whitespace-nowrap rounded-lg px-2.5 py-2 text-left font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
               key === step && "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground")}>
@@ -116,7 +116,9 @@ function TopBar() {
       <header className="sticky top-0 z-30 -mx-4 mb-6 border-b bg-background/85 px-4 py-3 backdrop-blur-md lg:-mx-8 lg:px-8">
         <div className="mx-auto flex min-h-[46px] max-w-[1160px] flex-col justify-center gap-0.5">
           <span className="eyebrow text-safe">Show the risk · {label}</span>
-          <span className="text-[13px]">Every number from <code>python -m evaluation screens</code> (the organisers' toolkit and our attacks)</span>
+          <span className="text-[13px]">{s.step === "audit"
+            ? "Every release made here, and the receivers benchmark (make receivers)"
+            : "The challenge's hospital data and its public posts and news clips, replayed on your HEALTH-S1 release (make screens)"}</span>
         </div>
       </header>
     );

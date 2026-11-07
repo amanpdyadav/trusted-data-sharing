@@ -8,7 +8,7 @@ OUT ?= out/health-s1
 RELEASE ?= $(OUT)/release
 ROWMAPS ?= $(OUT)/private
 
-.PHONY: install fmt lint typecheck test test-all schemas check release baseline validate sweep detect-score detect-all text-score redact-eval web ui ui-dev
+.PHONY: install fmt lint typecheck test test-all schemas check release baseline validate sweep detect-score detect-all text-score redact-eval receivers screens web ui ui-dev
 
 install:  ## create/refresh the dev environment (+ the organisers' pets-eval toolkit for evaluation)
 	$(UV) pip install -p $(PY) -e ".[dev,web]"
@@ -72,3 +72,9 @@ text-score:  ## score free-text redaction against the gold spans (quickstart reg
 
 redact-eval:  ## write pets_submission/customer_service_eval_redacted.csv for the organisers' hidden check
 	$(PY) -m evaluation redact-eval
+
+receivers:  ## plan, release and score every receiver with the automatic planner: results/receivers.csv (Release audit)
+	$(PY) -m evaluation receivers
+
+screens:  ## build the Mosaic attack demo and scorecard from the newest HEALTH-S1 release made in the web app
+	$(PY) -m evaluation screens

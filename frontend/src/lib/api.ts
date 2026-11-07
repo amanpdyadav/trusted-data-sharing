@@ -25,7 +25,27 @@ export interface SessionListItem {
   steps: { scanned: boolean; planned: boolean; approved: boolean }; releases: number; last_release: ReleaseSummary | null;
 }
 export interface Receiver { id: string; title: string; recipient: string; purpose: string; trust_level: string; kind: "rows" | "statistics"; dataset: string; tables: string[] }
-export interface Catalogue { samples: { name: string; tables: string[] }[]; receivers: Receiver[]; roles: string[]; subtypes: string[]; trust_levels: string[]; codelists: string[] }
+export interface Catalogue { samples: { name: string; tables: string[] }[]; receivers: Receiver[]; roles: string[]; subtypes: string[]; trust_levels: string[]; codelists: string[]; screens: string[] }
+
+/** Release audit: every release made in this app, and the automatic planner measured on every receiver. */
+export type AuditItem = ReleaseSummary & { session_id: string; dataset: string; published: boolean };
+export interface ManifestPlan {
+  scenario_id: string; approved_by: string | null; k_target: number; epsilon: number | null;
+  actions: Action[]; aggregates: Aggregate[]; quasi_identifiers: Record<string, string[]>;
+  column_names?: { table: string; original: string; name: string; suggested_by: string; model: string | null }[];
+}
+export interface AuditDetail {
+  dataset: string; summary: ReleaseSummary; published: boolean; residual_risks: string[]; attack: Attack | null;
+  manifest: { release_id: string; created_at: string; tool_version: string; key_domain: string; input_fingerprint: string;
+    plan: ManifestPlan; files: { name: string; sha256: string; rows: number }[]; limitations: string[]; llm: { model: string; used_for: string[] } | null };
+  scorecard: { run_id: string; scores: { privacy: number | null; utility: number | null; composite: number | null }; gates: { name: string; value: string; target: string; status: "PASS" | "FAIL" | "N/A" }[] } | null;
+}
+export interface ReceiverResult {
+  id: string; dataset: string; recipient: string; trust_level: string; gets: "rows" | "statistics"; source: string;
+  privacy: number | null; utility: number | null; composite: number | null; released_tables: number; epsilon: number | null;
+  status: "ready" | "needs tuning" | "unscored" | "failed"; why: string; measured_at: string; commit: string;
+}
+export interface ReceiversBenchmark { rows: ReceiverResult[]; measured_at: string | null }
 export interface Column { table: string; column: string; privacy_role: string; subtype: string; confidence: number; evidence: { kind: string; detail: string }[] }
 export interface TableExposure {
   table: string; rows: number; direct_identifiers: string[]; outside_links: string[]; quasi_identifiers: string[];

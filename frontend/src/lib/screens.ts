@@ -12,7 +12,8 @@ export interface ChainStep {
 }
 export interface Replay { funnel: FunnelRow[]; candidates: number; target_in: boolean | null; holds: boolean }
 export interface MosaicCase { id: string; kind: "post" | "news"; label: string; text: string; raw: ChainStep[]; names: ChainStep[]; ours: Replay }
-export interface Mosaic { created_utc: string; release: string; cases: MosaicCase[] }
+export interface MosaicTotals { scraps: number; one_person_names_removed: number; exposed_on_release: number }
+export interface Mosaic { created_utc: string; release: string; cases: MosaicCase[]; summary?: { post: MosaicTotals; news: MosaicTotals } }
 
 export interface Gate { name: string; value: string; target: string; status: "PASS" | "FAIL" | "N/A" }
 export interface Audit {

@@ -4,8 +4,10 @@ Steps: data -> scan (detect + risk scan) -> plan (preset or custom receiver) -> 
 Everything runs on this machine with the same engine as the command line.
 """
 
+import csv
 import json
 import re
+import zipfile
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -59,6 +61,7 @@ TEXT_SAMPLES = 6
 K_VALUES = (2, 3, 5, 8, 10, 15, 20)
 EPSILON_FACTORS = (0.25, 0.5, 1.0, 2.0, 4.0)
 TAG = re.compile(r"\[([A-Z_]+)\]")
+RESULTS = Path("results")  # committed benchmark results and the presentation screens' data (built by evaluation)
 
 
 @dataclass(frozen=True)
@@ -537,6 +540,51 @@ class App:
     def releases(self, s: Session) -> list[dict[str, Any]]:
         return s.releases()
 
+    # ------------------------------------------------------------ release audit (every release, every dataset)
+    def audit_releases(self) -> list[dict[str, Any]]:
+        """Every release made in this app, newest first, with the dataset it came from."""
+        out = [
+            {
+                **r,
+                "session_id": x.id,
+                "dataset": x.name,
+                "published": (x.release(str(r["release_id"])) / "published").exists(),
+            }
+            for x in self.workspace.listing()
+            for r in x.releases()
+        ]
+        return sorted(out, key=lambda r: str(r["created_at"]), reverse=True)
+
+    def audit_release(self, s: Session, release_id: str) -> dict[str, Any]:
+        """One release's record: the manifest that travelled with it, the attack before and after, the risk left."""
+        folder = s.release(release_id)
+        results: dict[str, Any] = json.loads((folder / "results.json").read_text(encoding="utf-8"))
+        with zipfile.ZipFile(folder / "release.zip") as z:
+            manifest = json.loads(z.read(f"{release_id}/manifest.json"))
+        return {
+            "dataset": s.name, "summary": results["summary"], "manifest": manifest, "attack": results.get("attack"),
+            "attacker": results.get("attacker", []), "residual_risks": results.get("residual_risks", []),
+            "published": (folder / "published").exists(), "scorecard": _scorecard_for(release_id),
+        }  # fmt: skip
+
+    def receivers_benchmark(self) -> dict[str, Any]:
+        """The automatic planner measured on every receiver: results/receivers.csv (`make receivers`)."""
+        path = RESULTS / "receivers.csv"
+        if not path.exists():
+            return {"rows": [], "measured_at": None}
+        with path.open(encoding="utf-8", newline="") as f:
+            rows = list(csv.DictReader(f))
+        num = ("privacy", "utility", "composite", "epsilon")
+        for r in rows:
+            for k in num:
+                r[k] = float(r[k]) if r.get(k) else None
+            r["released_tables"] = int(r["released_tables"] or 0)
+        return {"rows": rows, "measured_at": max((r["measured_at"] for r in rows), default=None)}
+
+    def screens(self) -> list[str]:
+        """The presentation screens whose data has been built (`python -m evaluation screens`)."""
+        return [n for n in ("mosaic", "audit") if (RESULTS / "screens" / f"{n}.json").exists()]
+
     def release_results(self, s: Session, release_id: str) -> dict[str, Any]:
         results: dict[str, Any] = json.loads((s.release(release_id) / "results.json").read_text(encoding="utf-8"))
         results["published"] = (s.release(release_id) / "published").exists()
@@ -633,6 +681,15 @@ def _summary(
         "guess_chance_after": worst["after"]["guess_chance"] if worst else None,
         "attack_outcome": after.get("outcome"), "attack_matches": after.get("matches"),
     }  # fmt: skip
+
+
+def _scorecard_for(release_id: str) -> dict[str, Any] | None:
+    """The organisers' scorecard of this release, when `python -m evaluation screens` scored it."""
+    path = RESULTS / "screens" / "audit.json"
+    if not path.exists():
+        return None
+    data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    return data if (data.get("manifest") or {}).get("release_id") == release_id else None
 
 
 def _receiver_tables(s: Scenario) -> set[str]:

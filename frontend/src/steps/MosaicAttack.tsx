@@ -2,7 +2,7 @@
 // branch). Three modes: raw data shared, names removed everywhere, and our release (where the chain breaks).
 import { Pause, Play, RotateCcw, StepBack, StepForward } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { PageHead } from "@/components/common";
+import { Kpi, Kpis, PageHead } from "@/components/common";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -13,7 +13,6 @@ import { useScreen, type ChainStep, type FunnelRow, type Mosaic, type MosaicCase
 import { cn } from "@/lib/utils";
 
 type Mode = "raw" | "names" | "ours";
-const MODES: [Mode, string][] = [["raw", "Raw data shared"], ["names", "Names removed"], ["ours", "Our release"]];
 const KIND_LABEL = { public: "public", leaked: "if shared", release: "names removed" } as const;
 
 /** One tick per clue on the hospital step, one per dataset after it. */
@@ -54,21 +53,21 @@ function MosaicBoard({ data }: { data: Mosaic }) {
 
   return (
     <>
-      <PageHead title="Mosaic attack" lede="Pick a public post or a news clip and follow it across datasets, one clue at a time. Switch the mode to see what removing names does, and what our release does." />
+      <PageHead title="Mosaic attack" lede="One public post or news clip, followed across eight organisations' data. Removing names is not enough: everyday facts single a person out, and every shared key opens the next dataset. Our release breaks the chain at the first step." />
+      {data.summary && <Headline s={data.summary} />}
       <Card className="flex flex-col gap-3 p-4">
         <div className="flex flex-wrap items-center gap-3">
           <ToggleGroup type="single" value={kind} onValueChange={v => { if (v) { setKind(v as "post" | "news"); setCaseId(null); reset(); } }}>
-            <ToggleGroupItem value="post">Public posts <span className="ml-1 font-mono text-xs opacity-70">{counts.post}</span></ToggleGroupItem>
-            <ToggleGroupItem value="news">News clips <span className="ml-1 font-mono text-xs opacity-70">{counts.news}</span></ToggleGroupItem>
+            <ToggleGroupItem value="post" title={`${counts.post} of the posts that lead to one patient, richest chains first`}>Public posts <span className="ml-1 font-mono text-xs opacity-70">{counts.post}</span></ToggleGroupItem>
+            <ToggleGroupItem value="news" title={`${counts.news} of the news clips that lead to one patient, richest chains first`}>News clips <span className="ml-1 font-mono text-xs opacity-70">{counts.news}</span></ToggleGroupItem>
           </ToggleGroup>
           <select aria-label="Pick a scrap" value={c.id} onChange={e => { setCaseId(e.target.value); reset(); }}
             className="min-w-0 flex-1 basis-64 rounded-lg border border-input bg-card px-3 py-2 text-sm">
             {ofKind.map(x => <option key={x.id} value={x.id}>{x.id} · {clip(x.label, 24)}: {clip(x.text, 60)}</option>)}
           </select>
-          <ToggleGroup type="single" value={activeMode} onValueChange={v => { if (v) { setMode(v as Mode); reset(); } }}>
-            {MODES.filter(([k]) => k !== "raw" || c.raw.length).map(([k, l]) => <ToggleGroupItem key={k} value={k}>{l}</ToggleGroupItem>)}
-          </ToggleGroup>
         </div>
+        <p className="-mt-1 text-xs text-muted-foreground">Pick one to follow: the {data.cases.length} richest chains are listed.</p>
+        <ModeCards c={c} mode={activeMode} onPick={m => { setMode(m); reset(); }} />
         <p className="text-xs text-muted-foreground">All people are synthetic and shown as they appear in the data, to show how re-identification happens. ID codes, phone numbers and IBANs are partly masked. Built {when(data.created_utc)}.</p>
       </Card>
       {activeMode === "ours" ? <OursView c={c} /> : (() => {
@@ -210,9 +209,47 @@ function LinkGraph({ chain, upto, broken = false }: { chain: ChainStep[]; upto: 
 export function NotBuilt({ error, what }: { error: string | null; what: string }) {
   return (
     <Card className={cn("flex flex-col gap-2 p-5", error && "border-risk/50")}>
-      {error ? <><b>No {what} yet.</b><p className="text-sm text-muted-foreground">{error}</p>
-        <p className="text-sm text-muted-foreground">Build it: <code>python -m evaluation screens --release out/health-s1/release --rowmaps out/health-s1/private --plan plans/health-s1.yaml</code></p></>
+      {error ? <><b>No {what} yet.</b>
+        <p className="text-sm text-muted-foreground">The demo runs on the challenge's hospital data and its public posts and news clips. Release the health example to the HEALTH-S1 receiver in the five steps, then run <code>make screens</code>: it finds that release by itself.</p></>
         : <p className="text-sm text-muted-foreground">Loading {what}…</p>}
     </Card>
+  );
+}
+
+/** The result before the walk-through: how many scraps single out one patient, per mode. */
+function Headline({ s }: { s: NonNullable<Mosaic["summary"]> }) {
+  const exposed = s.post.exposed_on_release + s.news.exposed_on_release;
+  return (
+    <Kpis>
+      <Kpi tone="risk" value={<>{fmt(s.post.one_person_names_removed)}<span className="text-lg text-muted-foreground">/ {fmt(s.post.scraps)}</span></>} label="public posts lead to one patient when names are removed" />
+      <Kpi tone="risk" value={<>{fmt(s.news.one_person_names_removed)}<span className="text-lg text-muted-foreground">/ {fmt(s.news.scraps)}</span></>} label="news clips lead to one patient when names are removed" />
+      <Kpi tone={exposed ? "warn" : "safe"} value={fmt(exposed)} label={exposed ? "of those still narrow to fewer than 5 visits on our release (reported as residual risk)" : "of those find anyone on our release"} />
+    </Kpis>
+  );
+}
+
+/** The three modes side by side for the picked scrap; a click opens that mode's walk-through below. */
+function ModeCards({ c, mode, onPick }: { c: MosaicCase; mode: Mode; onPick: (m: Mode) => void }) {
+  const end = (chain: ChainStep[]) => {
+    const facts = new Set(chain.flatMap(x => Object.keys(x.revealed))).size;
+    return { sources: chain.length, facts };
+  };
+  const cards: { m: Mode; title: string; big: string; tone: "risk" | "safe"; text: string }[] = [];
+  if (c.raw.length) { const e = end(c.raw); cards.push({ m: "raw", title: "Raw data shared", big: "1 person", tone: "risk", text: `${plural(e.sources, "source")} joined · ${plural(e.facts, "fact")} known` }); }
+  { const e = end(c.names); cards.push({ m: "names", title: "Names removed", big: "1 person", tone: "risk", text: `still found · ${plural(e.sources, "source")} joined · ${plural(e.facts, "fact")} known` }); }
+  cards.push({ m: "ours", title: "Our release", big: c.ours.holds ? (c.ours.candidates ? `${fmt(c.ours.candidates)} visits` : "no match") : `${fmt(c.ours.candidates)} visits`, tone: c.ours.holds ? "safe" : "risk",
+    text: c.ours.holds ? "chain breaks at the hospital: nothing to join" : "fewer than 5: reported as residual risk" });
+  return (
+    <div className="grid gap-2.5 sm:grid-cols-3">
+      {cards.map(k => (
+        <button key={k.m} onClick={() => onPick(k.m)} aria-pressed={mode === k.m}
+          className={cn("flex flex-col gap-1 rounded-xl border bg-card p-3.5 text-left shadow-sm transition-colors hover:bg-muted",
+            mode === k.m && (k.tone === "risk" ? "border-risk ring-1 ring-risk" : "border-safe ring-1 ring-safe"))}>
+          <span className="eyebrow">{k.title}</span>
+          <b className={cn("big-number text-[26px] leading-tight", k.tone === "risk" ? "text-risk" : "text-safe")}>{k.big}</b>
+          <span className="text-[13px] text-muted-foreground">{k.text}</span>
+        </button>
+      ))}
+    </div>
   );
 }

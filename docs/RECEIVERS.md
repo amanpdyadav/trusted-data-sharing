@@ -22,6 +22,9 @@ Regenerate after changing the generator (keeps HEALTH-S1/S2): `python -m evaluat
 
 ## Measured result of each receiver (7 Nov)
 
+`make receivers` measures them again and writes `results/receivers.csv`; the web app shows that file on **Release
+audit → Receivers benchmark**, with a filter for the receivers that fit the open data.
+
 Each receiver was planned automatically (the rule-based planner, approved for the test), released, and scored with the
 organisers' `pets-eval` scorecard. Public dashboards outside health release correctly, but the toolkit only has a
 dashboard scorer for the hospital data. "Ready" means combined ≥ 0.70 (our target); "needs tuning" means the automatic

@@ -189,21 +189,27 @@ All scores are the toolkit's self-assessment, not the official judging score.
 
 ## 4. Presentation screens
 
+The **Release audit** page needs no build: it lists every release made in the app and the receivers benchmark
+(`results/receivers.csv`, committed; `make receivers` measures all 27 again, about 10 minutes).
+
+The **Mosaic attack** page uses the challenge's answer files, so its data is built outside the tool. Release the health
+example to HEALTH-S1 in the app, then:
+
 ```bash
-.venv/bin/python -m evaluation screens --release out/health-s1/release --rowmaps out/health-s1/private \
-  --plan plans/health-s1.yaml
+make screens      # finds the newest HEALTH-S1 release made in the app; or pass --release/--rowmaps/--plan yourself
 ```
 
 This scores the release (like `validate`) and writes `results/screens/mosaic.json` and `audit.json` (git-ignored,
-about 3 minutes). Then open the web app (`make web`) and pick a screen under **Show the risk**:
+about 3 minutes). The Mosaic attack appears in the sidebar once its data exists, and the release's audit record then
+shows the organisers' checks.
 
 - **Mosaic attack.** Pick a public post or a news clip (every scrap that leads to one verified person). Press
   **Next** to reveal one clue at a time on the hospital data, then one dataset at a time; **Play** runs it. The link
   graph shows how the person is identified (time · town · sex · stay · symptoms, then birth date + postcode, then
   name + postcode), and "What the attacker now knows" builds a block per source. Modes: **Raw data shared**,
   **Names removed**, **Our release** (the chain breaks).
-- **Release audit.** Every gate, the scores, the sweep, each column decision with its reason, and the released
-  files' fingerprints. It says so when the plan is not approved.
+- **Release audit.** Your releases (approval, column decisions, attack before and after, risk left, fingerprints, and
+  the organisers' checks when `make screens` scored that release) and the receivers benchmark.
 
 Rebuild the screen data after every new release.
 
@@ -286,7 +292,7 @@ Never commit: `.env`, `out/` (releases and private row maps), `challenge/` or th
 | `PETS_MASTER_KEY is not set` | Put a long random value in `.env` (not the `change-me…` placeholder) |
 | `make release` or an experiment refuses: plan not approved | Approve it (or an approved copy) with `pets-transformer approve … --by "Name"`; experiments: `--plan plans/health-s1.v2.yaml` |
 | `make baseline` says quickstart output missing | Run the pack's `examples/quickstart.py` (see [0](#0-set-up-once)) |
-| Mosaic attack or Release audit says "no data yet" | Run `python -m evaluation screens …` ([4](#4-presentation-screens)) |
+| Mosaic attack missing from the sidebar | Release the health example to HEALTH-S1, then `make screens` ([4](#4-presentation-screens)) |
 | `FileNotFoundError` for an old data path | A server started before the data moved is still running: stop it and start it again |
 | The web app shows old screens after a `git pull` | Restart `make web` (the Python side changed) and reload the page; if `frontend/` changed, run `make ui` |
 | `make web`: port 8765 in use | The app is already running: open http://127.0.0.1:8765, or stop it, or `pets-transformer web --port 8766` |

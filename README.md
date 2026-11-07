@@ -64,15 +64,15 @@ make release PLAN=<approved plan> validate   # protect HEALTH-S1 and check every
 make sweep                     # replay all 1,050 public posts and news clips on the release; lists anyone exposed
 make detect-all                # score column detection on every labelled dataset
 .venv/bin/python -m evaluation experiment stay-length        # compare plan variants side by side
-.venv/bin/python -m evaluation screens --release out/health-s1/release --rowmaps out/health-s1/private --plan plans/health-s1.yaml
+make receivers                 # plan, release and score all 27 receivers: results/receivers.csv
+make screens                   # build the Mosaic attack demo from your newest HEALTH-S1 release in the web app
 ```
 
-The last command writes the data for the web app's **Mosaic attack** and **Release audit** screens (sidebar, under
-"Show the risk"). Mosaic attack: pick any of the public posts or news clips that lead to one verified person, then
-step through it one clue and one dataset at a time (Back / Next / Play) while a link graph shows how the datasets join
-(time · town · sex · stay · symptoms, then birth date + postcode, then name + postcode). Three modes: raw data
-shared, names removed everywhere, and our release, where the chain breaks. Release audit: every check, decision and
-file fingerprint of the release.
+The sidebar's "Show the risk" holds two pages. **Release audit** works without any of these commands: every release
+made in the app with its approval, column decisions, attack before and after, risk left and file fingerprints, plus
+the receivers benchmark from `results/receivers.csv`. **Mosaic attack** appears once `make screens` has run: it leads
+with how many public posts and news clips single out one patient once names are removed (and how many still do on our
+release), then follows any one of them across datasets, with raw data, names removed and our release side by side.
 
 | HEALTH-S1 (self-assessed) | Combined score | Usefulness | Post and news sweep |
 |---|---|---|---|

@@ -13,7 +13,7 @@ import { Meter, Spinner, TableWrap, Td, Th } from "@/components/ui/misc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Attack, Hop, Scan, TableExposure } from "@/lib/api";
 import { ROLE_LABEL, ROLE_TONE, clip, fmt, pct, plural } from "@/lib/format";
-import { anotherPerson, correctColumn, detectionHref, play, runScan, useApp } from "@/lib/store";
+import { anotherPerson, correctColumn, detectionHref, go, play, runScan, useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 export function RiskScan() {
@@ -91,6 +91,7 @@ function AttackReplay({ attack }: { attack: Attack }) {
           : `On these facts the person hides among ${fmt(A.matches)} people. Other columns may still expose them; see the tables below.`}
       </Verdict>
       {hit && attack.trail && attack.trail.length > 0 && <Trail attack={attack} />}
+      <AcrossOrganisations />
     </Card>
   );
 }
@@ -134,6 +135,18 @@ function Trail({ attack }: { attack: Attack }) {
         {trail.flatMap((h, i) => [<div key={`a${i}`}>{i === 0 ? arrow("search", "1 person fits") : arrow(`via ${h.via}`, `from ${h.from_table}`)}</div>, <div key={`n${i}`}>{node(h)}</div>])}
       </div>
       <p className="text-sm text-muted-foreground">Red identifies the person, blue is sensitive. Each arrow is a key shared by two tables: knowing one row opens the next table.</p>
+    </div>
+  );
+}
+
+/** On the hospital example, the same attack followed into other organisations' data (the Mosaic attack demo). */
+function AcrossOrganisations() {
+  const built = useApp(s => !!s.cat?.screens?.includes("mosaic")), health = useApp(s => !!s.session?.tables.some(t => t.name === "ed_visits"));
+  if (!built || !health) return null;
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed px-4 py-3 text-sm">
+      <span>This attack stays inside your dataset. See it continue from a public post into the bank, energy, transport and school data of the same person.</span>
+      <Button size="sm" variant="outline" onClick={() => go("mosaic")}>Mosaic attack across organisations <ArrowRight /></Button>
     </div>
   );
 }
