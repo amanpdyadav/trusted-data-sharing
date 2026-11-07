@@ -98,6 +98,7 @@ function dataView() {
     <div class="panel"><div class="spread"><h2>Or try an example</h2>${busy("sample")}</div><p class="small">Synthetic datasets from the TrustED challenge package.</p>
       <div class="cards">${samples.map(s => `<button class="choice" data-sample="${esc(s.name)}"><span class="k">${s.tables.length} tables</span><b>${esc(s.name.replace(/_/g, " "))}</b><span class="small">${esc(s.tables.slice(0, 4).join(", "))}${s.tables.length > 4 ? "…" : ""}</span></button>`).join("") || `<p class="small">No sample folder found (set PETS_PACKAGE_ROOT).</p>`}</div></div>
   </div>
+  ${S.busy === "open" ? `<div class="callout safe">Reopening <b>${esc(S.reopening || "your dataset")}</b>: reading the tables and the saved scan${busy("open")}</div>` : ""}
   ${workspacePanel()}
   ${S.session ? tablesPanel(S.session.tables) : ""}`;
 }
@@ -522,7 +523,10 @@ function wire() {
   page.querySelectorAll("[data-play]").forEach(b => (b.onclick = () => { S.play = ""; render(); requestAnimationFrame(() => play(b.dataset.play)); }));
   page.querySelectorAll("[data-table]").forEach(b => (b.onclick = () => { S.table = b.dataset.table; render(); }));
   page.querySelectorAll("[data-sample]").forEach(b => (b.onclick = () => act("sample", async () => openSession(await api("/api/sessions/sample", { body: { name: b.dataset.sample } })))));
-  page.querySelectorAll("[data-open]").forEach(b => (b.onclick = () => act("open", () => openExisting(b.dataset.open))));
+  page.querySelectorAll("[data-open]").forEach(b => (b.onclick = () => {
+    S.reopening = (S.sessions.find(x => x.id === b.dataset.open) || {}).name || "";
+    act("open", () => openExisting(b.dataset.open)).then(() => { S.reopening = ""; render(); });
+  }));
   const drop = $("#drop"), input = $("#files");
   if (drop) {
     drop.onclick = () => input.click();
@@ -678,11 +682,13 @@ function customScenario() {
 (async () => {
   const mask = $("#mask");
   mask.onchange = () => { S.mask = mask.checked; render(); };
+  render();  // draw at once; reopening earlier work follows and may take a while on large data
   try {
     S.cat = await api("/api/catalogue");
     S.sessions = await api("/api/sessions");
-    let saved = ""; try { saved = localStorage.getItem("pets.session") || ""; } catch (e) { /* storage off */ }
-    if (saved && S.sessions.some(x => x.id === saved)) await openExisting(saved);
   } catch (e) { toast(e.message, true); }
   render();
+  let saved = ""; try { saved = localStorage.getItem("pets.session") || ""; } catch (e) { /* storage off */ }
+  const last = S.sessions.find(x => x.id === saved);
+  if (last) { S.reopening = last.name; act("open", () => openExisting(saved)).then(() => { S.reopening = ""; render(); }); }
 })();
