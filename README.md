@@ -140,6 +140,7 @@ set in the shell wins.
 - [Detection](docs/detection/README.md): the two detectors, the laws and standards behind each label, every score.
 - [Requirements and decisions](docs/REQUIREMENTS.md): what the challenge asks for and what we decided.
 - [Contributing](CONTRIBUTING.md): code layout, principles, tests, and how to add a protection or a detector.
+- [Presentation](presentation/PETs-Transformer.pptx): the 15-slide deck for a non-technical audience, built on real app screens (speaker notes included).
 
 ## Good to know
 
