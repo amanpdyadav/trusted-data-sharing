@@ -67,6 +67,19 @@ def audit(dataset: str) -> dict:
     return mosaic.audit(dataset)
 
 
+@app.get("/api/detection/{dataset}")
+def detection(dataset: str) -> dict:
+    """Column labels with evidence, basis and the analyses that need each column (docs/detection/FORMAT.md)."""
+    from pets import DATA, detection_file
+    path = OUTPUTS / "detection" / f"{dataset}.detection.json"
+    if not path.exists():
+        if not (DATA / dataset).is_dir():
+            raise HTTPException(404, f"No dataset called {dataset}")
+        detection_file.write(dataset, use_names=dataset != "unseen")
+    import json
+    return json.loads(path.read_text())
+
+
 # Serve the built React app (web/dist) from the same port when it exists.
 DIST = ROOT / "web" / "dist"
 if DIST.exists():

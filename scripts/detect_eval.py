@@ -4,6 +4,7 @@
   .venv/bin/python scripts/detect_eval.py --hidden        # dev datasets, names hidden (simulates the unseen file)
   .venv/bin/python scripts/detect_eval.py --set heldout   # held-out datasets: report only, never tune on these
   .venv/bin/python scripts/detect_eval.py --set unseen    # write labels for the unseen HR file (no score: no labels)
+  .venv/bin/python scripts/detect_eval.py --write         # write detection.json for all 10 datasets (format: docs/detection/FORMAT.md)
 
 Predictions go to outputs/detection/. See docs/detection/DECISIONS.md D2 for why the sets are split.
 """
@@ -37,9 +38,19 @@ def main():
     ap.add_argument("--set", default="dev", choices=["dev", "heldout", "all", "unseen"])
     ap.add_argument("--hidden", action="store_true", help="hide column names")
     ap.add_argument("--errors", type=int, default=0, help="print this many misclassified columns")
+    ap.add_argument("--write", action="store_true", help="write detection.json for every dataset")
     a = ap.parse_args()
     out = OUTPUTS / "detection"
     out.mkdir(parents=True, exist_ok=True)
+
+    if a.write:
+        from pets import detection_file
+        for ds in SETS["all"] + ["unseen"]:
+            path = detection_file.write(ds, use_names=ds != "unseen")
+            d = json.loads(path.read_text())["summary"]
+            print(f"{path.relative_to(ROOT)}: {d['columns']} columns, {len(d['art9_columns'])} Art. 9, "
+                  f"{len(d['needs_review'])} to review, {d['needed_by_any_task']} needed by an analysis")
+        return
 
     if a.set == "unseen":
         dets = detect.detect_dataset(DATA / "unseen", "unseen", use_names=False)
