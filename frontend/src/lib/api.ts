@@ -1,9 +1,17 @@
 // The local API (FastAPI on 127.0.0.1). Every number on screen comes from here.
 export type Dict = Record<string, string>;
 
-export interface TableOverview { name: string; rows: number; columns: string[]; preview: Dict[] }
+/** Columns that came without a real name (blank, a code like c07, or no header row) and the names given so far. */
+export interface Naming {
+  unnamed: { original: string; name: string | null; suggested_by: NameSource | null }[];
+  headerless: boolean; headerless_guess: boolean;
+}
+export type NameSource = "rules" | "ai" | "person";
+export interface NameSuggestion { column: string; name: string; meaning: string; source: NameSource | "none"; confidence: number; samples: string[] }
+export interface NameSuggestions { suggestions: NameSuggestion[]; ai_calls: number; ai_error: string | null; model: string | null }
+export interface TableOverview { name: string; rows: number; columns: string[]; preview: Dict[]; naming: Naming }
 export interface SessionOverview {
-  id: string; name: string; tables: TableOverview[]; released: boolean;
+  id: string; name: string; tables: TableOverview[]; released: boolean; ai: { on: boolean; model: string | null };
   steps: { scanned: boolean; planned: boolean; approved: boolean; released: boolean };
 }
 export interface ReleaseSummary {

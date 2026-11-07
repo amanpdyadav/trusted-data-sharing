@@ -3,7 +3,7 @@
 import { toast } from "sonner";
 import { create } from "zustand";
 import {
-  api, download, upload, type Attack, type Catalogue, type Compare, type Example, type PlanCompare, type PlanVersions, type PlanView, type ReleaseSummary,
+  api, download, upload, type Attack, type NameSource, type NameSuggestions, type Catalogue, type Compare, type Example, type PlanCompare, type PlanVersions, type PlanView, type ReleaseSummary,
   type Results, type Scan, type SessionListItem, type SessionOverview, type Tradeoff,
 } from "./api";
 import { fmt, mb, plural } from "./format";
@@ -125,6 +125,21 @@ export function addTables(files: FileList) {
 }
 export const removeTable = (table: string) => busy("confirm", async () =>
   dataChanged(await api<SessionOverview>(`/api/sessions/${sid()}/tables/${encodeURIComponent(table)}`, { method: "DELETE" }), `Removed ${table}.`));
+
+// ---------------------------------------------------------------- columns without a name
+/** Suggestions only: nothing changes until the names are confirmed with `saveNames`. */
+export const suggestNames = (table: string, columns?: string[], avoid?: Record<string, string[]>) =>
+  busy(columns ? `suggest:${columns.join(",")}` : "suggest", () =>
+    api<NameSuggestions>(`/api/sessions/${sid()}/columns/suggest`, { body: { table, columns: columns ?? null, avoid: avoid ?? {} } }));
+export const saveNames = (table: string, names: { original: string; name: string; suggested_by: NameSource; meaning: string }[]) =>
+  busy("names", async () => {
+    await dataChanged(await api<SessionOverview>(`/api/sessions/${sid()}/columns/names`, { body: { table, names } }),
+      `Named ${plural(names.length, "column")} in ${table}.`);
+    return true;
+  });
+export const setHeaderless = (table: string, headerless: boolean) =>
+  busy("headerless", async () => dataChanged(await api<SessionOverview>(`/api/sessions/${sid()}/columns/headerless`, { body: { table, headerless } }),
+    headerless ? `${table}: the first row is now read as data.` : `${table}: the first row is now read as column names.`));
 
 export const SCAN_CHECKS = [
   "what each column holds: names, ID codes (with checksums), phones, addresses, dates, codes",

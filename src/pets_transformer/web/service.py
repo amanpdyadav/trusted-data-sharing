@@ -19,10 +19,12 @@ from pets_transformer.assess import attack
 from pets_transformer.assess.lookalikes import attacker_views, lookalikes
 from pets_transformer.assess.riskscan import TableLink, find_links, scan
 from pets_transformer.assess.usefulness import column_changes, dp_accuracy
+from pets_transformer.columns import NamingError, check_names, is_unnamed, looks_headerless, suggest
 from pets_transformer.config import Settings
 from pets_transformer.contracts import (
     ColumnAction,
     ColumnDetection,
+    ColumnName,
     Evidence,
     EvidenceKind,
     Plan,
@@ -32,6 +34,7 @@ from pets_transformer.contracts import (
 )
 from pets_transformer.detect.rules import detect_source
 from pets_transformer.keys import DerivedKeyProvider, KeyScope
+from pets_transformer.llm import build_llm
 from pets_transformer.pipeline import (
     ProtectedTable,
     RunOutcome,
@@ -80,6 +83,16 @@ class ActionEdit:
 
 
 @dataclass(frozen=True)
+class NewName:
+    """A name for one unnamed column, as confirmed in the dialog."""
+
+    original: str
+    name: str
+    suggested_by: str = "person"  # rules | ai | person (the person changed or typed it)
+    meaning: str = ""
+
+
+@dataclass(frozen=True)
 class App:
     settings: Settings
     workspace: Workspace
@@ -110,22 +123,87 @@ class App:
         return self.workspace.from_folder(name, self.settings.package_root / "data" / name)
 
     def overview(self, s: Session) -> dict[str, Any]:
+        ai = self.settings.llm
         return {
             "id": s.id, "name": s.name,
             "tables": [
-                {"name": t, "rows": len(f), "columns": list(f.columns), "preview": _records(f.head(PREVIEW_ROWS))}
+                {"name": t, "rows": len(f), "columns": list(f.columns), "preview": _records(f.head(PREVIEW_ROWS)),
+                 "naming": self._naming(s, t)}
                 for t, f in s.tables().items()
             ],
+            "ai": {"on": ai.enabled, "model": ai.model if ai.enabled else None},  # the "Suggest names" button
             "steps": {"scanned": s.detections is not None, "planned": s.plan is not None,
                       "approved": bool(s.plan and s.plan.approved), "released": s.outcome is not None},
             "released": s.released,  # released data is frozen: duplicate to change it
         }  # fmt: skip
 
+    # ------------------------------------------------------------ columns without a name
+    def _naming(self, s: Session, table: str) -> dict[str, Any]:
+        """Which input columns have no real name, and the names they were given so far."""
+        raw = s.raw_columns(table)
+        given = {c.original: c for c in s.column_names if c.table == table}
+        unnamed = [
+            {"original": c, "name": given[c].name if c in given else None,
+             "suggested_by": given[c].suggested_by if c in given else None}
+            for c in raw if is_unnamed(c)
+        ]  # fmt: skip
+        headerless = table in s.headerless
+        return {
+            "unnamed": unnamed,
+            "headerless": headerless,
+            "headerless_guess": not headerless and looks_headerless(raw),
+        }
+
+    def suggest_names(
+        self, s: Session, table: str, columns: list[str] | None, avoid: dict[str, list[str]] | None
+    ) -> dict[str, Any]:
+        """Rules first, then the local AI on a short summary of each column. Nothing is renamed here."""
+        s.editable()
+        if table not in s.tables():
+            raise WorkspaceError(f"no table {table!r} in {s.name}")
+        frame = s.raw_source().read(table)
+        todo = columns if columns else [c for c in frame.columns if is_unnamed(c)]
+        try:
+            return suggest(frame, table, todo, build_llm(self.settings.llm), avoid).as_dict()
+        except NamingError as exc:
+            raise WorkspaceError(str(exc)) from exc
+
+    def set_names(self, s: Session, table: str, names: list[NewName]) -> dict[str, Any]:
+        """Use the confirmed names for one table's unnamed columns. The scan and plan start over."""
+        s.editable()
+        if table not in s.tables():
+            raise WorkspaceError(f"no table {table!r} in {s.name}")
+        model = self.settings.llm.model
+        given = [
+            ColumnName(table=table, original=n.original, name=n.name.strip(), suggested_by=n.suggested_by,
+                       model=model if n.suggested_by == "ai" else None, meaning=n.meaning[:200])
+            for n in names if n.name.strip()
+        ]  # fmt: skip
+        try:
+            check_names(s.raw_columns(table), given)
+        except NamingError as exc:
+            raise WorkspaceError(str(exc)) from exc
+        s.set_columns(table, given)
+        return self.overview(s)
+
+    def set_headerless(self, s: Session, table: str, headerless: bool) -> dict[str, Any]:
+        """The file has no header row: its first row is data. Names given to its columns start over."""
+        s.editable()
+        if table not in s.tables():
+            raise WorkspaceError(f"no table {table!r} in {s.name}")
+        s.set_columns(table, headerless=headerless)
+        return self.overview(s)
+
     # ------------------------------------------------------------ scan
     def scan(self, s: Session) -> dict[str, Any]:
         """Detections, risk scan and the attack on one person. Kept with the session: it is slow on big data."""
         if s.detections is None:
-            s.detections = detect_source(s.source(), s.name)
+            det = detect_source(s.source(), s.name)
+            given = {(c.table, c.name): c.original for c in s.column_names}
+            if given:  # detection.json keeps the input header of every column a person named
+                cols = [c.model_copy(update={"source_column": given.get((c.table, c.column))}) for c in det.columns]
+                det = det.model_copy(update={"columns": cols})
+            s.detections = det
             s.save()
         cached = s.cached_scan()
         if cached is None:
@@ -201,7 +279,7 @@ class App:
             plan = self.policy().plan(det, scenario)
         except ValueError as exc:
             raise WorkspaceError(f"this receiver's request does not fit the data: {exc}") from exc
-        s.scenario, s.plan = scenario, plan.model_copy(update={"dataset": s.name})
+        s.scenario, s.plan = scenario, plan.model_copy(update={"dataset": s.name, "column_names": s.column_names})
         s.changed("plan")
         s.record_plan(f"New plan for {scenario.recipient}")
         return self.plan_view(s)

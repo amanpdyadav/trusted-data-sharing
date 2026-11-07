@@ -1,6 +1,7 @@
 // Step 1: bring the data. Upload or pick an example, see what is inside, manage earlier datasets.
 import { Copy, Lock, MoreHorizontal, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import { useRef, useState } from "react";
+import { NamingNote } from "@/components/ColumnNames";
 import { Guide, PageHead, ProgressCard, Section, useRole, useShown } from "@/components/common";
 import { ConfirmDialog, NameDialog } from "@/components/dialogs";
 import { Badge } from "@/components/ui/badge";
@@ -136,8 +137,10 @@ function Inside() {
           </span>
         ))}
       </div>
+      <NamingNote table={t} frozen={frozen} />
       <TableWrap>
-        <table className="w-full border-collapse"><thead><tr>{t.columns.map(c => <Th key={c}>{c}</Th>)}</tr></thead>
+        <table className="w-full border-collapse"><thead><tr>{t.columns.map(c => { const was = t.naming.unnamed.find(u => u.name === c)?.original;
+          return <Th key={c} title={was ? `was ${was}` : undefined}>{c}{was && <span className="block font-normal normal-case text-muted-foreground">was {was}</span>}</Th>; })}</tr></thead>
           <tbody>{t.preview.map((r, i) => <tr key={i}>{t.columns.map(c => { const v = shown(t.name, c, r[c]); return <Td key={c} className={ROLE_TONE[role(t.name, c)]} title={clip(v, 600)}>{clip(v)}</Td>; })}</tr>)}</tbody></table>
       </TableWrap>
       <ConfirmDialog open={!!removing} onOpenChange={o => !o && setRemoving("")} title={`Remove ${removing}?`} action="Remove the table" danger
