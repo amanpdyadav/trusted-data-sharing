@@ -106,3 +106,21 @@ class TestMoreFormats:
         self.check("fi_property_id", ["853-067-0003-0021", "445-412-3-77"], ["2025-01-22", "AU-TKU-13"])
         self.check("icd10", ["S52.5", "J10", "R51", "O20.0"], ["U07.1x", "S5", "52.5", "AT-4590407"])
         self.check("url", ["https://a.example/x?y=1", "http://b.example"], ["ftp://x", "a.example"])
+
+
+# ---------------------------------------------------------------- ported from the main branch's detector
+def test_payment_card_needs_an_issuer_prefix() -> None:
+    v = VALIDATORS.get("payment_card")
+    assert v.is_valid("4111111111111111")
+    assert not v.is_valid("9246028594079572")  # travel card number: passes Luhn, no card-network prefix
+
+
+def test_business_id_gsrn_domain_hostname() -> None:
+    assert VALIDATORS.get("fi_business_id").is_valid("1572860-0")
+    assert not VALIDATORS.get("fi_business_id").is_valid("1572860-1")
+    assert VALIDATORS.get("domain").is_valid("news.example.fi")
+    assert not VALIDATORS.get("domain").is_valid("svchost.exe")
+    assert VALIDATORS.get("hostname").is_valid("LT-MIKKAL-4465")
+    assert VALIDATORS.get("ipv6").is_valid("2001:db8::1")
+    assert not VALIDATORS.get("ipv6").is_valid("3C:45:93:FF:50:9B")
+    assert VALIDATORS.get("user_agent").is_valid("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
