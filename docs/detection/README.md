@@ -36,3 +36,6 @@ Two outputs: `detection.json` (the shared team file, with evidence) and a CSV
 - `SOURCES.md`: every rule, law and standard we rely on, and what we took from it
 - `DECISIONS.md`: each design decision with options, reason and source
 - `SCORES.md`: every measured iteration, from the organisers' baseline onwards
+- `FORMAT.md`: the `detection.json` format and how the plan step should read it
+
+Generate the files: `.venv/bin/python scripts/detect_eval.py --write` (also served at `/api/detection/{dataset}`).

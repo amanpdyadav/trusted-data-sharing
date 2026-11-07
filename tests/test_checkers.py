@@ -82,3 +82,15 @@ def test_hetu_messy_exports():
     assert C.is_hetu("HETU 131052-308T")
     assert C.is_hetu("131052308T")
     assert not C.is_hetu("131052308U")
+
+
+def test_detection_needs_parsing():
+    from pets.detection_file import _parse_needs
+    assert _parse_needs("los_minutes|arrival_ts+discharge_ts") == [["los_minutes"], ["arrival_ts", "discharge_ts"]]
+    assert _parse_needs("arrival_ts (time of day)") == [["arrival_ts"]]
+    assert _parse_needs("lab_results.visit_id") == [["visit_id"]]
+    assert "heart_rate" in _parse_needs("vitals")[0]
+    assert _parse_needs("geo_lat/geo_lon or geo_city or src_ip") == [["geo_lat", "geo_lon"], ["geo_city"], ["src_ip"]]
+    assert _parse_needs("email_gateway.sender/recipients/ts_utc") == [["sender", "recipients", "ts_utc"]]
+    assert ["date_of_birth"] in _parse_needs("age")
+    assert _parse_needs("dp_answers (id,value) or ed_visits") == []
