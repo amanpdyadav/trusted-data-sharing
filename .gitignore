@@ -32,3 +32,10 @@ build/
 .DS_Store
 .idea/
 .vscode/
+
+# Local layout from the main branch's setup: challenge pack, old outputs, editor config, old React build
+challenge/
+outputs/
+.claude/
+web/node_modules/
+web/dist/
