@@ -93,6 +93,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "trust_levels": [t.value for t in TrustLevel], "codelists": sorted(svc.policy().codelists),
         }  # fmt: skip
 
+    @api.get("/api/sessions")
+    def sessions() -> list[dict[str, Any]]:
+        return svc.sessions()
+
     @api.post("/api/sessions/sample")
     def open_sample(req: SampleRequest) -> dict[str, Any]:
         return svc.overview(svc.open_sample(req.name))
@@ -154,12 +158,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @api.get("/api/sessions/{sid}/download/release.zip")
     def release_zip(sid: str) -> Response:
-        s = session(sid)
-        body = svc.release_zip(s)
-        name = f"{s.outcome.manifest.release_id}.zip" if s.outcome else "release.zip"
-        return Response(
-            body, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{name}"'}
-        )
+        name, body = svc.release_zip(session(sid))
+        return Response(body, media_type="application/zip", headers=_attachment(name))
+
+    @api.get("/api/sessions/{sid}/releases")
+    def releases(sid: str) -> list[dict[str, Any]]:
+        return svc.releases(session(sid))
+
+    @api.get("/api/sessions/{sid}/releases/{rid}")
+    def release_results(sid: str, rid: str) -> dict[str, Any]:
+        return svc.release_results(session(sid), rid)
+
+    @api.get("/api/sessions/{sid}/releases/{rid}/release.zip")
+    def kept_release_zip(sid: str, rid: str) -> Response:
+        name, body = svc.release_zip(session(sid), rid)
+        return Response(body, media_type="application/zip", headers=_attachment(name))
 
     @api.get("/api/sessions/{sid}/download/plan.yaml")
     def plan_yaml(sid: str) -> PlainTextResponse:

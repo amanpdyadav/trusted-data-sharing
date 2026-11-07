@@ -75,6 +75,11 @@ class RunSettings:
 DEFAULT_SETTINGS = RunSettings()
 
 
+def release_id(plan: Plan, created: datetime) -> str:
+    """One id per release: the receiver's scenario and the second it was made."""
+    return f"{plan.scenario_id}-{created.strftime('%Y%m%dT%H%M%SZ')}"
+
+
 @dataclass(frozen=True)
 class PublishedAggregate:
     name: str
@@ -247,7 +252,7 @@ def run_release(
     inputs = {t: source.read(t) for t in reads}
     protected = [protect_table(t, inputs[t], plan, scope, inputs) for t in plan.tables]
     aggregates = publish_aggregates(plan, inputs, scope)
-    run_id = f"{plan.scenario_id}-{created.strftime('%Y%m%dT%H%M%SZ')}"
+    run_id = release_id(plan, created)
     total = (
         ledger.record(run_id, scope.domain, plan.epsilon_spent, created)
         if ledger is not None and plan.aggregates

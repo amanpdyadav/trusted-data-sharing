@@ -40,12 +40,16 @@ RECEIVER = {
 
 
 @pytest.fixture
-def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+def settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Settings:
     monkeypatch.setenv("PETS_MASTER_KEY", TEST_MASTER_KEY.decode())
-    settings = Settings(
+    return Settings(
         package_root=tmp_path / "pkg", out_dir=tmp_path / "out", scenario_dirs=(REPO / "scenarios",),
         codelist_dir=REPO / "codelists",
     )  # fmt: skip
+
+
+@pytest.fixture
+def client(settings: Settings) -> TestClient:
     return TestClient(create_app(settings))
 
 
@@ -128,3 +132,37 @@ def test_the_page_and_its_assets_are_served(client: TestClient) -> None:
     catalogue = client.get("/api/catalogue").json()
     assert "direct_identifier" in catalogue["roles"]
     assert "diagnosis_group" in catalogue["codelists"]
+
+
+def _release(client: TestClient, sid: str, k: int) -> dict:  # type: ignore[type-arg]
+    _ok(client.post(f"/api/sessions/{sid}/plan/k", json={"k": k}))
+    _ok(client.post(f"/api/sessions/{sid}/approve", json={"by": "Test Steward", "confirm_review": True}))
+    return _ok(client.post(f"/api/sessions/{sid}/run", json={"receiver": f"uni-k{k}"}))
+
+
+def test_every_release_is_kept_compared_and_survives_a_restart(
+    settings: Settings, client: TestClient, sid: str
+) -> None:
+    scan = _ok(client.post(f"/api/sessions/{sid}/scan"))
+    assert scan["attack"]["before"]["table"] == "visits"
+    _ok(client.post(f"/api/sessions/{sid}/plan", json={"custom": RECEIVER}))
+    first, second = _release(client, sid, 2), _release(client, sid, 5)
+    assert (first["summary"]["k"], second["summary"]["k"]) == (2, 5)
+    assert first["release_id"] != second["release_id"]
+    assert first["techniques"]["visits.patient_name"] == "drop"
+    pair = first["tables"][0]["pairs"][0]  # a released row next to the raw record it came from
+    assert pair["raw"]["patient_name"].startswith("Person")
+    assert "patient_name" not in pair["released"]
+    assert first["attack"]["after"]["outcome"] in {"one_in_n", "identified", "removed"}
+
+    restarted = TestClient(create_app(settings))  # a new app process reads the same folder
+    (listed,) = _ok(restarted.get("/api/sessions"))
+    assert (listed["id"], listed["name"], listed["releases"]) == (sid, "clinic", 2)
+    history = _ok(restarted.get(f"/api/sessions/{sid}/releases"))
+    assert [r["k"] for r in history] == [5, 2]  # newest first
+    kept = _ok(restarted.get(f"/api/sessions/{sid}/releases/{first['release_id']}"))
+    assert kept["summary"] == first["summary"]
+    z = restarted.get(f"/api/sessions/{sid}/releases/{first['release_id']}/release.zip")
+    assert not any("rowmap" in n for n in zipfile.ZipFile(io.BytesIO(z.content)).namelist())
+    assert restarted.get(f"/api/sessions/{sid}/releases/..%2Fplan").status_code in {400, 404}  # no path tricks
+    assert restarted.get(f"/api/sessions/{sid}/releases/nope").status_code == 400

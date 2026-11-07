@@ -4,11 +4,10 @@ Steps: data -> scan (detect + risk scan) -> plan (preset or custom receiver) -> 
 Everything runs on this machine with the same engine as the command line.
 """
 
-import io
+import json
 import re
-import zipfile
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -16,8 +15,9 @@ import numpy as np
 import pandas as pd
 
 from pets_transformer.aggregate import BudgetExceededError, EpsilonLedger
+from pets_transformer.assess import attack
 from pets_transformer.assess.lookalikes import attacker_views, lookalikes
-from pets_transformer.assess.riskscan import scan
+from pets_transformer.assess.riskscan import find_links, scan
 from pets_transformer.assess.usefulness import column_changes, dp_accuracy
 from pets_transformer.config import Settings
 from pets_transformer.contracts import (
@@ -32,7 +32,15 @@ from pets_transformer.contracts import (
 )
 from pets_transformer.detect.rules import detect_source
 from pets_transformer.keys import DerivedKeyProvider, KeyScope
-from pets_transformer.pipeline import RunSettings, protect_table, publish_aggregates, run_release
+from pets_transformer.pipeline import (
+    ProtectedTable,
+    RunOutcome,
+    RunSettings,
+    protect_table,
+    publish_aggregates,
+    release_id,
+    run_release,
+)
 from pets_transformer.plan.common import REVIEW
 from pets_transformer.plan.policy import RulePolicy
 from pets_transformer.plan.scenario import Scenario, load_scenarios
@@ -113,8 +121,26 @@ class App:
     def scan(self, s: Session) -> dict[str, Any]:
         if s.detections is None:
             s.detections = detect_source(s.source(), s.name)
+        s.save()
         risk = scan(s.detections, s.tables())
-        return {"detections": s.detections.model_dump(mode="json"), "risk": risk.as_dict()}
+        return {
+            "detections": s.detections.model_dump(mode="json"), "risk": risk.as_dict(), "attack": self.attack(s),
+        }  # fmt: skip
+
+    def attack(self, s: Session) -> dict[str, Any] | None:
+        """The linkage attack on one person, on the raw data and (once released) on the release."""
+        det, frames = _need(s.detections, "scan the data first"), s.tables()
+        target = attack.pick_target(det, frames)
+        if target is None:
+            return None
+        reach = attack.reach(det, frames, find_links(det, frames), target)
+        out: dict[str, Any] = {"before": attack.on_raw(det, frames, target, reach).as_dict(), "after": None}
+        if s.outcome is not None and s.plan is not None:
+            released = {t.name: t.frame for t in s.outcome.tables}
+            ids = {t.name: t.record_ids for t in s.outcome.tables if t.record_ids is not None}
+            copy = attack.ReleasedCopy(s.plan, released, ids)
+            out["after"] = attack.on_release(det, frames, target, copy).as_dict()
+        return out
 
     def override(self, s: Session, o: Override) -> dict[str, Any]:
         det = _need(s.detections, "scan the data first")
@@ -127,6 +153,7 @@ class App:
         cols = [new if (c.table, c.column) == (o.table, o.column) else c for c in det.columns]
         s.detections = det.model_copy(update={"columns": cols})
         s.changed("detections")
+        s.save()
         return new.model_dump(mode="json")
 
     # ------------------------------------------------------------ plan
@@ -145,6 +172,7 @@ class App:
             raise WorkspaceError(f"this receiver's request does not fit the data: {exc}") from exc
         s.scenario, s.plan = scenario, plan.model_copy(update={"dataset": s.name})
         s.changed("plan")
+        s.save()
         return self.plan_view(s)
 
     def plan_view(self, s: Session) -> dict[str, Any]:
@@ -171,12 +199,14 @@ class App:
         qis = {t: [q for q in cols if not (t == e.table and q == gone)] for t, cols in plan.quasi_identifiers.items()}
         s.plan = plan.model_copy(update={"actions": actions, "quasi_identifiers": qis, "approved": False})
         s.changed("plan")
+        s.save()
         return self.plan_view(s)
 
     def set_k(self, s: Session, k: int) -> dict[str, Any]:
         plan = _need(s.plan, "make a plan first")
         s.plan = Plan.model_validate(plan.model_dump() | {"k_target": k, "approved": False, "approved_by": None})
         s.changed("plan")
+        s.save()
         return self.plan_view(s)
 
     def approve(self, s: Session, by: str, confirm_review: bool) -> dict[str, Any]:
@@ -187,6 +217,7 @@ class App:
         if view["reviews"] and not confirm_review:
             raise WorkspaceError(f"open review items: {', '.join(view['reviews'])}; check them, then confirm")
         s.plan = plan.model_copy(update={"approved": True, "approved_by": by.strip()})
+        s.save()
         return self.plan_view(s)
 
     # ------------------------------------------------------------ run and results
@@ -204,9 +235,14 @@ class App:
             for sub in ("release", "private"):
                 for f in (s.root / sub).glob("*"):
                     f.unlink()
-        s.outcome = run_release(s.source(), plan, self.scope(s, receiver), s.layout, RunSettings())
+        created = datetime.now(UTC)
+        while (s.releases_dir / release_id(plan, created)).exists():  # two releases in one second keep apart
+            created += timedelta(seconds=1)
+        s.outcome = run_release(s.source(), plan, self.scope(s, receiver), s.layout, RunSettings(clock=lambda: created))
         s.receiver, s.published = receiver, False
-        return self.results(s)
+        results = self.results(s)
+        s.archive(s.outcome.manifest.release_id, results)
+        return results
 
     def results(self, s: Session) -> dict[str, Any]:
         plan, outcome = _need(s.plan, "make a plan first"), _need(s.outcome, "run the release first")
@@ -214,6 +250,8 @@ class App:
         released = {t.name: t.frame for t in outcome.tables}
         published = {a.name: a.frame for a in outcome.aggregates}
         scope = self.scope(s, s.receiver)
+        attacker = [v.as_dict() for v in attacker_views(plan, raw, released)]
+        attack_replay = self.attack(s)
         return {
             "release_id": outcome.manifest.release_id,
             "files": [f.model_dump(mode="json") for f in outcome.manifest.files],
@@ -221,12 +259,17 @@ class App:
                 {"name": t.name, "rows_in": t.rows_in, "rows_out": len(t.frame),
                  "preview": _records(t.frame.head(PREVIEW_ROWS)),
                  "raw_preview": _records(raw[t.name].head(PREVIEW_ROWS)),
+                 "pairs": _pairs(raw[t.name], t, plan.record_keys.get(t.name)),
                  "changes": [asdict(c) for c in column_changes(plan, t.name, raw[t.name], t.frame)],
                  "suppression": None if t.suppression is None else {
                      "rows_removed": t.suppression.rows_removed, "cells_blanked": t.suppression.cells_blanked}}
                 for t in outcome.tables
             ],
-            "attacker": [v.as_dict() for v in attacker_views(plan, raw, released)],
+            "attacker": attacker,
+            "attack": attack_replay,
+            "summary": _summary(s, plan, outcome, attacker, attack_replay),
+            "techniques": {f"{c.table}.{c.column}": _technique(plan, c.table, c.column, detail=True)
+                           for c in _need(s.detections, "scan the data first").columns},
             "statistics": [
                 {"name": a.name, "preview": _records(a.frame.head(12)), "cells": len(a.frame)}
                 for a in outcome.aggregates
@@ -291,34 +334,49 @@ class App:
         for c in det.columns:
             row: dict[str, Any] = {"table": c.table, "column": c.column, "role": c.privacy_role.value}
             for sid, p in plans.items():
-                a = p.action_for(c.table, c.column)
-                stats = [
-                    g.name
-                    for g in p.aggregates
-                    if g.table == c.table and any(d.column == c.column for d in g.dimensions)
-                ]
-                row[sid] = a.technique.value if a else ("statistics" if stats else "withheld")
+                row[sid] = _technique(p, c.table, c.column)
             rows.append(row)
         return {"receivers": [_scenario_card(found.get(i) or s.scenario) for i in plans], "rows": rows}  # type: ignore[arg-type]
 
     # ------------------------------------------------------------ downloads
-    def release_zip(self, s: Session) -> bytes:
-        """The shareable release: protected tables and manifest only. Publishing spends the privacy budget."""
-        plan, outcome = _need(s.plan, "make a plan first"), _need(s.outcome, "run the release first")
-        if plan.aggregates and not s.published:
-            dp = plan.differential_privacy
-            ledger = EpsilonLedger(self.settings.epsilon_ledger, dp.budget_cap if dp else None)
+    def sessions(self) -> list[dict[str, Any]]:
+        """Everything worked on in this app: datasets, how far each got, and the releases made from them."""
+        out = []
+        for x in self.workspace.listing():
+            files = sorted(x.data.glob("*.csv"))
+            releases = x.releases()
+            out.append({
+                "id": x.id, "name": x.name, "created_at": x.created_at, "tables": [f.stem for f in files],
+                "bytes": sum(f.stat().st_size for f in files), "receiver": x.scenario.recipient if x.scenario else None,
+                "steps": {"scanned": x.detections is not None, "planned": x.plan is not None,
+                          "approved": bool(x.plan and x.plan.approved)},
+                "releases": len(releases), "last_release": releases[0] if releases else None,
+            })  # fmt: skip
+        return out
+
+    def releases(self, s: Session) -> list[dict[str, Any]]:
+        return s.releases()
+
+    def release_results(self, s: Session, release_id: str) -> dict[str, Any]:
+        results: dict[str, Any] = json.loads((s.release(release_id) / "results.json").read_text(encoding="utf-8"))
+        results["published"] = (s.release(release_id) / "published").exists()
+        return results
+
+    def release_zip(self, s: Session, release_id: str | None = None) -> tuple[str, bytes]:
+        """A kept release: protected tables and manifest only. Publishing statistics spends the privacy budget."""
+        if release_id is None:
+            release_id = _need(s.outcome, "run the release first").manifest.release_id
+        folder, summary = s.release(release_id), self.release_results(s, release_id)["summary"]
+        if summary.get("epsilon") is not None and not (folder / "published").exists():
+            ledger = EpsilonLedger(self.settings.epsilon_ledger, summary.get("budget_cap"))
             try:
-                ledger.record(outcome.manifest.release_id, outcome.manifest.key_domain, plan.epsilon_spent,
-                              datetime.now(UTC))  # fmt: skip
+                ledger.record(release_id, summary["key_domain"], summary["epsilon"], datetime.now(UTC))
             except BudgetExceededError as exc:
                 raise WorkspaceError(str(exc)) from exc
-        s.published = True
-        buf = io.BytesIO()
-        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-            for f in sorted((s.root / "release").iterdir()):
-                z.write(f, f"{outcome.manifest.release_id}/{f.name}")
-        return buf.getvalue()
+        (folder / "published").touch()
+        if s.outcome is not None and s.outcome.manifest.release_id == release_id:
+            s.published = True
+        return f"{release_id}.zip", (folder / "release.zip").read_bytes()
 
     def plan_yaml(self, s: Session) -> str:
         path = s.root / "plan.yaml"
@@ -352,6 +410,51 @@ def _parts(text: str, spans: list[Any]) -> list[dict[str, str]]:
         cursor = sp.end
     parts.append({"t": text[cursor:]})
     return [p for p in parts if p["t"]]
+
+
+def _technique(plan: Plan, table: str, column: str, *, detail: bool = False) -> str:
+    """What a plan does with one column: its technique, statistics only, or withheld."""
+    a = plan.action_for(table, column)
+    if a is None:
+        stats = any(g.table == table and any(d.column == column for d in g.dimensions) for g in plan.aggregates)
+        return "statistics" if stats else "withheld"
+    if detail and a.technique is Technique.GENERALISE:
+        to = a.params.get("to")
+        return f"generalise: {a.params.get('unit') if to == 'time' else to}"
+    return a.technique.value
+
+
+def _pairs(raw: pd.DataFrame, t: ProtectedTable, key: str | None) -> list[dict[str, dict[str, str]]]:
+    """The first released rows next to the raw records they came from (matched with the private row map)."""
+    if key is None or t.record_ids is None or key not in raw.columns:
+        return []
+    by_id = raw.assign(_id=raw[key].astype(str)).drop_duplicates("_id").set_index("_id")
+    out = []
+    for pos, rid in enumerate(t.record_ids[:PREVIEW_ROWS]):
+        if rid in by_id.index:
+            out.append({"raw": _records(by_id.loc[[rid]])[0], "released": _records(t.frame.iloc[[pos]])[0]})
+    return out
+
+
+def _summary(
+    s: Session, plan: Plan, outcome: RunOutcome, attacker: list[dict[str, Any]], replay: dict[str, Any] | None
+) -> dict[str, Any]:
+    """The headline numbers of one release, for the release history and release-to-release comparison."""
+    dp = plan.differential_privacy
+    worst = max(attacker, key=lambda v: v["before"]["unique_share"], default=None)
+    after = (replay or {}).get("after") or {}
+    return {
+        "release_id": outcome.manifest.release_id, "created_at": outcome.manifest.created_at.isoformat(),
+        "receiver": s.receiver, "scenario_id": plan.scenario_id,
+        "recipient": s.scenario.recipient if s.scenario else plan.scenario_id, "approved_by": plan.approved_by,
+        "k": plan.k_target if plan.quasi_identifiers else None,
+        "epsilon": plan.epsilon_spent if plan.aggregates else None, "budget_cap": dp.budget_cap if dp else None,
+        "key_domain": outcome.manifest.key_domain, "files": [f.name for f in outcome.manifest.files],
+        "singled_out_before": worst["before"]["unique_share"] if worst else None,
+        "singled_out_after": worst["after"]["unique_share"] if worst else None,
+        "guess_chance_after": worst["after"]["guess_chance"] if worst else None,
+        "attack_outcome": after.get("outcome"), "attack_matches": after.get("matches"),
+    }  # fmt: skip
 
 
 def _scenario_card(s: Scenario) -> dict[str, Any]:
