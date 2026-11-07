@@ -10,7 +10,7 @@ import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTi
 import { Checkbox, Input, Label, Slider } from "@/components/ui/form";
 import { Meter, Spinner, TableWrap, Td, Th } from "@/components/ui/misc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { Action, Column, Plan } from "@/lib/api";
+import type { Action, Column, Plan, Receiver } from "@/lib/api";
 import { ROLE_LABEL, ROLE_TONE, clip, pct, plural } from "@/lib/format";
 import { LANES, RECEIVER_ICON, TIME_UNITS, laneOf } from "@/lib/lanes";
 import { changeColumn, loadCompare, makePlan, setK, useApp } from "@/lib/store";
@@ -22,19 +22,33 @@ const LANE_SHOWN = 6;
 
 export function PlanStep() {
   const cat = useApp(s => s.cat!), plan = useApp(s => s.plan), choice = useApp(s => s.receiverChoice), busy = useApp(s => s.busy === "plan");
+  const session = useApp(s => s.session);
   const [custom, setCustom] = useState(false);
+  // A receiver fits this data when every table it asks for is here (works for uploads too, not just by dataset name).
+  const have = new Set(session?.tables.map(t => t.name) ?? []);
+  const missing = (r: Receiver) => (r.tables ?? []).filter(t => !have.has(t));
+  const fitting = cat.receivers.filter(r => missing(r).length === 0), other = cat.receivers.filter(r => missing(r).length > 0);
+  const card = (r: Receiver, off = false) => (
+    <ReceiverCard key={r.id} icon={RECEIVER_ICON[r.trust_level] ?? "📦"} title={r.recipient} text={r.purpose} selected={choice === r.id} disabled={off}
+      note={off ? `Made for the ${r.dataset.replace(/_/g, " ")} data · needs ${missing(r).join(", ")}` : `${r.id} · ${r.trust_level.replace(/_/g, " ")}`}
+      gets={r.kind === "statistics" ? "Gets only counts, with a little noise" : "Gets individual records, protected"} stats={r.kind === "statistics"}
+      onClick={() => makePlan({ scenario_id: r.id }, r.id)} />
+  );
   return (
     <>
       <PageHead title="Who gets the data, and what will they see?" lede="Pick the receiver. The tool decides how each column is shared and shows you the result before anything leaves." />
       <Guide steps={["Pick who gets the data", "Check what they will receive", "Change anything that looks wrong, then continue"]} done={[!!plan, !!plan, false]} />
       <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,240px),1fr))] gap-3">
-        {cat.receivers.map(r => (
-          <ReceiverCard key={r.id} icon={RECEIVER_ICON[r.trust_level] ?? "📦"} title={r.recipient} text={r.purpose} selected={choice === r.id}
-            gets={r.kind === "statistics" ? "Gets only counts, with a little noise" : "Gets individual records, protected"} stats={r.kind === "statistics"}
-            onClick={() => makePlan({ scenario_id: r.id }, r.id)} />
-        ))}
-        <ReceiverCard icon="✏️" title="Someone else" text="Describe who they are and tick what they need." gets="You choose the columns" selected={choice === "custom"} onClick={() => setCustom(true)} />
+        {fitting.map(r => card(r))}
+        <ReceiverCard icon="✏️" title="Someone else" text={fitting.length ? "Describe who they are and tick what they need." : "No ready-made receiver fits this data: describe who gets it and tick what they need."}
+          gets="You choose the columns" selected={choice === "custom"} onClick={() => setCustom(true)} />
       </div>
+      {other.length > 0 && (
+        <details className="rounded-xl border bg-card p-3">
+          <summary className="cursor-pointer text-sm font-medium text-muted-foreground">Receivers made for other data ({other.length}): they ask for tables this dataset does not have</summary>
+          <div className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(min(100%,240px),1fr))] gap-3">{other.map(r => card(r, true))}</div>
+        </details>
+      )}
       {busy && !plan && <Spinner />}
       {plan && <PlanResult />}
       {custom && <CustomReceiver onClose={() => setCustom(false)} />}
@@ -42,12 +56,13 @@ export function PlanStep() {
   );
 }
 
-function ReceiverCard({ icon, title, text, gets, stats, selected, onClick }: { icon: string; title: string; text: string; gets: string; stats?: boolean; selected: boolean; onClick: () => void }) {
+function ReceiverCard({ icon, title, text, gets, stats, selected, onClick, disabled = false, note }: { icon: string; title: string; text: string; gets: string; stats?: boolean; selected: boolean; onClick: () => void; disabled?: boolean; note?: string }) {
   return (
-    <button onClick={onClick} aria-pressed={selected}
-      className={cn("flex flex-col gap-2 rounded-xl border bg-card p-4 text-left shadow-sm transition-colors hover:border-input", selected && "border-safe ring-1 ring-safe")}>
+    <button onClick={onClick} aria-pressed={selected} disabled={disabled} title={disabled ? note : undefined}
+      className={cn("flex flex-col gap-2 rounded-xl border bg-card p-4 text-left shadow-sm transition-colors hover:border-input disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border", selected && "border-safe ring-1 ring-safe")}>
       <span className="text-[26px] leading-none" aria-hidden>{icon}</span><b>{title}</b>
       <span className="text-[13px] text-muted-foreground">{text}</span>
+      {note && <span className={cn("font-mono text-[11px]", disabled ? "text-warn" : "text-muted-foreground")}>{note}</span>}
       <span className={cn("mt-auto border-t border-dashed pt-2 text-[12.5px] font-semibold", stats ? "text-ok" : "text-safe")}>{gets}</span>
     </button>
   );

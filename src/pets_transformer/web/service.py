@@ -543,6 +543,8 @@ def _scenario_card(s: Scenario) -> dict[str, Any]:
         "trust_level": s.trust_level.value, "kind": "statistics" if s.statistics and not s.needs else "rows",
         "legal_context": s.legal_context, "needs": [n.model_dump() for n in s.needs],
         "statistics": [st.name for st in s.statistics], "k": s.targets.k, "epsilon": s.targets.epsilon,
+        # the tables this receiver asks for: the app offers the receiver only for data that has all of them
+        "tables": sorted({n.table for n in s.needs if n.table} | {st.table for st in s.statistics}),
     }  # fmt: skip
 
 

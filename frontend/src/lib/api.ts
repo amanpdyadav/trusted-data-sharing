@@ -16,7 +16,7 @@ export interface SessionListItem {
   id: string; name: string; created_at: string; tables: string[]; bytes: number; receiver: string | null; released: boolean;
   steps: { scanned: boolean; planned: boolean; approved: boolean }; releases: number; last_release: ReleaseSummary | null;
 }
-export interface Receiver { id: string; title: string; recipient: string; purpose: string; trust_level: string; kind: "rows" | "statistics" }
+export interface Receiver { id: string; title: string; recipient: string; purpose: string; trust_level: string; kind: "rows" | "statistics"; dataset: string; tables: string[] }
 export interface Catalogue { samples: { name: string; tables: string[] }[]; receivers: Receiver[]; roles: string[]; subtypes: string[]; trust_levels: string[]; codelists: string[] }
 export interface Column { table: string; column: string; privacy_role: string; subtype: string; confidence: number; evidence: { kind: string; detail: string }[] }
 export interface TableExposure {
