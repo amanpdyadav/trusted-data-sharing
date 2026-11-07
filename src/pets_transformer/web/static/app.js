@@ -24,7 +24,11 @@ const $ = sel => document.querySelector(sel);
 const maskValue = v => String(v ?? "").replace(/[\p{L}\p{N}]+/gu, w => w[0] + "•".repeat(Math.min(w.length - 1, 6)));
 const roleOf = (table, column) => (S.scan?.detections.columns.find(d => d.table === table && d.column === column) || {}).privacy_role || "";
 const MASKED_ROLES = ["direct_identifier", "free_text"];  // free text often holds names (signatures, relatives)
-const shown = (table, column, v) => S.mask && MASKED_ROLES.includes(roleOf(table, column)) ? maskValue(v) : String(v ?? "");
+const shown = (table, column, v) => {
+  if (!S.mask) return String(v ?? "");
+  if (!S.scan) return /^[\d\s.,:+\-/]*$/.test(String(v ?? "")) ? String(v ?? "") : maskValue(v);  // roles unknown until the scan
+  return MASKED_ROLES.includes(roleOf(table, column)) ? maskValue(v) : String(v ?? "");
+};
 const clip = (v, n = 120) => { const t = String(v ?? ""); return t.length > n ? t.slice(0, n - 1) + "…" : t; };
 
 /* ---------------------------------------------------------------- api */
@@ -62,7 +66,7 @@ function render() {
     `<button data-step="${k}" ${k === S.step ? 'aria-current="step"' : ""} class="${done[k] && k !== S.step ? "done" : ""}" ${canOpen(k) ? "" : "disabled"}>
       <span class="n">${done[k] && k !== S.step ? "✓" : i + 1}</span>${label}</button>`).join("");
   renderTicker();
-  $("#page").innerHTML = VIEWS[S.step]();
+  $("#page").innerHTML = VIEWS[S.step]() + nextBar();
   wire();
 }
 function renderTicker() {
@@ -87,20 +91,61 @@ const worstTable = () => S.scan ? [...S.scan.risk.tables].sort((a, b) => b.uniqu
 
 /* ---------------------------------------------------------------- 1 data */
 function dataView() {
-  const samples = S.cat?.samples || [];
+  if (S.progress && S.step === "data") return `${head(1, "Bring the data you want to share")}${progressCard()}`;
+  if (S.session) return `${readyPanel()}${tablesPanel(S.session.tables)}
+    <details class="switcher" ${S.switchOpen ? "open" : ""}><summary><span>Load different data or reopen earlier work</span><span class="small">${plural(S.sessions.length, "dataset")} in your workspace</span></summary>
+      <div class="page">${loaders()}${workspacePanel()}</div></details>`;
   return `${head(1, "Bring the data you want to share", "Drop the tables as CSV files (or one ZIP), pick an example, or reopen earlier work. Files are copied into a local folder on this computer; nothing is uploaded anywhere.")}
-  <div class="grid2">
+    ${loaders()}${workspacePanel()}`;
+}
+function loaders() {
+  const samples = S.cat?.samples || [];
+  return `<div class="grid2">
     <div class="panel"><h2>Your files</h2>
       <label class="field">Dataset name<input type="text" id="dsname" value="my-data"></label>
       <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose CSV or ZIP files">
         <span class="icon" aria-hidden="true">↑</span><b>Drop CSV or ZIP files here</b><span class="small">or click to choose. One file per table; the file name becomes the table name.</span>
-        <input type="file" id="files" accept=".csv,.zip" multiple hidden></div>${busy("upload")}</div>
-    <div class="panel"><div class="spread"><h2>Or try an example</h2>${busy("sample")}</div><p class="small">Synthetic datasets from the TrustED challenge package.</p>
-      <div class="cards">${samples.map(s => `<button class="choice" data-sample="${esc(s.name)}"><span class="k">${s.tables.length} tables</span><b>${esc(s.name.replace(/_/g, " "))}</b><span class="small">${esc(s.tables.slice(0, 4).join(", "))}${s.tables.length > 4 ? "…" : ""}</span></button>`).join("") || `<p class="small">No sample folder found (set PETS_PACKAGE_ROOT).</p>`}</div></div>
-  </div>
-  ${S.busy === "open" ? `<div class="callout safe">Reopening <b>${esc(S.reopening || "your dataset")}</b>: reading the tables and the saved scan${busy("open")}</div>` : ""}
-  ${workspacePanel()}
-  ${S.session ? tablesPanel(S.session.tables) : ""}`;
+        <input type="file" id="files" accept=".csv,.zip" multiple hidden></div></div>
+    <div class="panel"><h2>Or try an example</h2><p class="small">Synthetic datasets from the TrustED challenge package.</p>
+      <div class="cards">${samples.map(x => `<button class="choice" data-sample="${esc(x.name)}"><span class="k">${x.tables.length} tables</span><b>${esc(x.name.replace(/_/g, " "))}</b><span class="small">${esc(x.tables.slice(0, 4).join(", "))}${x.tables.length > 4 ? "…" : ""}</span></button>`).join("") || `<p class="small">No sample folder found (set PETS_PACKAGE_ROOT).</p>`}</div></div>
+  </div>`;
+}
+function readyPanel() {
+  const T = S.session.tables, rows = T.reduce((n, t) => n + t.rows, 0), cols = T.reduce((n, t) => n + t.columns.length, 0);
+  const mb = (S.sessions.find(x => x.id === S.session.id) || {}).bytes;
+  return `<div class="panel ready"><div class="spread"><div class="head"><span class="eyebrow">Step 1 of 5 · dataset ready</span><h1>${esc(S.session.name)}</h1></div>
+      <button class="btn primary lg" data-go="scan">Scan for risks →</button></div>
+    <div class="facts4"><div><b>${fmt(T.length)}</b><span>tables</span></div><div><b>${fmt(rows)}</b><span>rows</span></div><div><b>${fmt(cols)}</b><span>columns</span></div>${mb ? `<div><b>${(mb / 2 ** 20).toFixed(1)} MB</b><span>on this computer</span></div>` : ""}</div>
+    <p class="small">Next, the scan reads every column, finds what identifies people and how the tables connect, and replays an attack on one person.</p></div>`;
+}
+/* one progress card for every long wait: real percentages for uploads, elapsed time for server work */
+function progressCard() {
+  const P = S.progress;
+  return `<div class="panel progresscard"><div class="spread"><h2>${esc(P.title)}</h2><span class="small mono" id="elapsed">${Math.round((Date.now() - P.started) / 1000)} s</span></div>
+    <div class="progress ${P.pct == null ? "indet" : ""}"><b id="pbar" style="width:${P.pct == null ? 35 : Math.round(100 * P.pct)}%"></b></div>
+    <p class="small" id="pdetail">${esc(P.detail)}</p>
+    ${P.checks ? `<ul class="checks">${P.checks.map(c => `<li>${esc(c)}</li>`).join("")}</ul>` : ""}</div>`;
+}
+function startProgress(title, detail, extra = {}) { S.progress = { title, detail, pct: null, started: Date.now(), ...extra }; render(); }
+function setProgress(pct, detail) {
+  if (!S.progress) return;
+  Object.assign(S.progress, { pct, detail });
+  const bar = $("#pbar"), d = $("#pdetail");
+  if (bar) { bar.parentElement.classList.toggle("indet", pct == null); bar.style.width = (pct == null ? 35 : Math.round(100 * pct)) + "%"; }
+  if (d) d.textContent = detail;
+}
+setInterval(() => { const e = $("#elapsed"); if (e && S.progress) e.textContent = Math.round((Date.now() - S.progress.started) / 1000) + " s"; }, 1000);
+/* the next action, always in reach at the bottom of the screen */
+function nextBar() {
+  const bar = (info, action) => `<div class="nextbar"><div class="small">${info}</div>${action}</div>`;
+  if (S.progress) return "";
+  if (S.step === "data" && S.session) return bar(`<b>${esc(S.session.name)}</b> · ${plural(S.session.tables.length, "table")} loaded`, `<button class="btn primary" data-go="scan">Scan for risks →</button>`);
+  if (S.step === "scan" && S.scan) { const w = worstTable(); return bar(`${pct(w.unique_share)} of <b>${esc(w.table)}</b> can be singled out today`, `<button class="btn primary" data-go="plan">Choose a receiver →</button>`); }
+  if (S.step === "plan" && S.plan) return bar(`Plan for <b>${esc(S.plan.scenario?.recipient || S.plan.plan.scenario_id)}</b>${S.plan.reviews.length ? ` · ${plural(S.plan.reviews.length, "item")} to check` : ""}`, `<button class="btn primary" data-go="approve">Review & approve →</button>`);
+  if (S.step === "plan") return bar("Pick who receives the data above.", "");
+  if (S.step === "approve") return S.plan.plan.approved ? bar(`Approved by <b>${esc(S.plan.plan.approved_by)}</b>`, `<button class="btn primary" data-go="release">Create the release →</button>`) : bar("Type your name and approve the plan to continue.", "");
+  if (S.step === "release" && S.results) return bar(`<b>${esc(S.results.release_id)}</b> · ${S.results.files.map(f => esc(f.name)).join(", ")} + manifest`, `<a class="btn safe" href="/api/sessions/${sid()}/releases/${encodeURIComponent(S.results.release_id)}/release.zip" data-download>Download release (.zip)</a>`);
+  return "";
 }
 function workspacePanel() {
   if (!S.sessions.length) return "";
@@ -112,12 +157,11 @@ function workspacePanel() {
         <div class="dots" title="scanned, planned, approved, released"><i class="${st.scanned ? "on" : ""}"></i><i class="${st.planned ? "on" : ""}"></i><i class="${st.approved ? "on" : ""}"></i><i class="${x.releases ? "on" : ""}"></i><span>${x.releases ? plural(x.releases, "release") : st.planned ? "planned" : st.scanned ? "scanned" : "new"}</span></div>
         <div class="small">${r ? `Last: <b>${esc(r.recipient)}</b> · ${r.singled_out_after != null ? `singled out ${pct(r.singled_out_before)} → <b>${pct(r.singled_out_after)}</b>` : r.epsilon != null ? `statistics, ε ${r.epsilon}` : ""}` : esc(x.receiver || "")}</div>
         <button class="btn small" data-open="${esc(x.id)}">${S.session?.id === x.id ? "Open ✓" : "Open"}</button></div>`;
-    }).join("")}</div>${busy("open")}</div>`;
+    }).join("")}</div></div>`;
 }
 function tablesPanel(tables) {
   const t = tables.find(x => x.name === S.table) || tables[0];
-  return `<div class="panel"><div class="spread"><h2>${esc(S.session.name)}: ${plural(tables.length, "table")}, ${fmt(tables.reduce((s, x) => s + x.rows, 0))} rows</h2>
-    <button class="btn primary" data-go="scan">Scan for risks →</button></div>
+  return `<div class="panel"><div class="spread"><h2>What is inside</h2><span class="small">first rows of each table${S.mask && !S.scan ? " · text hidden until the scan knows which columns are personal" : ""}</span></div>
     <div class="pills">${tables.map(x => `<button data-table="${esc(x.name)}" aria-pressed="${x.name === t.name}">${esc(x.name)} · ${fmt(x.rows)}</button>`).join("")}</div>
     ${grid(t.preview, t.columns, t.name)}</div>`;
 }
@@ -129,7 +173,7 @@ function grid(rows, columns, table) {
 
 /* ---------------------------------------------------------------- 2 risk scan */
 function scanView() {
-  if (!S.scan) return `${head(2, "Risk scan")}<p class="lede">Reading every column…${busy("scan")}</p>`;
+  if (!S.scan) return `${head(2, "What could go wrong if this data were shared as it is")}${S.progress ? progressCard() : `<div class="row"><button class="btn primary lg" data-scan>Scan for risks</button></div>`}`;
   const R = S.scan.risk, det = S.scan.detections.columns, worst = worstTable();
   const outside = R.tables.flatMap(t => t.outside_links.map(c => `${t.table}.${c}`));
   const joined = new Set(R.links.flatMap(l => [l.from_table, l.to_table])).size;
@@ -142,12 +186,12 @@ function scanView() {
     ${kpi(special.length ? "warn" : "ok", special.length ? "Art. 9" : "none", special.length ? `special category data (GDPR) in ${esc(special.join(", "))}` : "special category data (GDPR)")}
   </div>
   ${S.scan.attack ? attackRaw(S.scan.attack.before) : ""}
-  <div class="panel"><div class="spread"><h2>How your data connects</h2><div class="legend"><span><i style="background:var(--line-strong)"></i>joined by a shared key</span><span><i style="background:var(--risk)"></i>matchable from outside sources</span></div></div>${connectionMap(R)}</div>
+  <div class="panel"><div class="spread"><h2>How your data connects</h2><div class="legend"><span><i style="background:var(--line-strong)"></i>joined by a shared key</span><span><i style="background:var(--risk)"></i>matchable from outside sources</span></div></div><div class="mapwrap">${connectionMap(R)}</div></div>
   <div class="panel">${tabs("scan", [["tables", "Exposure per table", R.tables.length], ["person", "One person's file", Object.values(R.person || {}).reduce((s, r) => s + r.length, 0)], ["columns", "What each column is", det.length]])}
     ${S.tabs.scan === "tables" ? `<div class="cards">${R.tables.map(exposureCard).join("")}</div>` : ""}
     ${S.tabs.scan === "person" ? personCard(R.person) : ""}
     ${S.tabs.scan === "columns" ? `<div class="spread"><p class="small">Found from column names and values (ID-code checksums, IBAN and card check digits, phone formats, name shapes, dates, code sets). Wrong? Change it; the plan follows your correction.</p><a class="btn small" href="/api/sessions/${sid()}/download/detection.json">Download detection.json</a></div>${detectionTable(det)}` : ""}</div>
-  <div class="row"><button class="btn primary" data-go="plan">Choose a receiver →</button></div>`;
+`;
 }
 function factList(obj, table, cls = "") {
   return Object.entries(obj).map(([k, v]) => `<div class="fact"><span>${esc(k)}</span><b class="${cls}">${esc(shown(table, k, v)) || "–"}</b></div>`).join("");
@@ -522,11 +566,11 @@ function wire() {
   }));
   page.querySelectorAll("[data-play]").forEach(b => (b.onclick = () => { S.play = ""; render(); requestAnimationFrame(() => play(b.dataset.play)); }));
   page.querySelectorAll("[data-table]").forEach(b => (b.onclick = () => { S.table = b.dataset.table; render(); }));
-  page.querySelectorAll("[data-sample]").forEach(b => (b.onclick = () => act("sample", async () => openSession(await api("/api/sessions/sample", { body: { name: b.dataset.sample } })))));
-  page.querySelectorAll("[data-open]").forEach(b => (b.onclick = () => {
-    S.reopening = (S.sessions.find(x => x.id === b.dataset.open) || {}).name || "";
-    act("open", () => openExisting(b.dataset.open)).then(() => { S.reopening = ""; render(); });
-  }));
+  page.querySelectorAll("[data-sample]").forEach(b => (b.onclick = () => withProgress(`Opening the ${b.dataset.sample.replace(/_/g, " ")} example`, "Copying the tables into your workspace and reading them…",
+    async () => openSession(await api("/api/sessions/sample", { body: { name: b.dataset.sample } })))));
+  page.querySelectorAll("[data-scan]").forEach(b => (b.onclick = runScan));
+  page.querySelectorAll("details.switcher").forEach(d => (d.ontoggle = () => (S.switchOpen = d.open)));
+  page.querySelectorAll("[data-open]").forEach(b => (b.onclick = () => reopen(b.dataset.open)));
   const drop = $("#drop"), input = $("#files");
   if (drop) {
     drop.onclick = () => input.click();
@@ -622,20 +666,44 @@ function planChanged() { S.confirmReview = false; S.results = null; S.viewing = 
 function loadCompare() {
   act("compare", async () => { S.compare = await api(`/api/sessions/${sid()}/compare`, { body: { scenario_ids: S.cat.receivers.map(r => r.id) } }); });
 }
+const mb = n => (n / 2 ** 20).toFixed(n < 10 * 2 ** 20 ? 1 : 0);
+function uploadWithProgress(form) {  // XMLHttpRequest reports upload progress; fetch does not
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open("POST", "/api/sessions/upload");
+    x.upload.onprogress = e => { if (e.lengthComputable) setProgress(e.loaded / e.total, `${mb(e.loaded)} of ${mb(e.total)} MB copied`); };
+    x.upload.onload = () => setProgress(null, "Reading your tables: counting rows and columns…");
+    x.onload = () => { let d = {}; try { d = JSON.parse(x.responseText); } catch (e) { /* not JSON */ } x.status < 300 ? resolve(d) : reject(new Error(d.error || `upload failed (${x.status})`)); };
+    x.onerror = () => reject(new Error("the upload was interrupted"));
+    x.send(form);
+  });
+}
 async function upload(files) {
   if (!files?.length) return;
-  const form = new FormData();
-  [...files].forEach(f => form.append("files", f));
+  const form = new FormData(), list = [...files], size = list.reduce((n, f) => n + f.size, 0);
+  list.forEach(f => form.append("files", f));
   form.append("name", $("#dsname").value || "my-data");
-  await act("upload", async () => openSession(await api("/api/sessions/upload", { form })));
+  await withProgress(`Uploading ${plural(list.length, "file")} (${mb(size)} MB)`, "Starting…", async () => {
+    setProgress(0, `0 of ${mb(size)} MB copied`);
+    openSession(await uploadWithProgress(form));
+  });
+}
+async function withProgress(title, detail, fn, extra) {
+  startProgress(title, detail, extra);
+  try { await fn(); } catch (e) { toast(e.message, true); } finally { S.progress = null; render(); window.scrollTo(0, 0); }
 }
 async function refreshHistory() {
   S.history = S.session ? await api(`/api/sessions/${sid()}/releases`) : [];
   S.sessions = await api("/api/sessions");
 }
+function reopen(id) {
+  const name = (S.sessions.find(x => x.id === id) || {}).name || "your dataset";
+  S.step = "data";
+  return withProgress(`Reopening ${name}`, "Reading the tables, the saved scan, the plan and earlier releases…", () => openExisting(id));
+}
 function openSession(s) {
-  Object.assign(S, { session: s, scan: null, plan: null, results: null, history: [], viewing: null, picked: [], cmp: null, tradeoff: null, compare: null, table: null, receiverChoice: null, custom: null });
-  remember(); refreshHistory().then(render); toast(`Loaded ${s.tables.length} tables.`);
+  Object.assign(S, { step: "data", switchOpen: false, session: s, scan: null, plan: null, results: null, history: [], viewing: null, picked: [], cmp: null, tradeoff: null, compare: null, table: null, receiverChoice: null, custom: null });
+  remember(); refreshHistory().then(render);
 }
 /* reopen earlier work: scan, plan and the latest release come back as they were left */
 async function openExisting(id) {
@@ -648,7 +716,16 @@ async function openExisting(id) {
   if (S.history.length) S.results = await api(`/api/sessions/${id}/releases/${encodeURIComponent(S.history[0].release_id)}`);
   S.step = S.results ? "release" : S.plan ? "plan" : S.scan ? "scan" : "data";
 }
-function runScan() { act("scan", async () => { S.scan = await api(`/api/sessions/${sid()}/scan`, { method: "POST" }); play("scan", false); }); }
+const SCAN_CHECKS = ["what each column holds: names, ID codes (with checksums), phones, addresses, dates, codes",
+  "which facts an outsider could already know, and how many people they single out",
+  "which keys join the tables, so one match unlocks the rest", "an attack on one person, the way an outsider would do it"];
+function runScan() {
+  S.step = "scan";
+  const rows = S.session.tables.reduce((n, t) => n + t.rows, 0);
+  return withProgress("Scanning for risks", `Reading ${fmt(rows)} rows in ${plural(S.session.tables.length, "table")}. Large data can take a minute; the result is saved.`, async () => {
+    S.scan = await api(`/api/sessions/${sid()}/scan`, { method: "POST" }); play("scan", false);
+  }, { checks: SCAN_CHECKS });
+}
 /* the attack replay animates once; later redraws (tabs, inputs) show it settled */
 function play(which, now = true) {
   S.play = which;
@@ -689,6 +766,5 @@ function customScenario() {
   } catch (e) { toast(e.message, true); }
   render();
   let saved = ""; try { saved = localStorage.getItem("pets.session") || ""; } catch (e) { /* storage off */ }
-  const last = S.sessions.find(x => x.id === saved);
-  if (last) { S.reopening = last.name; act("open", () => openExisting(saved)).then(() => { S.reopening = ""; render(); }); }
+  if (S.sessions.some(x => x.id === saved)) reopen(saved);
 })();
