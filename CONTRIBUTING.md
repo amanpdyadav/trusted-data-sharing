@@ -2,7 +2,7 @@
 
 Detect privacy risks, apply proportionate protections for a named receiver, and prove the before/after.
 Built for the TrustED challenge (Since AI Hackathon 2026) and to run later on real company data.
-Requirements and decisions: [`NOTES_requirements.md`](NOTES_requirements.md).
+Using the tool: [`README.md`](README.md). Requirements and decisions: [`NOTES_requirements.md`](NOTES_requirements.md).
 
 ## Setup (5 minutes)
 
@@ -26,21 +26,24 @@ without it.
 ```
 src/pets_transformer/
   contracts/   the shared files as typed models: detection, plan, metrics, manifest, spans, taxonomy
-  detect/      Hari     what each column holds (validators.py, later columns.py, llm_fallback.py)
-  text/        Chinedu  find and hide personal details in free text
-  plan/        Aman     scenarios (YAML) -> one protection per column, with a reason
-  transform/   Aman     apply the plan: pseudonymise (HMAC), generalise, suppress, noise ...
-  assess/      Aman+Silenat  our own risk checks (k-anonymity, attacks, text leaks)
-  report/      Aman     manifest and fingerprints
-  sources.py   where tables come from (CSV now; DB later)
+  detect/      what each column holds (validators, names, profiles, rules)
+  text/        find and hide personal details in free text
+  plan/        scenarios (YAML) -> one protection per column, with a reason
+  transform/   apply the plan: pseudonymise (HMAC), generalise, suppress, redact
+  aggregate/   published statistics with differential privacy, and the privacy budget ledger
+  assess/      our own checks: risk scan, attack replay and trail, look-alikes, usefulness
+  report/      fingerprints for the manifest
+  web/         the local web app: workspace (sessions), service (what it does), app (HTTP), static (page)
+  pipeline.py  run an approved plan and write a release
+  sources.py   where tables come from (CSV now; database later)
   keys.py      secret keys from the environment, one derived key per receiver
   llm.py       the only door to the local AI
   plugins.py   extensions from other packages
   cli.py       command line
-scenarios/     scenario presets (Silenat converts the package's 27)
-examples/      sample shared files to build against before the real ones exist
+scenarios/     receivers as YAML presets
+examples/      sample shared files (kept in step with the contracts)
 tests/         unit/, integration/ (needs the data package), test_architecture.py (rule guards)
-ui/            Anjali   web app (added at hour 1)
+docs/          user guide and how it works
 ```
 
 ## Principles we hold each other to
@@ -54,8 +57,8 @@ ui/            Anjali   web app (added at hour 1)
 - **DRY.** The shared file formats exist once, as models in `contracts/`. JSON schemas are generated from them
   (`make schemas`); never hand-edit a schema. Shared helpers (`io.read_table`, validators) are reused by
   detect and text alike.
-- **No premature optimisation.** Write the clear version first, measure on the 1.6M-row table at hour 6,
-  optimise only what the profile shows.
+- **No premature optimisation.** Write the clear version first, measure on real-size data, and optimise only
+  what the profile shows.
 - **Small pure functions,** type hints everywhere (mypy runs on `src/`), no hidden global state except the
   registries.
 
@@ -84,12 +87,12 @@ A detector that uses the local AI must catch `LlmUnavailableError` and fall back
 
 | File | Model | Written by | Read by |
 |---|---|---|---|
-| `detection.json` | `DetectionReport` | Detect | Plan, UI |
-| `plan.yaml` | `Plan` | Plan (approved in UI) | Transform, manifest |
+| `detection.json` | `DetectionReport` | Detect | Plan, web app |
+| `plan.yaml` | `Plan` | Plan (approved in the web app or with `approve`) | Transform, manifest |
 | `release/` + `manifest.json` | `ReleaseManifest` | Release | the receiver |
-| `metrics.json` | `Metrics` | Check | UI, video, manifest |
+| `metrics.json` | `Metrics` | Check | Web app, manifest |
 
-Changing a contract: change the model, run `make schemas`, update `examples/`, tell the team in one line.
+Changing a contract: change the model, run `make schemas` and update `examples/`.
 `make check` fails if the examples stop matching.
 
 ## Tests
