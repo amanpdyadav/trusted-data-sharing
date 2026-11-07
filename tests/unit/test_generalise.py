@@ -4,6 +4,7 @@ import pytest
 from pets_transformer.contracts import Technique
 from pets_transformer.keys import DerivedKeyProvider
 from pets_transformer.transform import TRANSFORMS, TransformContext
+from pets_transformer.transform.generalise import keep_values, number_band
 from tests.conftest import TEST_MASTER_KEY
 
 G = TRANSFORMS.get(Technique.GENERALISE)
@@ -86,3 +87,13 @@ def test_code_group_uses_the_longest_matching_prefix() -> None:
     codes = pd.Series(["J10.1", "j18.9", "R07.4", "Z03.9", ""])
     out = TRANSFORMS.get(Technique.GENERALISE).apply(codes, params, _ctx())
     assert out.tolist() == ["ILI", "respiratory", "cardiovascular", "other", ""]
+
+
+def test_number_band_keeps_empties_and_top_codes() -> None:
+    out = number_band(pd.Series(["190", "", "1500", "29"]), {"width": 30, "top": 1440}, None)  # type: ignore[arg-type]
+    assert out.tolist() == ["180-209", "", "1440+", "0-29"]
+
+
+def test_keep_values_merges_the_rest() -> None:
+    out = keep_values(pd.Series(["Turku", "Paimio", ""]), {"keep": ["Turku"]}, None)  # type: ignore[arg-type]
+    assert out.tolist() == ["Turku", "other", ""]

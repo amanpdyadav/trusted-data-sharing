@@ -57,6 +57,44 @@ def _arrival(unit: str, reason: str) -> Callable[[Plan], Plan]:
     return lambda p: with_action(p, action)
 
 
+def _stay(width: int | None, top: int = 1440) -> Callable[[Plan], Plan]:
+    if width is None:
+        action = ColumnAction(table="ed_visits", column="los_minutes", technique=Technique.KEEP,
+                              reason="Length of stay by triage (H-U2).")  # fmt: skip
+    else:
+        action = ColumnAction(
+            table="ed_visits",
+            column="los_minutes",
+            technique=Technique.GENERALISE,
+            params={"to": "number_band", "width": width, "top": top},
+            reason=f"Length of stay in {width}-minute bands, {top // 60} hours or more as '{top}+': keeps the median "
+            "by triage (H-U2); a post that states how long someone stayed no longer points at one visit.",
+        )
+    return lambda p: with_action(p, action)
+
+
+def _drop_sex(p: Plan) -> Plan:
+    action = ColumnAction(table="ed_visits", column="sex", technique=Technique.DROP,
+                          reason="Not in the research data request; first names in posts reveal it.")  # fmt: skip
+    qis = {t: [c for c in cols if c != "sex"] for t, cols in p.quasi_identifiers.items()}
+    return with_quasi_identifiers(with_action(p, action), "ed_visits", qis.get("ed_visits", []))
+
+
+TOP8 = ["Turku", "Salo", "Kaarina", "Raisio", "Lieto", "Naantali", "Uusikaupunki", "Loimaa"]
+
+
+def _top_towns(p: Plan) -> Plan:
+    action = ColumnAction(
+        table="ed_visits",
+        column="municipality",
+        technique=Technique.GENERALISE,
+        params={"to": "keep_values", "keep": TOP8, "other": "other"},
+        reason="The diagnosis-mix analysis (H-U4) covers the eight largest municipalities; "
+        "small towns single people out.",
+    )
+    return with_action(p, action)
+
+
 EXPERIMENTS: dict[str, tuple[Variant, ...]] = {
     "arrival-time": (
         Variant("week", "ISO week, e.g. 2025-W04", _arrival("week", "Weekly crowding patterns.")),
@@ -66,6 +104,20 @@ EXPERIMENTS: dict[str, tuple[Variant, ...]] = {
             "Hour of day only, e.g. 20:00 (no date)",
             _arrival("time_of_day", "Hour-of-arrival curve (H-U8) without the date that links to news and posts."),
         ),
+    ),
+    "stay-length": (
+        Variant("exact", "length of stay in minutes, as released today", _stay(None)),
+        Variant("band-30", "30-minute bands, e.g. 180-209, 1440+ for a day or more", _stay(30)),
+        Variant("band-60", "60-minute bands, e.g. 180-239, 1440+", _stay(60)),
+        Variant("band-60-top-12h", "60-minute bands, 12 hours or more as 720+", _stay(60, 720)),
+        Variant("band-30-top-12h-no-sex", "30-minute bands, 720+, sex dropped", _then(_stay(30, 720), _drop_sex)),
+        Variant("band-60-top-12h-no-sex", "60-minute bands, 720+, sex dropped", _then(_stay(60, 720), _drop_sex)),
+        Variant(
+            "band-30-top-12h-no-sex-top8",
+            "30-minute bands, 720+, sex dropped, 8 largest towns kept",
+            _then(_stay(30, 720), _drop_sex, _top_towns),
+        ),
+        Variant("top8-only", "exact stay and sex kept; 8 largest towns kept", _top_towns),
     ),
     "suppression-order": tuple(
         Variant(
