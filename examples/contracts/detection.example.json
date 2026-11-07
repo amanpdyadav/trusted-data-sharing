@@ -1,0 +1,49 @@
+{
+  "schema_version": "1",
+  "dataset": "health",
+  "generated_at": "2026-11-06T22:00:00Z",
+  "tool_version": "0.1.0",
+  "notes": "Illustrative example for building the UI and the planner. Values are not measured yet.",
+  "columns": [
+    {
+      "table": "ed_visits",
+      "column": "patient_hetu",
+      "privacy_role": "direct_identifier",
+      "subtype": "NATIONAL_ID",
+      "confidence": 0.98,
+      "evidence": [
+        {"kind": "validator", "detail": "values pass the Finnish ID-code checksum", "score": 0.98},
+        {"kind": "name_hint", "detail": "header contains 'hetu'"}
+      ]
+    },
+    {
+      "table": "ed_visits",
+      "column": "date_of_birth",
+      "privacy_role": "quasi_identifier",
+      "subtype": "BIRTH_DATE",
+      "confidence": 0.9,
+      "evidence": [{"kind": "statistics", "detail": "ISO dates between 1925 and 2025, many distinct values"}]
+    },
+    {
+      "table": "ed_visits",
+      "column": "icd10_primary",
+      "privacy_role": "sensitive_attribute",
+      "subtype": "DIAGNOSIS_CODE",
+      "confidence": 0.85,
+      "special_category": true,
+      "evidence": [{"kind": "statistics", "detail": "values look like ICD-10 codes (letter + digits)"}]
+    },
+    {
+      "table": "ed_visits",
+      "column": "chief_complaint",
+      "privacy_role": "free_text",
+      "subtype": "FREE_TEXT",
+      "confidence": 0.8,
+      "special_category": true,
+      "evidence": [
+        {"kind": "statistics", "detail": "long, varied text with spaces"},
+        {"kind": "llm", "detail": "describes symptoms and injuries (health data)"}
+      ]
+    }
+  ]
+}

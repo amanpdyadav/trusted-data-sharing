@@ -1,24 +1,34 @@
-# What we were given: team-only, never commit or publish. Only challenge/README.md is tracked.
-challenge/*
-!challenge/README.md
+# Challenge material: never commit (large, and the data package has its own licence)
+TRUSTED_PETS_PROVING_GROUND_2026/
 *.zip
+*.mp4
+*.pdf
+*.docx
 
-# Protected outputs and scoring row maps (rowmaps must never be published)
-outputs/
+# Outputs: releases, row maps and caches can contain sensitive values
+out/
+.cache/
 rowmap_*.csv
+results/runs/
 
-# Secrets and local environment
+# Secrets
 .env
-.env.*
-!.env.example
+*.key
+
+# Python
 .venv/
 __pycache__/
-*.pyc
+*.py[cod]
 .pytest_cache/
-.streamlit/secrets.toml
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
 
-# Editor and OS
+# OS / editors
 .DS_Store
 .idea/
 .vscode/
-.claude/settings.local.json

@@ -1,0 +1,40 @@
+# diagnosis_group: ICD-10 codes grouped for public statistics. A scenario asks for it with detail: diagnosis_group
+# (the file name is the detail). Longest matching prefix wins; unlisted codes fall back to "default".
+# Groups follow the TrustED package health data dictionary, so published figures are comparable with the
+# organisers' workload. Edit freely for your own reporting needs.
+default: other
+groups:
+  # influenza-like illness and COVID-19
+  J09: ILI
+  J10: ILI
+  J11: ILI
+  J06: ILI
+  U07: ILI
+  J21: RSV
+  # chapter defaults
+  I: cardiovascular
+  J: respiratory
+  S: injury
+  T: injury
+  F: mental_health
+  G: neurological
+  N: urological
+  K: gastrointestinal
+  A: gastrointestinal
+  O: pregnancy
+  E: endocrine
+  M: musculoskeletal
+  L: skin
+  H: other_infection
+  R: other
+  Z: other
+  # symptoms and codes grouped by meaning rather than chapter
+  R07: cardiovascular
+  R51: neurological
+  R10: gastrointestinal
+  R50: other_infection
+  F10: intoxication
+  T78: allergy
+  T63: allergy
+  A41: infection_severe
+  I63: neurological  # stroke

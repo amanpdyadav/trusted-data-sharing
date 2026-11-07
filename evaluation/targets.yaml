@@ -1,0 +1,13 @@
+# Pass marks for `make validate` / `make detect-score`. Our own goals from the build plan, not organiser thresholds.
+# A scenario may override any value under `scenarios:`.
+default:
+  composite_min: 0.70           # pets-eval combined privacy/usefulness score
+  share_below_k_max: 0.05       # share of rows in groups smaller than 5
+  attack_candidates_min: 5      # each demo attack must leave 5+ candidates (or none, or miss the target)
+  detection_macro_f1_min: 0.85
+  sensitive_attribute_recall_min: 0.70
+  text_leakage_max: 0.05        # held-out free text: share of gold identifiers still readable after redaction
+  text_recall_min: 0.95         # held-out free text: gold identifiers covered by a tag (HEALTH-S1 asks 0.95)
+
+scenarios:
+  HEALTH-S1: {}

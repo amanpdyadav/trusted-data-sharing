@@ -1,0 +1,83 @@
+"""Scenarios as config files (production rule 4). A company adds a YAML file; no code change needed."""
+
+from collections.abc import Iterable
+from pathlib import Path
+from typing import Literal, Protocol
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from pets_transformer.contracts import DetectionReport, Measure, Plan, TrustLevel
+from pets_transformer.contracts.base import SCHEMA_VERSION, Contract
+
+
+class PrivacyTargets(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    k: int | None = Field(default=None, ge=2)
+    epsilon: float | None = Field(default=None, gt=0)  # differential privacy budget of one release
+    epsilon_cap: float | None = Field(default=None, gt=0)  # total budget per receiver over all releases
+    rows_per_person: int | None = Field(default=None, ge=1)  # DP contribution bound
+    text_recall: float | None = Field(default=None, ge=0.0, le=1.0)
+    notes: str | None = None
+
+
+class Need(BaseModel):
+    """One variable the receiver asked for. `detail` names the resolution, e.g. age_band or time_of_day."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    column: str
+    table: str | None = None
+    detail: str | None = None
+
+
+class Statistic(BaseModel):
+    """One published table of a dashboard: counts (or a mean/share) by the listed variables."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    name: str = Field(pattern=r"^[a-z0-9][a-z0-9_]*$")
+    table: str
+    by: list[Need] = Field(min_length=1)  # e.g. arrival_ts with detail week; date_of_birth with detail age_band
+    measure: Measure = Field(default_factory=Measure)
+    exclude: dict[str, list[str]] = Field(default_factory=dict)
+    weight: float = Field(default=1.0, gt=0)  # share of the epsilon budget, relative to the other statistics
+
+
+class Scenario(Contract):
+    schema_version: Literal["1"] = SCHEMA_VERSION
+    id: str = Field(pattern=r"^[A-Z0-9][A-Z0-9-]*$")
+    dataset: str
+    title: str
+    recipient: str
+    purpose: str
+    trust_level: TrustLevel
+    threat_model: str
+    legal_context: str | None = None
+    utility_requirements: list[str] = Field(default_factory=list)
+    targets: PrivacyTargets = Field(default_factory=PrivacyTargets)
+    # the data request, most important first: anything not listed is not released (data minimisation)
+    needs: list[Need] = Field(default_factory=list)
+    # published statistics (differential privacy); a scenario with statistics and no needs releases no rows
+    statistics: list[Statistic] = Field(default_factory=list)
+    notes: str | None = None
+
+
+def load_scenarios(folders: Iterable[Path]) -> dict[str, Scenario]:
+    """All *.yaml scenarios from the given folders, in order. Duplicate ids are an error."""
+    found: dict[str, Scenario] = {}
+    for folder in folders:
+        if not folder.is_dir():
+            continue
+        for path in sorted(folder.glob("*.y*ml")):
+            scenario = Scenario.load(path)
+            if scenario.id in found:
+                raise ValueError(f"scenario {scenario.id} defined twice (second time in {path})")
+            found[scenario.id] = scenario
+    return found
+
+
+class PolicyEngine(Protocol):
+    """Turns detections + a scenario into a plan. Deterministic: the same inputs give the same plan."""
+
+    def plan(self, detections: DetectionReport, scenario: Scenario) -> Plan: ...

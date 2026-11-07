@@ -1,0 +1,298 @@
+<title>Mosaic Attack Walkthrough</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100,600;100,800;125,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: investigation board. Case picker, chain rail, step card + attacker dossier side by side, conclusions below. */
+:root {
+  --bg: #EDF0F3; --surface: #FAFBFC; --ink: #0F1B26; --muted: #4E5D6A; --line: #D2D9E0;
+  --risk: #B93E0B; --risk-soft: #FBE7DC; --safe: #1F4FCF; --safe-soft: #E1E9FB; --ok: #1E7A4C;
+  --display: "Archivo", "Arial Narrow", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0D141B; --surface: #152029; --ink: #E5EBF0; --muted: #96A6B4; --line: #283745;
+  --risk: #FF8F57; --risk-soft: #3A2116; --safe: #86A9FF; --safe-soft: #17264A; --ok: #5BD192; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0D141B; --surface: #152029; --ink: #E5EBF0; --muted: #96A6B4; --line: #283745;
+  --risk: #FF8F57; --risk-soft: #3A2116; --safe: #86A9FF; --safe-soft: #17264A; --ok: #5BD192; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font: 16px/1.55 var(--body); }
+.wrap { max-width: 1180px; margin: 0 auto; padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 28px; }
+.eyebrow { font: 600 13px/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--risk); }
+h1 { font: 800 clamp(34px, 6vw, 64px)/1.02 var(--display); font-stretch: 125%; letter-spacing: -.01em; margin: 10px 0 12px; text-wrap: balance; }
+.lede { color: var(--muted); font-size: 18px; max-width: 64ch; margin: 0; }
+.tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.tag { font: 500 12px/1 var(--mono); padding: 7px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.tag.ok { color: var(--ok); border-color: currentColor; }
+
+/* case picker */
+.cases { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 640px) { .cases { grid-template-columns: 1fr; } }
+.case { text-align: left; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
+.case .c-k { font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.case .c-t { font: 800 20px/1.2 var(--display); }
+.case .c-d { font-size: 14px; color: var(--muted); }
+.case[aria-pressed="true"] { border-color: var(--risk); box-shadow: inset 0 0 0 1px var(--risk); }
+.case[aria-pressed="true"] .c-k { color: var(--risk); }
+
+/* controls */
+.bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+.seg button { font: 500 14px var(--body); padding: 10px 14px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.nav { display: flex; gap: 8px; }
+.btn { font: 500 14px var(--body); padding: 10px 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.btn.primary { background: var(--risk); border-color: var(--risk); color: var(--bg); }
+.btn:disabled { opacity: .45; cursor: default; }
+button:focus-visible { outline: 3px solid var(--safe); outline-offset: 2px; }
+
+/* chain rail */
+.rail-scroll { overflow-x: auto; padding: 4px 4px 6px; }
+.rail { display: flex; align-items: stretch; min-width: 720px; }
+.node { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid var(--line);
+  border-radius: 12px; background: var(--surface); color: var(--muted); cursor: pointer; text-align: left; font: inherit; transition: background .25s, border-color .25s; }
+.node .k { font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+.node .n { font: 600 14px/1.25 var(--body); color: var(--ink); }
+.node.done { border-color: var(--risk); background: var(--risk-soft); }
+.node.done .k { color: var(--risk); }
+.node.current { outline: 2px solid var(--risk); outline-offset: 2px; }
+.link { width: 26px; flex: none; align-self: center; height: 2px; background: var(--line); position: relative; }
+.link.on { background: var(--risk); }
+.link.on::after { content: ""; position: absolute; right: -1px; top: -4px; border: 5px solid transparent; border-left-color: var(--risk); border-right: 0; }
+
+/* main board */
+.board { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 860px) { .board { grid-template-columns: 1fr; } }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px; min-width: 0; }
+.card h2 { font: 800 28px/1.1 var(--display); margin: 6px 0 4px; text-wrap: balance; }
+.file { font: 400 13px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+.how { margin: 14px 0 18px; }
+.kind { display: inline-block; font: 600 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; padding: 5px 8px; border-radius: 6px; }
+.kind.public { background: var(--safe-soft); color: var(--safe); }
+.kind.leaked { background: var(--risk-soft); color: var(--risk); }
+.post { border-left: 3px solid var(--risk); padding: 6px 0 6px 16px; margin: 12px 0 0; }
+.post .who { font-weight: 600; }
+.post .when { font: 400 13px var(--mono); color: var(--muted); }
+.post blockquote { margin: 8px 0 0; font-size: 20px; line-height: 1.4; }
+.post .tr { margin: 8px 0 0; font-size: 15px; color: var(--muted); }
+
+/* funnel */
+.funnel { display: flex; flex-direction: column; gap: 10px; }
+.frow { display: grid; grid-template-columns: minmax(0, 1fr) 72px; gap: 4px 12px; align-items: center; }
+.flabel { font-size: 14px; color: var(--muted); grid-column: 1 / -1; }
+.ftrack { height: 14px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+.ffill { height: 100%; background: var(--muted); border-radius: 4px; transition: width .5s ease; }
+.frow:last-child .ffill { background: var(--risk); }
+.fnum { font: 500 15px var(--mono); text-align: right; font-variant-numeric: tabular-nums; }
+.frow:last-child .fnum { color: var(--risk); font-weight: 600; }
+.verdict { margin-top: 18px; padding: 12px 14px; border-radius: 10px; background: var(--risk-soft); color: var(--ink); font-weight: 500; }
+.verdict b { color: var(--risk); }
+
+/* dossier */
+.dossier h3 { font: 600 13px/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 14px; }
+.dossier .who { font: 800 26px/1.1 var(--display); margin: 0 0 16px; }
+.dossier .who.unknown { color: var(--muted); }
+.facts { display: flex; flex-direction: column; margin: 0; }
+.fact { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); }
+@media (max-width: 420px) { .fact { grid-template-columns: 1fr; gap: 2px; } }
+.fact dt { font-size: 13px; color: var(--muted); }
+.fact dd { margin: 0; font-size: 15px; overflow-wrap: anywhere; }
+.fact .src { display: block; font: 400 11px var(--mono); color: var(--muted); margin-top: 2px; }
+.fact.new { animation: flash 1.2s ease; }
+@keyframes flash { from { background: var(--risk-soft); } to { background: transparent; } }
+
+/* lessons */
+.lessons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 860px) { .lessons { grid-template-columns: 1fr; } }
+.lesson { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+.lesson h3 { font: 800 19px/1.2 var(--display); margin: 0 0 8px; }
+.lesson p { margin: 0; color: var(--muted); font-size: 15px; }
+.section-title { font: 800 26px/1.1 var(--display); margin: 8px 0 0; }
+.foot { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
+.foot code { font-family: var(--mono); font-size: 12px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Beyond Syntax · problem demo</div>
+    <h1>From one public scrap to a full profile</h1>
+    <p class="lede">Two cases from the synthetic data. In the first, a woman names herself in a post. In the second, a news clip names nobody. Step through how an attacker reaches diagnosis, home, income and employer anyway, with simple matching on the raw files.</p>
+    <div class="tags">
+      <span class="tag ok">Every link verified against ground truth</span>
+      <span class="tag">Synthetic data · TrustED PETs Proving Ground 2026</span>
+      <span class="tag">Identifiers partly masked on this page</span>
+    </div>
+  </header>
+
+  <div class="cases" role="group" aria-label="Case">
+    <button class="case" id="case-0" aria-pressed="true"><span class="c-k">Case 1 · social post</span><span class="c-t">She names herself</span><span class="c-d">“Slipped on ice, wrist pain.” Six datasets follow.</span></button>
+    <button class="case" id="case-1" aria-pressed="false"><span class="c-k">Case 2 · news clip</span><span class="c-t">Nobody is named</span><span class="c-d">“A 57-year-old man in Turku, fireworks.” The hospital supplies the name.</span></button>
+  </div>
+
+  <div class="bar">
+    <div class="seg" role="group" aria-label="Data shared">
+      <button id="mode-raw" aria-pressed="true">Raw data shared</button>
+      <button id="mode-names" aria-pressed="false">Names removed</button>
+    </div>
+    <div class="nav">
+      <button class="btn" id="prev">Back</button>
+      <button class="btn primary" id="next">Next link</button>
+      <button class="btn" id="play">Play all</button>
+    </div>
+  </div>
+
+  <div class="rail-scroll"><div class="rail" id="rail"></div></div>
+
+  <div class="board">
+    <section class="card" id="step" aria-live="polite"></section>
+    <aside class="card dossier">
+      <h3>What the attacker now knows</h3>
+      <p class="who" id="who"></p>
+      <dl class="facts" id="facts"></dl>
+    </aside>
+  </div>
+
+  <h2 class="section-title">What this means for our build</h2>
+  <div class="lessons">
+    <div class="lesson"><h3>Names are the least of it</h3><p>With names removed, a few clues still single out 1 of 46,398 visits in both cases: time, town, sex, age and injury type. Quasi-identifiers must be protected together.</p></div>
+    <div class="lesson"><h3>Measure against what attackers know</h3><p>A post, a news clip, a phone directory and an old leak were enough to start. Our tool must replay attacks like these and show every candidate set holding 5 or more people.</p></div>
+    <div class="lesson"><h3>Every release, its own protection</h3><p>Once a name is known, any unprotected dataset opens up. Each release needs its own plan and its own pseudonym key, so releases can’t be joined.</p></div>
+  </div>
+
+  <p class="foot">Computed by <code>demo/mosaic_attack.py</code> on the raw tables and public adversary files. Ground-truth files were read only to confirm each match; a tried link from case 2 to city feedback by home address failed that check (other residents filed those requests) and was dropped. “Names removed” uses the package quickstart output (<code>results/quickstart/health/ed_visits.csv</code>): names, ID codes, phones and addresses removed, keyed patient pseudonym, 10-year age bands, arrival to the hour, ICD-10 cut to 3 characters. Synthetic persons P016956 and P036339.</p>
+</div>
+
+<script>
+const CASES = [
+{ start: "Riitta Lipponen", named: "Riitta Lipponen", nameAt: 0, pronoun: "her",
+  steps: [
+  {"id":"post","dataset":"Social media","file":"adversary/social_posts_health.csv","kind":"public","title":"A public post","rows_total":948,"quote":{"who":"Riitta Lipponen","when":"2025-01-23 07:28","text":"Spent 3 hours in the ER tonight. Slipped on ice, wrist pain."},"funnel":[],"revealed":{"Name":"Riitta Lipponen","Event":"ER visit, slipped on ice, wrist pain, about 3 hours","Posted":"23 Jan 2025, 07:28"},"how":"Anyone can read it. Her name, the time and what happened are all in the post."},
+  {"id":"ed","dataset":"Hospital ED","file":"data/health/ed_visits.csv","kind":"leaked","title":"Emergency visit found","rows_total":46398,"funnel":[["all visits",46398],["same name",1],["arrived in the 12 h before the post",1]],"revealed":{"Diagnosis":"S52.5, wrist fracture","Chief complaint":"Liukastui, vasen ranne turvoksissa","Arrival":"22 Jan 2025, 20:08","Length of stay":"190 min (post said about 3 h)","Outcome":"Admitted to ward","Birth date":"1964-05-20","Postcode":"20100","National ID":"200564-9••L"},"how":"Match her name, then keep visits that arrived in the 12 hours before the post."},
+  {"id":"directory","dataset":"Public directory","file":"adversary/public_directory.csv","kind":"public","title":"Home address","rows_total":43528,"funnel":[["all listings",43528],["same name",1],["same postcode",1]],"revealed":{"Home address":"Aaltokatu ••, 20100 Turku"},"how":"Same name, same postcode as the hospital record."},
+  {"id":"leak","dataset":"Old leaked list","file":"adversary/leaked_customer_list.csv","kind":"public","title":"Phone number","rows_total":2600,"funnel":[["all entries",2600],["same name",1],["same city",1]],"revealed":{"Phone":"040 ••• 5404","Interest":"mobile (2019 list)"},"how":"A 2019 marketing list that leaked online: same name, same city."},
+  {"id":"bank","dataset":"Saaristo Bank","file":"data/finance/customers.csv","kind":"leaked","title":"Income and employer","rows_total":6315,"funnel":[["all customers",6315],["same name",1],["same postcode",1]],"revealed":{"Income band":"30–45k €","Employer":"Meridian Logistics Oy","Occupation":"Elementary occupation","IBAN":"FI31 •••• •••• •••• 02"},"how":"Same name and postcode as the directory entry."},
+  {"id":"work","dataset":"Employer IT logs","file":"data/cyber/identity.csv","kind":"leaked","title":"Job and work logs","rows_total":994,"funnel":[["all employees",994],["same name",1]],"revealed":{"Job title":"Warehouse Clerk","Department":"Warehouse","Shift":"B (14–22)","Work e-mail":"riitta.l•••@meridian-logistics.example","Log events":"20 sign-ins"},"how":"The bank says she works at Meridian Logistics; their staff directory has exactly one match."},
+  {"id":"telecom","dataset":"Telecom calls","file":"data/customer_service/customers.csv","kind":"leaked","title":"Contracts and calls","rows_total":9591,"funnel":[["all customers",9591],["same name",1],["same postcode",1]],"revealed":{"Products":"mobile","Private e-mail":"riitta•••@postilaatikko.example","Calls":"1 call: payment plan"},"how":"Same name and postcode in the telecom’s customer master."}
+  ],
+  after: {"clues":"The post still gives a time, a woman’s name, about three hours and an injury.",
+    "funnel":[["all protected visits",46398],["arrived in the 12 h before the post",54],["female (from the name)",26],["stayed about 3 hours",3],["injury diagnosis (slipped, wrist)",1]],
+    "verdict":"Her diagnosis is exposed, and the pseudonym links her other visits.",
+    "revealed":{"Diagnosis":"S52, wrist and forearm fracture","Age band":"60–69","Municipality":"Turku","Outcome":"Admitted to ward","Pseudonym":"2beeef95… links her other visits"}}
+},
+{ start: "Unknown man, 57", named: "Marko Lahtinen", nameAt: 1, pronoun: "his",
+  steps: [
+  {"id":"news","dataset":"Local news","file":"adversary/news_clips_health.csv","kind":"public","title":"A news clip, no name","rows_total":220,"quote":{"who":"Mies loukkaantui Turussa","when":"Published 2025-12-31","text":"Turussa 57-vuotias mies loukkaantui ilotulitteen räjähdettyä keskiviikkona. Hänet kuljetettiin ambulanssilla Aurajoen aluesairaalaan.","tr":"A 57-year-old man was injured in Turku on Wednesday when a firework exploded. He was taken by ambulance to Aurajoki Regional Hospital."},"funnel":[],"revealed":{"Event":"Firework injury, taken to Aurajoki hospital","Age":"57","Sex":"Male","Town":"Turku","Date":"31 Dec 2025"},"how":"No name anywhere. Only an age, a sex, a town and a date."},
+  {"id":"ed","dataset":"Hospital ED","file":"data/health/ed_visits.csv","kind":"leaked","title":"Emergency visit, and a name","rows_total":46398,"funnel":[["all visits",46398],["arrived that day or the evening before",351],["lives in Turku",149],["male",73],["aged about 57",5],["injury diagnosis",1]],"revealed":{"Name":"Marko Tapani Petteri Lahtinen","Diagnosis":"S05.1, eye and orbit injury","Chief complaint":"Ilotulite räjähti kasvoihin (firework exploded in his face)","Arrival":"31 Dec 2025, 20:23","Birth date":"1968-04-22","Postcode":"20800","National ID":"220468-9••1","Phone":"040 ••• 7782"},"how":"Narrow the visits by the clip’s date, town, sex and age. The one record left carries his name."},
+  {"id":"history","dataset":"Hospital ED, again","file":"data/health/ed_visits.csv","kind":"leaked","title":"His other hospital visit","rows_total":46398,"funnel":[["all visits",46398],["same name and birth date",2],["other than the firework visit",1]],"revealed":{"Earlier visit":"9 Sep 2025: R10.4, upper abdominal pain since the evening"},"how":"Now that the name is known, search the same table again."},
+  {"id":"directory","dataset":"Public directory","file":"adversary/public_directory.csv","kind":"public","title":"Home address","rows_total":43528,"funnel":[["all listings",43528],["name fits the hospital record",5],["same postcode",1]],"revealed":{"Home address":"Mäntypolku ••, 20800 Turku"},"how":"Same name, same postcode as the hospital record."},
+  {"id":"bank","dataset":"Saaristo Bank","file":"data/finance/customers.csv","kind":"leaked","title":"Income and employer","rows_total":6315,"funnel":[["all customers",6315],["same full name",1],["same postcode",1]],"revealed":{"Income band":"45–60k €","Employer":"Kumpu Kuljetus Ky","Occupation":"Service and sales worker","E-mail":"marko.l•••@nettiposti.example","IBAN":"FI47 •••• •••• •••• 68"},"how":"All four given names and the postcode match the hospital record."}
+  ],
+  after: {"clues":"The clip still gives a date, a town, a sex, an age and an injury.",
+    "funnel":[["all protected visits",46398],["arrived that day or the evening before",351],["lives in Turku",149],["male",73],["age band 50–59",9],["injury diagnosis",1]],
+    "verdict":"No name is learned, but his row is found, and the pseudonym exposes his September visit too.",
+    "revealed":{"Diagnosis":"S05, eye and orbit injury","Age band":"50–59","Municipality":"Turku","Outcome":"Sent home","Pseudonym":"a82050b5… links his other visits"}}
+}];
+
+const $ = id => document.getElementById(id);
+let ci = 0, mode = "raw", cur = 0, timer = null;
+const C = () => CASES[ci];
+const fmt = n => n.toLocaleString("en-US");
+
+function renderRail() {
+  const r = $("rail"), S = C().steps; r.innerHTML = "";
+  S.forEach((s, i) => {
+    if (i) { const l = document.createElement("div"); l.className = "link" + ((mode === "raw" && i <= cur) || (mode === "names" && i === 1) ? " on" : ""); r.appendChild(l); }
+    const b = document.createElement("button");
+    let cls = "node";
+    if (mode === "raw") { if (i <= cur) cls += " done"; if (i === cur) cls += " current"; }
+    else { if (i <= 1) cls += " done"; if (i === 1) cls += " current"; }
+    b.className = cls;
+    b.innerHTML = `<span class="k">${s.kind === "public" ? "public" : "if shared"}</span><span class="n">${s.dataset}</span>`;
+    b.setAttribute("aria-label", `Step ${i + 1}: ${s.dataset}`);
+    b.onclick = () => { stop(); if (mode === "names") setMode("raw"); cur = i; render(true); };
+    r.appendChild(b);
+  });
+}
+
+function funnelHTML(f) {
+  const max = Math.log10(f[0][1] + 1);
+  return `<div class="funnel">` + f.map(([lab, n]) => {
+    const w = Math.max(2, 100 * Math.log10(n + 1) / max);
+    return `<div class="frow"><span class="flabel">${lab}</span><div class="ftrack"><div class="ffill" style="width:${w}%"></div></div><span class="fnum">${fmt(n)}</span></div>`;
+  }).join("") + `</div>`;
+}
+
+function renderStep() {
+  const el = $("step");
+  if (mode === "names") {
+    const a = C().after;
+    el.innerHTML = `<span class="kind leaked">names removed</span><h2>Same scrap, protected hospital table</h2>
+      <div class="file">results/quickstart/health/ed_visits.csv</div>
+      <p class="how">Names, ID codes, phones and addresses are gone. ${a.clues}</p>
+      ${funnelHTML(a.funnel)}
+      <div class="verdict">Still <b>1 of ${fmt(a.funnel[0][1])}</b> visits. ${a.verdict}</div>`;
+    return;
+  }
+  const s = C().steps[cur];
+  let body = "";
+  if (s.quote) {
+    body = `<div class="post"><div class="who">${s.quote.who}</div><div class="when">${s.quote.when}</div><blockquote>“${s.quote.text}”</blockquote>${s.quote.tr ? `<p class="tr">${s.quote.tr}</p>` : ""}</div>`;
+  } else {
+    const last = s.funnel[s.funnel.length - 1][1];
+    body = funnelHTML(s.funnel) + `<div class="verdict"><b>${last === 1 ? "1 match" : fmt(last) + " matches"}</b> out of ${fmt(s.rows_total)} rows. Link confirmed.</div>`;
+  }
+  el.innerHTML = `<span class="kind ${s.kind}">${s.kind === "public" ? "public source" : "dataset, if shared raw"}</span>
+    <h2>${cur}. ${s.title}</h2><div class="file">${s.file}</div><p class="how">${s.how}</p>${body}`;
+}
+
+function renderDossier(flash) {
+  const c = C(), who = $("who");
+  const knowsName = mode === "raw" ? cur >= c.nameAt : c.nameAt === 0;
+  who.textContent = knowsName ? c.named : c.start;
+  who.className = "who" + (knowsName ? "" : " unknown");
+  const dl = $("facts"); dl.innerHTML = "";
+  const groups = mode === "names" ? [[c.steps[0], c.steps[0].revealed], [{dataset: "Protected hospital table"}, c.after.revealed]]
+                                  : c.steps.slice(0, cur + 1).map(s => [s, s.revealed]);
+  groups.forEach(([s, rev], gi) => Object.entries(rev).forEach(([k, v]) => {
+    const d = document.createElement("div");
+    d.className = "fact" + (flash && gi === groups.length - 1 ? " new" : "");
+    d.innerHTML = `<dt>${k}</dt><dd>${v}<span class="src">${s.dataset}</span></dd>`;
+    dl.appendChild(d);
+  }));
+}
+
+function render(flash) {
+  renderRail(); renderStep(); renderDossier(flash);
+  $("prev").disabled = mode === "names" || cur === 0;
+  $("next").disabled = mode === "names" || cur === C().steps.length - 1;
+}
+function stop() { if (timer) { clearInterval(timer); timer = null; $("play").textContent = "Play all"; } }
+function setMode(m) { mode = m; $("mode-raw").setAttribute("aria-pressed", m === "raw"); $("mode-names").setAttribute("aria-pressed", m === "names"); }
+function setCase(i) {
+  stop(); ci = i; cur = C().steps.length - 1;
+  CASES.forEach((_, j) => $("case-" + j).setAttribute("aria-pressed", j === i));
+  render(false);
+}
+$("case-0").onclick = () => setCase(0);
+$("case-1").onclick = () => setCase(1);
+$("next").onclick = () => { stop(); if (cur < C().steps.length - 1) { cur++; render(true); } };
+$("prev").onclick = () => { stop(); if (cur > 0) { cur--; render(false); } };
+$("play").onclick = () => {
+  if (timer) { stop(); return; }
+  setMode("raw"); cur = 0; render(true); $("play").textContent = "Stop";
+  timer = setInterval(() => { if (cur >= C().steps.length - 1) { stop(); return; } cur++; render(true); }, 1800);
+};
+$("mode-raw").onclick = () => { stop(); setMode("raw"); render(true); };
+$("mode-names").onclick = () => { stop(); setMode("names"); render(true); };
+document.addEventListener("keydown", e => {
+  if (e.target.closest && e.target.closest("button") && (e.key === " " || e.key === "Enter")) return;
+  if (e.key === "ArrowRight") $("next").click();
+  if (e.key === "ArrowLeft") $("prev").click();
+});
+setCase(0);
+</script>

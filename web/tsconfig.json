@@ -1,5 +1,0 @@
-{
-  "//": "Stops Vite's config lookup here, so a tsconfig.json in a parent folder can't break the dev server.",
-  "compilerOptions": { "jsx": "react-jsx", "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler", "allowJs": true, "noEmit": true },
-  "include": ["src"]
-}

@@ -1,0 +1,439 @@
+{
+ "people": [
+  {
+   "source_id": "POST00635",
+   "person_id_for_verification_only": "P016956",
+   "steps": [
+    {
+     "id": "post",
+     "dataset": "Social media",
+     "file": "adversary/social_posts_health.csv",
+     "kind": "public",
+     "title": "A public post",
+     "rows_total": 948,
+     "known": {
+      "name": "Riitta Lipponen",
+      "posted": "2025-01-23 07:28:00",
+      "text": "Spent 3 hours in the ER tonight. Slipped on ice, wrist pain.",
+      "place": ""
+     },
+     "funnel": [],
+     "revealed": {},
+     "verified": true,
+     "how": "Anyone can read it. Name, time and the hospital are all in the post."
+    },
+    {
+     "id": "ed",
+     "dataset": "Hospital ED",
+     "file": "data/health/ed_visits.csv",
+     "kind": "leaked",
+     "title": "Emergency visit found",
+     "rows_total": 46398,
+     "funnel": [
+      [
+       "all visits",
+       46398
+      ],
+      [
+       "same name",
+       1
+      ],
+      [
+       "arrived in the 12 h before the post",
+       1
+      ]
+     ],
+     "revealed": {
+      "Diagnosis": "S52.5 (wrist fracture)",
+      "Chief complaint": "Liukastui, vasen ranne turvoksissa",
+      "Arrival": "2025-01-22 20:08:00",
+      "Length of stay": "190 min (post said ~3 h)",
+      "Disposition": "admitted_ward",
+      "Birth date": "1964-05-20",
+      "Postcode": "20100",
+      "Phone": "040 236 5404",
+      "National ID": "200564-966L"
+     },
+     "verified": true,
+     "how": "Match the name, then keep visits that arrived in the 12 hours before the post."
+    },
+    {
+     "id": "directory",
+     "dataset": "Public directory",
+     "file": "adversary/public_directory.csv",
+     "kind": "public",
+     "title": "Home address",
+     "rows_total": 43528,
+     "funnel": [
+      [
+       "all listings",
+       43528
+      ],
+      [
+       "same name",
+       1
+      ],
+      [
+       "same postcode",
+       1
+      ]
+     ],
+     "revealed": {
+      "Address": "Aaltokatu 30 A 1, 20100 Turku"
+     },
+     "verified": true,
+     "how": "Same name, same postcode as the hospital record."
+    },
+    {
+     "id": "leak",
+     "dataset": "Old leaked list",
+     "file": "adversary/leaked_customer_list.csv",
+     "kind": "public",
+     "title": "Phone and interests",
+     "rows_total": 2600,
+     "funnel": [
+      [
+       "all entries",
+       2600
+      ],
+      [
+       "same name",
+       1
+      ],
+      [
+       "same city",
+       1
+      ]
+     ],
+     "revealed": {
+      "Phone": "0402365404",
+      "Interest": "mobile",
+      "Listed": "2019"
+     },
+     "verified": true,
+     "how": "A 2019 marketing list leaked online: same name, same city."
+    },
+    {
+     "id": "bank",
+     "dataset": "Saaristo Bank",
+     "file": "data/finance/customers.csv",
+     "kind": "leaked",
+     "title": "Income and employer",
+     "rows_total": 6315,
+     "funnel": [
+      [
+       "all customers",
+       6315
+      ],
+      [
+       "same name",
+       1
+      ],
+      [
+       "same postcode",
+       1
+      ]
+     ],
+     "revealed": {
+      "Income band": "30-45k",
+      "Employer": "Meridian Logistics Oy",
+      "Occupation": "Elementary occupation",
+      "IBAN": "FI3193234229868602"
+     },
+     "verified": true,
+     "how": "Same name and postcode as the directory entry."
+    },
+    {
+     "id": "work",
+     "dataset": "Employer IT logs",
+     "file": "data/cyber/identity.csv",
+     "kind": "leaked",
+     "title": "Job, laptop and logs",
+     "rows_total": 994,
+     "funnel": [
+      [
+       "all employees",
+       994
+      ],
+      [
+       "same name",
+       1
+      ]
+     ],
+     "revealed": {
+      "Job title": "Warehouse Clerk",
+      "Department": "Warehouse",
+      "Shift": "B (14-22)",
+      "Laptop": "",
+      "Work e-mail": "riitta.lipponen@meridian-logistics.example",
+      "Log events": "20 sign-ins, 0 web requests, 0 VPN events"
+     },
+     "verified": true,
+     "how": "The bank says she works at Meridian Logistics Oy; their staff directory has one match."
+    },
+    {
+     "id": "telecom",
+     "dataset": "Telecom calls",
+     "file": "data/customer_service/customers.csv",
+     "kind": "leaked",
+     "title": "Contracts and calls",
+     "rows_total": 9591,
+     "funnel": [
+      [
+       "all customers",
+       9591
+      ],
+      [
+       "same name",
+       1
+      ],
+      [
+       "same postcode",
+       1
+      ]
+     ],
+     "revealed": {
+      "Products": "mobile",
+      "E-mail": "riittalipponen@postilaatikko.example",
+      "Calls": "1 conversation(s): payment_plan"
+     },
+     "verified": true,
+     "how": "Same name and postcode in the telecom's customer master."
+    }
+   ],
+   "after": {
+    "source": "results/quickstart/health/ed_visits.csv",
+    "protection": "Starter protection: names, ID codes, phones and addresses removed; keyed patient pseudonym; 10-year age bands; arrival rounded to the hour; ICD-10 cut to 3 characters.",
+    "funnel": [
+     [
+      "all protected visits",
+      46398
+     ],
+     [
+      "arrived in the 12 h before the post",
+      54
+     ],
+     [
+      "female (from the name)",
+      26
+     ],
+     [
+      "stayed about 3 hours",
+      3
+     ],
+     [
+      "injury diagnosis (slipped, wrist)",
+      1
+     ]
+    ],
+    "revealed": {
+     "Age band": "60-69",
+     "Municipality": "Turku",
+     "Diagnosis": "S52",
+     "Disposition": "admitted_ward",
+     "Patient pseudonym": "2beeef9551e254a3 (links her other visits)"
+    },
+    "verified": true,
+    "note": "No name needed: the post's own clues (time, sex, length of stay, injury) single out one visit."
+   },
+   "all_links_verified": true
+  },
+  {
+   "source_id": "NEWS00100",
+   "person_id_for_verification_only": "P036339",
+   "steps": [
+    {
+     "id": "news",
+     "dataset": "Local news",
+     "file": "adversary/news_clips_health.csv",
+     "kind": "public",
+     "title": "A news clip, no name",
+     "rows_total": 220,
+     "known": {
+      "headline": "Mies loukkaantui Turussa",
+      "published": "2025-12-31",
+      "text": "Turussa 57-vuotias mies loukkaantui ilotulitteen räjähdettyä keskiviikkona. Hänet kuljetettiin ambulanssilla Aurajoen aluesairaalaan.",
+      "age": 57,
+      "sex": "M",
+      "place": "Turku"
+     },
+     "funnel": [],
+     "revealed": {},
+     "verified": true,
+     "how": "No name anywhere. Only an age, a sex, a town and a date."
+    },
+    {
+     "id": "ed",
+     "dataset": "Hospital ED",
+     "file": "data/health/ed_visits.csv",
+     "kind": "leaked",
+     "title": "Emergency visit, and a name",
+     "rows_total": 46398,
+     "funnel": [
+      [
+       "all visits",
+       46398
+      ],
+      [
+       "arrived that day or the evening before",
+       351
+      ],
+      [
+       "lives in Turku",
+       149
+      ],
+      [
+       "male",
+       73
+      ],
+      [
+       "aged about 57",
+       5
+      ],
+      [
+       "injury diagnosis",
+       1
+      ]
+     ],
+     "revealed": {
+      "Name": "Lahtinen Marko Tapani Petteri",
+      "Diagnosis": "S05.1",
+      "Chief complaint": "Ilotulite räjähti kasvoihin",
+      "Arrival": "2025-12-31 20:23:00",
+      "Birth date": "1968-04-22",
+      "Postcode": "20800",
+      "National ID": "220468-9631",
+      "Phone": "0402907782"
+     },
+     "verified": true,
+     "how": "Narrow the visits by the clip’s date, town, sex and age. The record that is left has his name."
+    },
+    {
+     "id": "history",
+     "dataset": "Hospital ED",
+     "file": "data/health/ed_visits.csv",
+     "kind": "leaked",
+     "title": "His other hospital visits",
+     "rows_total": 46398,
+     "funnel": [
+      [
+       "all visits",
+       46398
+      ],
+      [
+       "same name and birth date",
+       2
+      ],
+      [
+       "other than the fireworks visit",
+       1
+      ]
+     ],
+     "revealed": {
+      "Visit 1": "2025-09-09: R10.4, ylävatsakipu illasta asti"
+     },
+     "verified": true,
+     "how": "Now that the name is known, search the same table again."
+    },
+    {
+     "id": "directory",
+     "dataset": "Public directory",
+     "file": "adversary/public_directory.csv",
+     "kind": "public",
+     "title": "Home address",
+     "rows_total": 43528,
+     "funnel": [
+      [
+       "all listings",
+       43528
+      ],
+      [
+       "name fits the hospital record",
+       5
+      ],
+      [
+       "same postcode",
+       1
+      ]
+     ],
+     "revealed": {
+      "Home address": "Mäntypolku 74, 20800 Turku"
+     },
+     "verified": true,
+     "how": "Same name, same postcode as the hospital record."
+    },
+    {
+     "id": "bank",
+     "dataset": "Saaristo Bank",
+     "file": "data/finance/customers.csv",
+     "kind": "leaked",
+     "title": "Income and employer",
+     "rows_total": 6315,
+     "funnel": [
+      [
+       "all customers",
+       6315
+      ],
+      [
+       "same full name",
+       1
+      ],
+      [
+       "same postcode",
+       1
+      ]
+     ],
+     "revealed": {
+      "Income band": "45-60k",
+      "Employer": "Kumpu Kuljetus Ky",
+      "Occupation": "Service and sales worker",
+      "E-mail": "marko.lahtinen68@nettiposti.example",
+      "IBAN": "FI4797208992532468"
+     },
+     "verified": true,
+     "how": "All four given names and the postcode match the hospital record."
+    }
+   ],
+   "after": {
+    "source": "results/quickstart/health/ed_visits.csv",
+    "protection": "Starter protection: names, ID codes, phones and addresses removed; keyed patient pseudonym; 10-year age bands; arrival rounded to the hour; ICD-10 cut to 3 characters.",
+    "funnel": [
+     [
+      "all protected visits",
+      46398
+     ],
+     [
+      "arrived that day or the evening before",
+      351
+     ],
+     [
+      "lives in Turku",
+      149
+     ],
+     [
+      "male",
+      73
+     ],
+     [
+      "age band 50-59",
+      9
+     ],
+     [
+      "injury diagnosis",
+      1
+     ]
+    ],
+    "revealed": {
+     "Age band": "50-59",
+     "Municipality": "Turku",
+     "Diagnosis": "S05",
+     "Disposition": "home",
+     "Patient pseudonym": "a82050b5e1a908fa (links his other visits)"
+    },
+    "verified": true,
+    "candidates": 1
+   },
+   "all_links_verified": true
+  }
+ ]
+}

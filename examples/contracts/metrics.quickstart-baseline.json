@@ -1,0 +1,33 @@
+{
+  "schema_version": "1",
+  "run_id": "quickstart-baseline",
+  "dataset": "health",
+  "scenario_id": "HEALTH-S1",
+  "created_at": "2026-11-06T18:00:00Z",
+  "privacy": 0.3731,
+  "utility": 0.7928,
+  "composite": 0.4913,
+  "k_min": 1,
+  "share_below_k": 0.9921,
+  "risks": [
+    {"name": "ed_visits: direct identifiers retained", "value": 0.0, "source": "pets-eval"},
+    {"name": "ed_visits: records with k<5", "value": 0.9921, "source": "pets-eval"},
+    {"name": "ed_visits: linkage re-identification", "value": 0.055, "source": "pets-eval"},
+    {"name": "ed_visits: free-text identifier leakage", "value": 0.0, "source": "pets-eval"}
+  ],
+  "attacks": [
+    {"name": "social_posts_health", "unit": "share_reidentified", "before": 0.5424, "after": 0.0212, "source": "pets-eval"},
+    {"name": "public_directory", "unit": "share_reidentified", "before": 0.5697, "after": 0.0, "source": "pets-eval"},
+    {"name": "news_clips_health", "unit": "share_reidentified", "before": 0.185, "after": 0.055, "source": "pets-eval"},
+    {"name": "demo chain POST00635", "unit": "candidates_left", "before": 1, "after": 1, "source": "ours"},
+    {"name": "demo chain NEWS00100", "unit": "candidates_left", "before": 1, "after": 1, "source": "ours"}
+  ],
+  "utility_tasks": [
+    {"task_id": "H-U2", "description": "Median length of stay by triage level", "score": 1.0},
+    {"task_id": "H-U4", "description": "Diagnosis-group mix in the eight largest municipalities", "score": 1.0},
+    {"task_id": "H-U6", "description": "30-day revisit rate by age band", "score": 0.964},
+    {"task_id": "H-U7", "description": "CRP vs temperature (needs the lab join)", "score": null},
+    {"task_id": "H-U8", "description": "Hour-of-day arrival curve", "score": 1.0}
+  ],
+  "notes": "Measured: the package quickstart (starter protection) scored with pets-eval, plus demo/mosaic_attack.py. This is our 'before'."
+}

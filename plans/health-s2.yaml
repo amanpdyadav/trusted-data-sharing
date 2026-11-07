@@ -1,0 +1,264 @@
+schema_version: '1'
+dataset: health
+scenario_id: HEALTH-S2
+created_at: '2026-11-06T23:48:00.073294Z'
+k_target: 5
+epsilon: 1.0
+quasi_identifiers: {}
+record_keys: {}
+actions: []
+aggregates:
+- name: weekly_visits_by_diagnosis
+  table: ed_visits
+  dimensions:
+  - column: arrival_ts
+    params:
+      to: time
+      unit: week
+    name: week
+  - column: icd10_primary
+    params:
+      to: code_group
+      groups:
+        J09: ILI
+        J10: ILI
+        J11: ILI
+        J06: ILI
+        U07: ILI
+        J21: RSV
+        I: cardiovascular
+        J: respiratory
+        S: injury
+        T: injury
+        F: mental_health
+        G: neurological
+        N: urological
+        K: gastrointestinal
+        A: gastrointestinal
+        O: pregnancy
+        E: endocrine
+        M: musculoskeletal
+        L: skin
+        H: other_infection
+        R: other
+        Z: other
+        R07: cardiovascular
+        R51: neurological
+        R10: gastrointestinal
+        R50: other_infection
+        F10: intoxication
+        T78: allergy
+        T63: allergy
+        A41: infection_severe
+        I63: neurological
+      default: other
+    name: diagnosis_group
+    domain:
+    - ILI
+    - RSV
+    - allergy
+    - cardiovascular
+    - endocrine
+    - gastrointestinal
+    - infection_severe
+    - injury
+    - intoxication
+    - mental_health
+    - musculoskeletal
+    - neurological
+    - other
+    - other_infection
+    - pregnancy
+    - respiratory
+    - skin
+    - urological
+  measure:
+    kind: count
+    lower: 0.0
+    values: []
+  exclude:
+    disposition:
+    - cancelled_duplicate
+  epsilon: 0.25
+  reason: count by week, diagnosis_group; epsilon 0.25 of the release; one person
+    = one patient_hetu.
+- name: monthly_visits_by_age
+  table: ed_visits
+  dimensions:
+  - column: arrival_ts
+    params:
+      to: time
+      unit: month
+    name: month
+  - column: date_of_birth
+    params:
+      to: age_band
+      width: 10
+      top: 80
+      reference_column: arrival_ts
+    name: age_band
+    domain:
+    - 0-9
+    - 10-19
+    - 20-29
+    - 30-39
+    - 40-49
+    - 50-59
+    - 60-69
+    - 70-79
+    - 80+
+  measure:
+    kind: count
+    lower: 0.0
+    values: []
+  exclude:
+    disposition:
+    - cancelled_duplicate
+  epsilon: 0.25
+  reason: count by month, age_band; epsilon 0.25 of the release; one person = one
+    patient_hetu.
+- name: visits_by_municipality_and_diagnosis
+  table: ed_visits
+  dimensions:
+  - column: municipality
+    params: {}
+  - column: icd10_primary
+    params:
+      to: code_group
+      groups:
+        J09: ILI
+        J10: ILI
+        J11: ILI
+        J06: ILI
+        U07: ILI
+        J21: RSV
+        I: cardiovascular
+        J: respiratory
+        S: injury
+        T: injury
+        F: mental_health
+        G: neurological
+        N: urological
+        K: gastrointestinal
+        A: gastrointestinal
+        O: pregnancy
+        E: endocrine
+        M: musculoskeletal
+        L: skin
+        H: other_infection
+        R: other
+        Z: other
+        R07: cardiovascular
+        R51: neurological
+        R10: gastrointestinal
+        R50: other_infection
+        F10: intoxication
+        T78: allergy
+        T63: allergy
+        A41: infection_severe
+        I63: neurological
+      default: other
+    name: diagnosis_group
+    domain:
+    - ILI
+    - RSV
+    - allergy
+    - cardiovascular
+    - endocrine
+    - gastrointestinal
+    - infection_severe
+    - injury
+    - intoxication
+    - mental_health
+    - musculoskeletal
+    - neurological
+    - other
+    - other_infection
+    - pregnancy
+    - respiratory
+    - skin
+    - urological
+  measure:
+    kind: count
+    lower: 0.0
+    values: []
+  exclude:
+    disposition:
+    - cancelled_duplicate
+  epsilon: 0.25
+  reason: count by municipality, diagnosis_group; epsilon 0.25 of the release; one
+    person = one patient_hetu.
+- name: arrivals_by_hour
+  table: ed_visits
+  dimensions:
+  - column: arrival_ts
+    params:
+      to: time
+      unit: time_of_day
+    name: hour
+  measure:
+    kind: count
+    lower: 0.0
+    values: []
+  exclude:
+    disposition:
+    - cancelled_duplicate
+  epsilon: 0.125
+  reason: count by hour; epsilon 0.125 of the release; one person = one patient_hetu.
+- name: length_of_stay_by_triage
+  table: ed_visits
+  dimensions:
+  - column: triage
+    params: {}
+  measure:
+    kind: mean
+    column: los_minutes
+    lower: 0.0
+    upper: 1440.0
+    values: []
+  exclude:
+    disposition:
+    - cancelled_duplicate
+  epsilon: 0.0625
+  reason: mean los_minutes by triage; epsilon 0.0625 of the release; one person =
+    one patient_hetu.
+- name: admitted_share_by_age
+  table: ed_visits
+  dimensions:
+  - column: date_of_birth
+    params:
+      to: age_band
+      width: 10
+      top: 80
+      reference_column: arrival_ts
+    name: age_band
+    domain:
+    - 0-9
+    - 10-19
+    - 20-29
+    - 30-39
+    - 40-49
+    - 50-59
+    - 60-69
+    - 70-79
+    - 80+
+  measure:
+    kind: share
+    column: disposition
+    lower: 0.0
+    values:
+    - admitted_ward
+    - icu
+  exclude:
+    disposition:
+    - cancelled_duplicate
+  epsilon: 0.0625
+  reason: share by age_band; epsilon 0.0625 of the release; one person = one patient_hetu.
+differential_privacy:
+  unit: patient_hetu
+  max_rows_per_unit: 3
+  mechanism: discrete_laplace
+  delta: 0
+  budget_cap: 4.0
+approved: true
+approved_by: Aman Yadav

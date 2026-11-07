@@ -1,0 +1,29 @@
+# Illustrative plan for HEALTH-S1, for building the UI and the transform step. Not yet approved.
+schema_version: "1"
+dataset: health
+scenario_id: HEALTH-S1
+created_at: "2026-11-06T22:00:00Z"
+k_target: 5
+quasi_identifiers:
+  ed_visits: [date_of_birth, sex, municipality, arrival_ts]
+actions:
+  - table: ed_visits
+    column: patient_hetu
+    technique: pseudonymise
+    params: {length: 16}
+    reason: Researchers need revisits per patient, not who the patient is; a keyed code keeps that link.
+  - table: ed_visits
+    column: patient_name
+    technique: drop
+    reason: The analysis never needs names.
+  - table: ed_visits
+    column: date_of_birth
+    technique: generalise
+    params: {to: age_band, width: 10, top: 80}
+    reason: Age groups answer the research questions; exact birth dates single people out.
+  - table: ed_visits
+    column: chief_complaint
+    technique: redact_text
+    params: {labels: [PERSON, PHONE, ADDRESS, NATIONAL_ID, ORG, LOCATION]}
+    reason: Keeps symptoms for diagnosis patterns; removes who and where.
+approved: false

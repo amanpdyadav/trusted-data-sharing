@@ -1,0 +1,221 @@
+schema_version: '1'
+dataset: health
+scenario_id: HEALTH-S1
+created_at: '2026-11-06T22:32:01.033253Z'
+k_target: 5
+quasi_identifiers:
+  ed_visits:
+  - arrival_ts
+  - municipality
+  - age
+record_keys:
+  ed_visits: visit_id
+  lab_results: lab_id
+actions:
+- table: ed_visits
+  column: visit_id
+  technique: pseudonymise
+  params:
+    length: 16
+  reason: 'Row key as a keyed code: tables stay joinable, original numbers hidden.'
+- table: ed_visits
+  column: patient_hetu
+  technique: pseudonymise
+  params:
+    length: 16
+  reason: 'Requested link as a keyed code: repeat visits survive; reversal needs the
+    key.'
+- table: ed_visits
+  column: patient_name
+  technique: drop
+  params: {}
+  reason: person name identifies a person on its own.
+- table: ed_visits
+  column: date_of_birth
+  technique: generalise
+  params:
+    to: age_band
+    width: 10
+    top: 80
+    rename_to: age
+    reference_column: arrival_ts
+  reason: Age groups answer the questions; birth dates single people out.
+- table: ed_visits
+  column: sex
+  technique: drop
+  params: {}
+  reason: Not in the data request (data minimisation).
+- table: ed_visits
+  column: phone
+  technique: drop
+  params: {}
+  reason: phone identifies a person on its own.
+- table: ed_visits
+  column: home_address
+  technique: drop
+  params: {}
+  reason: street address identifies a person on its own.
+- table: ed_visits
+  column: postcode
+  technique: drop
+  params: {}
+  reason: Not in the data request (data minimisation).
+- table: ed_visits
+  column: municipality
+  technique: keep
+  params: {}
+  reason: Requested; checked for k with the other quasi-identifiers.
+- table: ed_visits
+  column: arrival_ts
+  technique: generalise
+  params:
+    to: time
+    unit: time_of_day
+  reason: 'Time released as time of day: exact times link to news, posts and receipts.'
+- table: ed_visits
+  column: arrival_mode
+  technique: drop
+  params: {}
+  reason: Not in the data request (data minimisation).
+- table: ed_visits
+  column: ambulance_unit
+  technique: drop
+  params: {}
+  reason: Link not in the data request (data minimisation).
+- table: ed_visits
+  column: triage
+  technique: keep
+  params: {}
+  reason: Requested sensitive fact; kept, its link to a person is broken.
+- table: ed_visits
+  column: chief_complaint
+  technique: drop
+  params: {}
+  reason: Free text can name anyone; withheld until text redaction is in place.
+- table: ed_visits
+  column: icd10_primary
+  technique: generalise
+  params:
+    to: truncate
+    length: 3
+  reason: 3-character codes keep diagnosis groups; rare sub-codes single people out.
+- table: ed_visits
+  column: icd10_secondary
+  technique: drop
+  params: {}
+  reason: Not in the data request (data minimisation).
+- table: ed_visits
+  column: systolic_bp
+  technique: drop
+  params: {}
+  reason: Not in the data request (data minimisation).
+- table: ed_visits
+  column: diastolic_bp
+  technique: drop
+  params: {}
+  reason: Not in the data request (data minimisation).
+- table: ed_visits
+  column: heart_rate
+  technique: drop
+  params: {}
+  reason: Not in the data request (data minimisation).
+- table: ed_visits
+  column: resp_rate
+  technique: drop
+  params: {}
+  reason: Not in the data request (data minimisation).
+- table: ed_visits
+  column: temp_c
+  technique: keep
+  params: {}
+  reason: Requested sensitive fact; kept, its link to a person is broken.
+- table: ed_visits
+  column: spo2
+  technique: drop
+  params: {}
+  reason: Not in the data request (data minimisation).
+- table: ed_visits
+  column: pain_nrs
+  technique: drop
+  params: {}
+  reason: Not in the data request (data minimisation).
+- table: ed_visits
+  column: attending_physician_id
+  technique: drop
+  params: {}
+  reason: Link not in the data request (data minimisation).
+- table: ed_visits
+  column: attending_physician_name
+  technique: drop
+  params: {}
+  reason: person name identifies a person on its own.
+- table: ed_visits
+  column: discharge_ts
+  technique: drop
+  params: {}
+  reason: Not in the data request (data minimisation).
+- table: ed_visits
+  column: los_minutes
+  technique: keep
+  params: {}
+  reason: Requested sensitive fact; kept, its link to a person is broken.
+- table: ed_visits
+  column: disposition
+  technique: keep
+  params: {}
+  reason: Requested sensitive fact; kept, its link to a person is broken.
+- table: ed_visits
+  column: readmit_30d
+  technique: keep
+  params: {}
+  reason: Requested sensitive fact; kept, its link to a person is broken.
+- table: lab_results
+  column: lab_id
+  technique: pseudonymise
+  params:
+    length: 16
+  reason: 'Row key as a keyed code: tables stay joinable, original numbers hidden.'
+- table: lab_results
+  column: visit_id
+  technique: pseudonymise
+  params:
+    length: 16
+  reason: 'Same keyed code as the linked table''s row key: the join survives.'
+- table: lab_results
+  column: test_code
+  technique: keep
+  params: {}
+  reason: Requested and not identifying.
+- table: lab_results
+  column: test_name
+  technique: keep
+  params: {}
+  reason: Requested and not identifying.
+- table: lab_results
+  column: value
+  technique: keep
+  params: {}
+  reason: 'REVIEW: requested, and detected as technical_identifier only with weak
+    evidence (confidence 0.45); kept for the analysis. Confirm or change before approving.'
+- table: lab_results
+  column: unit
+  technique: keep
+  params: {}
+  reason: Requested and not identifying.
+- table: lab_results
+  column: ref_range
+  technique: drop
+  params: {}
+  reason: Not in the data request (data minimisation).
+- table: lab_results
+  column: abnormal_flag
+  technique: drop
+  params: {}
+  reason: Not in the data request (data minimisation).
+- table: lab_results
+  column: sampled_ts
+  technique: drop
+  params: {}
+  reason: Not in the data request (data minimisation).
+approved: true
+approved_by: 'Aman Yadav (reviewed: lab value is the measurement)'

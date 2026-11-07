@@ -1,0 +1,69 @@
+# HEALTH-S1: ED data for a university research group (controlled environment).
+# Research questions (utility tasks): LOS by triage (H-U2), diagnosis mix by municipality (H-U4),
+# 30-day revisits by age (H-U6), CRP vs temperature via the lab join (H-U7), hour-of-day arrivals (H-U8).
+# Version 2: hand-written, tuned with `python -m evaluation experiment arrival-time` and `... suppression-order`
+# (results in results/history.csv). The automatic planner will produce this from detection + scenario.
+schema_version: "1"
+dataset: health
+scenario_id: HEALTH-S1
+created_at: "2026-11-07T00:00:00Z"
+k_target: 5
+quasi_identifiers:
+  # checked together, most important first; suppression blanks from the end.
+  # Sex is last because no research question uses it: blank what the analysis does not need first.
+  ed_visits: [arrival_ts, municipality, age, sex]
+record_keys:
+  ed_visits: visit_id
+  lab_results: lab_id
+approved: true
+approved_by: Aman Yadav
+actions:
+  # ---------------------------------------------------------------- ed_visits
+  - {table: ed_visits, column: visit_id, technique: pseudonymise, params: {length: 16},
+     reason: "Keyed code joins visits to lab results without exposing the hospital's sequential visit number."}
+  - {table: ed_visits, column: patient_hetu, technique: pseudonymise, params: {length: 16, rename_to: patient_pseudonym},
+     reason: "Revisit analysis needs the same code for the same patient; the ID code itself is never needed."}
+  - {table: ed_visits, column: patient_name, technique: drop, reason: "No research question needs names."}
+  - {table: ed_visits, column: date_of_birth, technique: generalise,
+     params: {to: age_band, reference_column: arrival_ts, width: 10, top: 80, rename_to: age},
+     reason: "Revisits by age need age groups at arrival; exact birth dates single people out."}
+  - {table: ed_visits, column: sex, technique: keep, reason: "Needed for analysis; checked for k with the other quasi-identifiers."}
+  - {table: ed_visits, column: phone, technique: drop, reason: "Contact details are not needed."}
+  - {table: ed_visits, column: home_address, technique: drop, reason: "Contact details are not needed."}
+  - {table: ed_visits, column: postcode, technique: drop, reason: "Municipality answers the regional questions; postcodes narrow too far."}
+  - {table: ed_visits, column: municipality, technique: keep, reason: "Diagnosis mix by municipality (H-U4); checked for k."}
+  - {table: ed_visits, column: arrival_ts, technique: generalise, params: {to: time, unit: time_of_day},
+     reason: "Hour of arrival without the date: keeps the arrival curve (H-U8), drops the date that links visits to news and posts. Measured best of week, date+hour and time of day."}
+  - {table: ed_visits, column: arrival_mode, technique: drop, reason: "Not needed; helicopter arrivals are rare and newsworthy."}
+  - {table: ed_visits, column: ambulance_unit, technique: drop, reason: "Base code reveals the patient's area."}
+  - {table: ed_visits, column: triage, technique: keep, reason: "Length of stay by triage level (H-U2)."}
+  - {table: ed_visits, column: chief_complaint, technique: drop,
+     reason: "Free text; withheld until text redaction is in place. Diagnosis codes cover the patterns."}
+  - {table: ed_visits, column: icd10_primary, technique: generalise, params: {to: truncate, length: 3},
+     reason: "3-character codes keep diagnosis groups; rare sub-codes are near-unique."}
+  - {table: ed_visits, column: icd10_secondary, technique: drop,
+     reason: "Rare chronic diseases single out patients across visits; not needed for the questions."}
+  - {table: ed_visits, column: systolic_bp, technique: keep, reason: "Clinical measurement used in analysis."}
+  - {table: ed_visits, column: diastolic_bp, technique: keep, reason: "Clinical measurement used in analysis."}
+  - {table: ed_visits, column: heart_rate, technique: keep, reason: "Clinical measurement used in analysis."}
+  - {table: ed_visits, column: resp_rate, technique: keep, reason: "Clinical measurement used in analysis."}
+  - {table: ed_visits, column: temp_c, technique: keep, reason: "CRP vs temperature (H-U7)."}
+  - {table: ed_visits, column: spo2, technique: keep, reason: "Clinical measurement used in analysis."}
+  - {table: ed_visits, column: pain_nrs, technique: keep, reason: "Clinical measurement used in analysis."}
+  - {table: ed_visits, column: attending_physician_id, technique: drop, reason: "Staff are data subjects too; shift patterns identify them."}
+  - {table: ed_visits, column: attending_physician_name, technique: drop, reason: "Staff names are not needed."}
+  - {table: ed_visits, column: discharge_ts, technique: drop, reason: "Length of stay is kept directly; the exact time adds risk only."}
+  - {table: ed_visits, column: los_minutes, technique: keep, reason: "Length of stay by triage (H-U2)."}
+  - {table: ed_visits, column: disposition, technique: keep, reason: "Outcome of the visit; part of the crowding analysis."}
+  - {table: ed_visits, column: readmit_30d, technique: keep, reason: "30-day revisits by age (H-U6)."}
+  # ---------------------------------------------------------------- lab_results
+  - {table: lab_results, column: lab_id, technique: drop, reason: "Row number with no research use."}
+  - {table: lab_results, column: visit_id, technique: pseudonymise, params: {length: 16},
+     reason: "Same key as ed_visits.visit_id, so the lab join survives (H-U7)."}
+  - {table: lab_results, column: test_code, technique: keep, reason: "Identifies the test, e.g. P-CRP (H-U7)."}
+  - {table: lab_results, column: test_name, technique: keep, reason: "Readable test name."}
+  - {table: lab_results, column: value, technique: keep, reason: "The measurement (H-U7)."}
+  - {table: lab_results, column: unit, technique: keep, reason: "Needed to read the value."}
+  - {table: lab_results, column: ref_range, technique: drop, reason: "Sex-specific ranges reveal the patient's sex."}
+  - {table: lab_results, column: abnormal_flag, technique: keep, reason: "Clinical interpretation of the value."}
+  - {table: lab_results, column: sampled_ts, technique: drop, reason: "Sample times re-link lab rows to exact arrival times."}

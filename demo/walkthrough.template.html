@@ -1,0 +1,328 @@
+<title>PETs Transformer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100,600;100,800;125,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a case file. Sticky step bar (the pipeline in order), one view per step, evidence panels below each claim. */
+:root {
+  --bg: #EDF0F3; --surface: #FAFBFC; --ink: #0F1B26; --muted: #4E5D6A; --line: #D2D9E0;
+  --risk: #B93E0B; --risk-soft: #FBE7DC; --safe: #1F4FCF; --safe-soft: #E1E9FB; --ok: #1E7A4C; --warn: #8A6100;
+  --display: "Archivo", "Arial Narrow", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0D141B; --surface: #152029; --ink: #E5EBF0; --muted: #96A6B4; --line: #283745;
+  --risk: #FF8F57; --risk-soft: #3A2116; --safe: #86A9FF; --safe-soft: #17264A; --ok: #5BD192; --warn: #E6B84A;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0D141B; --surface: #152029; --ink: #E5EBF0; --muted: #96A6B4; --line: #283745;
+  --risk: #FF8F57; --risk-soft: #3A2116; --safe: #86A9FF; --safe-soft: #17264A; --ok: #5BD192; --warn: #E6B84A;
+  color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font: 16px/1.55 var(--body); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+.pad { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.inner { max-width: 1180px; margin: 0 auto; }
+header.top { padding-block: 28px 18px; }
+.eyebrow { font: 600 13px/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+h1 { font: 800 clamp(30px, 5vw, 52px)/1.04 var(--display); font-stretch: 125%; margin: 8px 0 8px; text-wrap: balance; }
+h2 { font: 800 clamp(24px, 3.4vw, 34px)/1.1 var(--display); font-stretch: 125%; margin: 0; text-wrap: balance; }
+h3 { font: 600 17px/1.3 var(--body); margin: 0; }
+.lede { color: var(--muted); font-size: 17px; max-width: 70ch; margin: 0; }
+.small { font-size: 14px; color: var(--muted); }
+.mono { font-family: var(--mono); }
+.num { font-variant-numeric: tabular-nums; }
+
+/* step bar */
+nav.steps { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-block: 1px solid var(--line); }
+nav.steps .inner { display: flex; gap: 4px; overflow-x: auto; padding-block: 8px; scrollbar-width: thin; }
+nav.steps a { flex: 0 0 auto; display: flex; gap: 8px; align-items: baseline; padding: 8px 12px; border-radius: 10px; color: var(--muted); text-decoration: none; font: 500 15px var(--body); }
+nav.steps a .i { font: 500 12px var(--mono); }
+nav.steps a[aria-current="page"] { background: var(--ink); color: var(--bg); }
+nav.steps a:focus-visible, button:focus-visible { outline: 3px solid var(--safe); outline-offset: 2px; }
+
+main { padding-block: 28px 64px; }
+section.view { display: flex; flex-direction: column; gap: 22px; }
+.head { display: flex; flex-direction: column; gap: 8px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 860px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.panel.risk { border-color: var(--risk); }
+.panel.safe { border-color: var(--safe); }
+.tag { display: inline-block; font: 500 12px/1 var(--mono); padding: 5px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.tag.risk { color: var(--risk); border-color: currentColor; } .tag.safe { color: var(--safe); border-color: currentColor; }
+.tag.ok { color: var(--ok); border-color: currentColor; } .tag.warn { color: var(--warn); border-color: currentColor; }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); align-self: flex-start; }
+.seg button { font: 500 14px var(--body); padding: 9px 14px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.big { font: 800 44px/1 var(--display); font-stretch: 125%; font-variant-numeric: tabular-nums; }
+.big.risk { color: var(--risk); } .big.safe { color: var(--safe); } .big.ok { color: var(--ok); }
+.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; font-size: 14px; margin: 0; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; overflow-wrap: anywhere; }
+
+/* funnels and bars */
+.funnel { display: flex; flex-direction: column; gap: 6px; }
+.frow { display: grid; grid-template-columns: minmax(0, 1fr) 72px; gap: 10px; align-items: center; font-size: 14px; }
+.frow .lab { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.track { height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+.fill { height: 100%; border-radius: 4px; background: var(--risk); }
+.fill.safe { background: var(--safe); }
+.frow .v { text-align: right; font: 500 14px var(--mono); font-variant-numeric: tabular-nums; }
+.bars { display: flex; flex-direction: column; gap: 12px; }
+.bar { display: grid; grid-template-columns: minmax(0, 15em) minmax(0, 1fr); gap: 12px; align-items: center; font-size: 14px; }
+@media (max-width: 640px) { .bar { grid-template-columns: 1fr; gap: 4px; } }
+.pair { display: flex; flex-direction: column; gap: 4px; }
+.pair .line { display: grid; grid-template-columns: minmax(0, 1fr) 56px; gap: 8px; align-items: center; }
+.pair .line span { font: 500 13px var(--mono); text-align: right; font-variant-numeric: tabular-nums; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+
+/* chain */
+.chain { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+.link { flex: 0 0 auto; text-align: left; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; min-width: 150px; }
+.link .k { font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.link[aria-pressed="true"] { border-color: var(--risk); background: var(--risk-soft); }
+.link.public .k { color: var(--safe); } .link.leaked .k { color: var(--risk); }
+
+/* tables */
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 12px var(--body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); background: var(--bg); position: sticky; top: 0; }
+tr:last-child td { border-bottom: 0; }
+td.col { font-family: var(--mono); white-space: nowrap; }
+.meter { width: 70px; height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 6px; }
+.meter > b { display: block; height: 100%; background: var(--ink); }
+.tech { font: 600 12px var(--mono); padding: 4px 8px; border-radius: 6px; white-space: nowrap; display: inline-block; }
+.tech.drop { background: var(--risk-soft); color: var(--risk); }
+.tech.keep { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+.tech.pseudonymise, .tech.generalise, .tech.redact_text, .tech.dp { background: var(--safe-soft); color: var(--safe); }
+
+/* text */
+.sample { font-size: 15px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.sample mark { background: var(--risk-soft); color: var(--risk); border-radius: 4px; padding: 1px 3px; }
+.sample .tagged { background: var(--safe-soft); color: var(--safe); border-radius: 4px; padding: 1px 4px; font: 500 13px var(--mono); }
+ul.plain { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.budget { display: flex; height: 26px; border-radius: 6px; overflow: hidden; gap: 2px; background: var(--surface); }
+.budget > div { background: var(--safe); color: var(--bg); font: 500 11px/26px var(--mono); padding: 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.budget > div:nth-child(even) { background: var(--ink); }
+footer { color: var(--muted); font-size: 13px; padding-block: 0 40px; }
+@media (prefers-reduced-motion: no-preference) { .fill { transition: width .5s ease; } }
+</style>
+
+<header class="top pad"><div class="inner">
+  <div class="eyebrow">Beyond Syntax · TrustED PETs Transformer challenge</div>
+  <h1>PETs Transformer</h1>
+  <p class="lede">Finds the personal data in a dataset, picks a protection that fits the receiver, applies it, and proves the result with attacks and utility scores. Everything below comes from runs on the TrustED synthetic data; no number is typed by hand.</p>
+</div></header>
+<nav class="steps pad" aria-label="Walkthrough steps"><div class="inner" id="stepbar"></div></nav>
+<main class="pad"><div class="inner" id="app"></div></main>
+<footer class="pad"><div class="inner" id="foot"></div></footer>
+
+<script id="data" type="application/json">/*__DATA__*/{}</script>
+<script>
+const D = JSON.parse(document.getElementById("data").textContent);
+const STEPS = [
+  ["attack", "The risk"], ["detect", "Detect"], ["plan", "Plan"], ["text", "Text"], ["prove", "Prove"], ["report", "Report"],
+];
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmt = n => Number(n).toLocaleString("en-US");
+const pct = (x, d = 1) => (100 * x).toFixed(d) + "%";
+const state = { caseIdx: 0, linkIdx: 0, scenario: "s1", textView: "after" };
+
+function route() {
+  const id = (location.hash || "#attack").slice(1);
+  const step = STEPS.find(s => s[0] === id) ? id : "attack";
+  document.getElementById("stepbar").innerHTML = STEPS.map(([k, label], i) =>
+    `<a href="#${k}" ${k === step ? 'aria-current="page"' : ""}><span class="i">${i}</span>${label}</a>`).join("");
+  document.getElementById("app").innerHTML = VIEWS[step]();
+  wire(step);
+}
+
+/* ---------------------------------------------------------------- 0 the risk */
+function funnel(rows, total, safe = false) {
+  const max = Math.log10(total + 1);
+  return `<div class="funnel">${rows.map(([label, n]) => `
+    <div class="frow"><div class="lab"><span>${esc(label)}</span>
+      <div class="track"><div class="fill ${safe ? "safe" : ""}" style="width:${Math.max(1.5, 100 * Math.log10(n + 1) / max)}%"></div></div></div>
+      <div class="v">${fmt(n)}</div></div>`).join("")}</div>`;
+}
+function attackView() {
+  const c = D.attack.cases[state.caseIdx], s = c.steps[state.linkIdx];
+  const s1 = D.prove.runs.s1, demo = s1.attacks.find(a => a.name.endsWith(c.source));
+  const linkage = s1.attacks.filter(a => a.source === "pets-eval");
+  const revealed = Object.entries(s.revealed || {}).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
+  const nr = c.names_removed;
+  return `<section class="view">
+  <div class="head"><h2>Names removed is not anonymous</h2>
+    <p class="lede">An outsider starts from one public scrap and links it through datasets until a hospital visit has a name, an address and a bank record. Each step keeps exactly one match.</p></div>
+  <div class="seg" role="group" aria-label="Attack case">${D.attack.cases.map((k, i) => `<button data-case="${i}" aria-pressed="${i === state.caseIdx}">${i === 0 ? "A named social post" : "A news clip with no name"}</button>`).join("")}</div>
+  <div class="chain" role="group" aria-label="Chain of datasets">${c.steps.map((st, i) => `
+    <button class="link ${st.kind}" data-link="${i}" aria-pressed="${i === state.linkIdx}"><span class="k">${st.kind === "public" ? "public" : "leaked"} · ${esc(st.dataset)}</span><span>${esc(st.title)}</span></button>`).join("")}</div>
+  <div class="grid2">
+    <div class="panel risk"><h3>${esc(s.dataset)}: ${fmt(s.rows_total)} rows</h3>${s.funnel ? funnel(s.funnel, s.rows_total) : `<dl class="kv">${Object.entries(s.known || {}).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl><p class="small">Anyone can read this. It is where the attack starts.</p>`}</div>
+    <div class="panel"><h3>What the attacker now knows</h3><dl class="kv">${revealed || "<dt>Start</dt><dd>Only the public scrap</dd>"}</dl>
+      <p class="small">Synthetic people from the TrustED data. Every link was checked against the package's truth files.</p></div>
+  </div>
+  <div class="grid3">
+    <div class="panel risk"><span class="eyebrow">Raw hospital data</span><div class="big risk num">1</div><p class="small">visit left after the attacker's filters: the target, by name.</p></div>
+    <div class="panel risk"><span class="eyebrow">Starter protection</span><div class="big risk num">${fmt(nr.funnel[nr.funnel.length - 1][1])}</div><p class="small">${esc(nr.protection)} Still one visit left.</p></div>
+    <div class="panel safe"><span class="eyebrow">PETs Transformer, HEALTH-S1</span><div class="big safe num">${fmt(demo.after)}</div><p class="small">visits fit the same clues after our release, and the target is not among them.</p></div>
+  </div>
+  <div class="panel"><h3>The organisers' attackers (pets-eval) on the whole table</h3>
+    <div class="legend"><span><i style="background:var(--risk)"></i>raw data</span><span><i style="background:var(--safe)"></i>our release</span></div>
+    <div class="bars">${linkage.map(a => `<div class="bar"><span>${esc(a.name.replace("ed_visits: ", ""))}</span><div class="pair">
+      <div class="line"><div class="track"><div class="fill" style="width:${100 * a.before}%"></div></div><span>${pct(a.before)}</span></div>
+      <div class="line"><div class="track"><div class="fill safe" style="width:${100 * a.after}%"></div></div><span>${pct(a.after)}</span></div></div></div>`).join("")}</div>
+    <p class="small">Share of the attacker's targets singled out by linking the hospital table with that public source.</p></div>
+  </section>`;
+}
+
+/* ---------------------------------------------------------------- 1 detect */
+const ROLE_ORDER = ["direct_identifier", "quasi_identifier", "sensitive_attribute", "technical_identifier", "record_key", "free_text", "non_sensitive"];
+const ROLE_CLASS = { direct_identifier: "risk", quasi_identifier: "warn", sensitive_attribute: "warn", free_text: "risk", record_key: "safe", technical_identifier: "safe", non_sensitive: "" };
+function detectView() {
+  const cols = [...D.detect.columns].sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
+  const counts = ROLE_ORDER.map(r => [r, cols.filter(c => c.role === r).length]).filter(x => x[1]);
+  const sc = D.detect.scores;
+  return `<section class="view">
+  <div class="head"><h2>Detect: what each column is</h2>
+    <p class="lede">Rules read column names and values: Finnish ID-code checksums, IBAN and card check digits, phone formats, name shapes, dates, code sets. No answer files at run time. Every decision carries its evidence, and the local AI is optional.</p></div>
+  <div class="grid3">
+    <div class="panel"><span class="eyebrow">Development datasets</span><div class="big num">${sc.dev.macro_f1.toFixed(3)}</div><p class="small">macro-F1 over privacy roles on ${sc.dev.datasets.length} datasets the rules were written on.</p></div>
+    <div class="panel"><span class="eyebrow">Held-out dataset</span><div class="big num">${sc.held_out.macro_f1.toFixed(3)}</div><p class="small">on ${esc(sc.held_out.datasets.join(", "))}, which was never used to write rules. Lower, as expected: our honest estimate for new data.</p></div>
+    <div class="panel"><span class="eyebrow">Health dataset</span><div class="legend">${counts.map(([r, n]) => `<span><span class="tag ${ROLE_CLASS[r]}">${n}</span> ${r.replace(/_/g, " ")}</span>`).join("")}</div></div>
+  </div>
+  <div class="tablewrap"><table><thead><tr><th>Column</th><th>Role</th><th>Type</th><th>Confidence</th><th>Evidence</th></tr></thead><tbody>
+  ${cols.map(c => `<tr><td class="col">${esc(c.table)}.${esc(c.column)}</td><td><span class="tag ${ROLE_CLASS[c.role]}">${c.role.replace(/_/g, " ")}</span></td>
+    <td class="mono small">${esc(c.subtype)}</td><td class="num"><span class="meter"><b style="width:${100 * c.confidence}%"></b></span>${c.confidence.toFixed(2)}</td>
+    <td class="small">${c.evidence.map(esc).join("<br>")}</td></tr>`).join("")}
+  </tbody></table></div></section>`;
+}
+
+/* ---------------------------------------------------------------- 2 plan */
+function techLabel(a) {
+  const p = a.params || {};
+  if (a.technique === "generalise") return `generalise → ${p.to === "time" ? p.unit : p.to === "truncate" ? p.length + " chars" : p.to.replace("_", " ")}`;
+  return a.technique;
+}
+function planView() {
+  const P = D.plan, sc = P.scenarios[state.scenario];
+  const sw = `<div class="seg" role="group" aria-label="Receiver">${[["s1", "University researchers"], ["s2", "Public dashboard"]].map(([k, l]) => `<button data-scen="${k}" aria-pressed="${k === state.scenario}">${l}</button>`).join("")}</div>`;
+  const card = `<div class="panel"><div class="small mono">${esc(sc.id)} · trust level: ${esc(sc.trust_level)}</div><h3>${esc(sc.recipient)}</h3><p class="small" style="margin:0">${esc(sc.purpose)}. ${esc(sc.legal_context || "")}</p></div>`;
+  let body;
+  if (state.scenario === "s1") {
+    const acts = P.s1.actions.filter(a => a.table === "ed_visits" || a.table === "lab_results");
+    body = `<p class="lede">Only what the research request asks for leaves, and only in the form it needs. Rows are then checked together on ${esc((P.s1.quasi.ed_visits || []).join(", "))} until every row shares those values with at least ${P.s1.k - 1} others.</p>
+    <div class="tablewrap"><table><thead><tr><th>Column</th><th>Protection</th><th>Why</th></tr></thead><tbody>
+    ${acts.map(a => `<tr><td class="col">${esc(a.table)}.${esc(a.column)}</td><td><span class="tech ${a.technique}">${esc(techLabel(a))}</span></td><td class="small">${esc(a.reason)}</td></tr>`).join("")}
+    </tbody></table></div><p class="small">Columns not listed are withheld. Approved by ${esc(P.s1.by)}.</p>`;
+  } else {
+    const dp = P.s2.dp, total = P.s2.aggregates.reduce((s, a) => s + a.epsilon, 0);
+    body = `<p class="lede">No rows leave. The public gets ${P.s2.aggregates.length} tables of counts and averages with noise added (differential privacy), ε ${P.s2.epsilon} per release, at most ${dp.max_rows_per_unit} visits per patient counted, a budget cap of ${dp.budget_cap} across releases.</p>
+    <div class="panel"><h3>Where the privacy budget goes</h3><div class="budget">${P.s2.aggregates.map(a => `<div style="flex:${a.epsilon}" title="${esc(a.name)}: ε ${a.epsilon}">${a.epsilon}</div>`).join("")}</div>
+      <p class="small">Each table spends its share; the shares add up to ${total.toFixed(3)} (sequential composition).</p></div>
+    <div class="tablewrap"><table><thead><tr><th>Published table</th><th>By</th><th>Value</th><th>ε</th></tr></thead><tbody>
+    ${P.s2.aggregates.map(a => `<tr><td class="col">${esc(a.name)}</td><td class="small">${a.by.map(esc).join(" × ")}</td><td class="small">${a.measure.kind === "count" ? "visits" : a.measure.kind === "mean" ? "mean " + esc(a.measure.column) : "share " + esc(a.measure.values.join("/"))}</td><td class="num mono">${a.epsilon}</td></tr>`).join("")}
+    </tbody></table></div>`;
+  }
+  const same = ["patient_hetu", "date_of_birth", "arrival_ts", "icd10_primary", "municipality", "phone"].map(col => {
+    const a = P.s1.actions.find(x => x.table === "ed_visits" && x.column === col);
+    const used = P.s2.aggregates.filter(g => g.from.includes(col));
+    return `<tr><td class="col">${col}</td><td>${a ? `<span class="tech ${a.technique}">${esc(techLabel(a))}</span>` : `<span class="tech drop">withheld</span>`}</td>
+      <td>${used.length ? `<span class="tech dp">noisy counts by ${esc(used[0].by[used[0].from.indexOf(col)])}</span>` : `<span class="tech drop">not published</span>`}</td></tr>`;
+  }).join("");
+  return `<section class="view"><div class="head"><h2>Plan: the receiver decides the protection</h2></div>${sw}${card}${body}
+  <div class="panel"><h3>Same column, two receivers</h3><div class="tablewrap"><table><thead><tr><th>Column</th><th>Researchers</th><th>Public</th></tr></thead><tbody>${same}</tbody></table></div>
+  <p class="small">The planner writes a draft with a reason for every choice; a data steward reviews and approves it before anything is released.</p></div></section>`;
+}
+
+/* ---------------------------------------------------------------- 3 text */
+function textView() {
+  const T = D.text, after = state.textView === "after";
+  const samples = T.samples.map(s => `<div class="panel"><div class="small mono">${esc(s.where)} · ${esc(s.id)}</div><div class="sample">${s.parts.map(p =>
+    !p.label ? esc(p.t) : after ? `<span class="tagged">[${esc(p.label)}]</span>` : `<mark title="${esc(p.label)}">${esc(p.t)}</mark>`).join("")}</div></div>`).join("");
+  const ours = T.scores.filter(r => r.method === "ours"), qs = T.scores.filter(r => r.method === "quickstart");
+  const rows = split => ours.filter(r => r.split === split && +r.gold_values > 0).map(r => {
+    const q = qs.find(x => x.column === r.column);
+    return `<div class="bar"><span class="mono small">${esc(r.column)}</span><div class="pair">
+      <div class="line"><div class="track"><div class="fill" style="width:${100 * q.leakage}%"></div></div><span>${pct(+q.leakage)}</span></div>
+      <div class="line"><div class="track"><div class="fill safe" style="width:${Math.max(0.5, 100 * r.leakage)}%"></div></div><span>${pct(+r.leakage)}</span></div></div></div>`;
+  }).join("");
+  const total = (split, m) => { const xs = T.scores.filter(r => r.split === split && r.method === m); const n = xs.reduce((s, r) => s + +r.gold_values, 0); return xs.reduce((s, r) => s + r.leakage * r.gold_values, 0) / n; };
+  return `<section class="view"><div class="head"><h2>Text: names and numbers inside free text</h2>
+    <p class="lede">Transcribed calls read numbers aloud and spell e-mails out; notes mention neighbours by name. The redactor reuses the column checks, reads spoken digits in Finnish, Swedish and English, and knows the organisation's own customer and staff names. Context such as dates, places and symptoms stays.</p></div>
+  <div class="seg" role="group" aria-label="Text view"><button data-text="before" aria-pressed="${!after}">Found</button><button data-text="after" aria-pressed="${after}">Released</button></div>
+  <div class="grid2">${samples}</div>
+  <div class="grid2">
+    <div class="panel risk"><span class="eyebrow">Regex from the starter kit</span><div class="big risk num">${pct(total("held-out", "quickstart"))}</div><p class="small">of identifiers still readable in held-out columns.</p></div>
+    <div class="panel safe"><span class="eyebrow">PETs Transformer</span><div class="big safe num">${pct(total("held-out", "ours"))}</div><p class="small">still readable in the same held-out columns (${pct(total("dev", "ours"))} on the columns used to write rules).</p></div>
+  </div>
+  <div class="panel"><h3>Identifiers still readable after redaction, per text column</h3>
+    <div class="legend"><span><i style="background:var(--risk)"></i>starter regex</span><span><i style="background:var(--safe)"></i>our redactor</span></div>
+    <p class="eyebrow">Held out: never inspected while writing rules</p><div class="bars">${rows("held-out")}</div>
+    <p class="eyebrow">Development</p><div class="bars">${rows("dev")}</div>
+    <p class="small">Scored against the organisers' ${fmt(T.scores.filter(r => r.method === "ours").reduce((s, r) => s + +r.gold_values, 0))} labelled identifiers, every row of every column redacted.</p></div></section>`;
+}
+
+/* ---------------------------------------------------------------- 4 prove */
+function tasks(before, after) {
+  return `<div class="bars">${after.utility_tasks.map(t => {
+    const b = before ? before.utility_tasks.find(x => x.task_id === t.task_id) : null;
+    return `<div class="bar"><span><b class="mono">${esc(t.task_id)}</b> ${esc(t.description.split("(")[0])}</span><div class="pair">
+      ${b ? `<div class="line"><div class="track"><div class="fill" style="width:${100 * (b.score || 0)}%"></div></div><span>${(b.score || 0).toFixed(2)}</span></div>` : ""}
+      <div class="line"><div class="track"><div class="fill safe" style="width:${Math.max(0.5, 100 * (t.score || 0))}%"></div></div><span>${(t.score || 0).toFixed(2)}</span></div></div></div>`;
+  }).join("")}</div>`;
+}
+function proveView() {
+  const R = D.prove.runs, ps = D.prove.published_stats;
+  const card = (label, r, cls) => `<div class="panel ${cls}"><span class="eyebrow">${label}</span>
+    <div class="big ${cls} num">${r.composite.toFixed(3)}</div><dl class="kv"><dt>privacy</dt><dd class="num">${r.privacy.toFixed(3)}</dd><dt>utility</dt><dd class="num">${r.utility.toFixed(3)}</dd>
+    <dt>rows below k=5</dt><dd class="num">${r.scenario_id === "HEALTH-S2" ? "no rows released" : pct(r.share_below_k)}</dd></dl></div>`;
+  return `<section class="view"><div class="head"><h2>Prove: risk down, usefulness kept</h2>
+    <p class="lede">Each release is scored with the organisers' pets-eval (privacy, utility and their weighted combined score) and with our own replay of the demo attacks. Pass marks live in a config file and every run is a row in results/history.csv.</p></div>
+  <h3>HEALTH-S1 · university researchers</h3>
+  <div class="grid2">${card("Before: starter protection", R.before, "risk")}${card("After: PETs Transformer, automatic plan", R.s1, "safe")}</div>
+  <div class="panel"><h3>Research questions, answered on the protected data</h3>
+    <div class="legend"><span><i style="background:var(--risk)"></i>starter protection</span><span><i style="background:var(--safe)"></i>our release</span></div>${tasks(R.before, R.s1)}
+    <p class="small">1.00 means the protected data gives the same answer as the raw data.</p></div>
+  <h3>HEALTH-S2 · public dashboard</h3>
+  <div class="grid2">
+    <div class="panel risk"><span class="eyebrow">Before: the hospital's published table</span><div class="big risk num">${pct(ps.single / ps.cells, 0)}</div>
+      <p class="small">of its ${fmt(ps.cells)} cells count a single visit (week × municipality × age × sex × diagnosis): each points at one person, and two weekly downloads can be subtracted.</p></div>
+    ${card("After: differentially private tables", R.s2, "safe")}</div>
+  <div class="panel"><h3>Dashboard questions</h3>${tasks(null, R.s2)}
+    <p class="small">Weekly flu visits split by age band (H-U1) are cells of about five visits; at ε 1 the noise is larger than the counts, so we publish weekly totals by diagnosis and age by month instead. Stated, not hidden.</p></div></section>`;
+}
+
+/* ---------------------------------------------------------------- 5 report */
+function reportView() {
+  const one = (title, m) => `<div class="panel"><h3>${title}</h3><dl class="kv">
+    <dt>release</dt><dd class="mono">${esc(m.release_id)}</dd><dt>key domain</dt><dd class="mono">${esc(m.key_domain)}</dd>
+    <dt>input fingerprint</dt><dd class="mono">${esc(m.input_fingerprint.slice(0, 16))}…</dd><dt>files</dt><dd>${m.files.map(f => `<span class="mono">${esc(f.name)}</span> <span class="small">${fmt(f.rows)} rows</span>`).join("<br>")}</dd></dl>
+    <span class="eyebrow">Residual risks, as written in the manifest</span><ul class="plain">${m.residual_risks.map(r => `<li>${esc(r)}</li>`).join("")}</ul></div>`;
+  return `<section class="view"><div class="head"><h2>Report: what was released, and what is still risky</h2>
+    <p class="lede">Every release writes manifest.json next to the data: input fingerprint, the approved plan with a reason per column, who approved it, our own checks and the risks that remain. Row maps and keys stay in a private folder and never go into a release.</p></div>
+  <div class="grid2">${one("HEALTH-S1 · researchers", D.report.s1)}${one("HEALTH-S2 · public", D.report.s2)}</div>
+  <div class="panel"><h3>Built to run on company data</h3><ul class="plain">
+    <li>Detection uses names and values only; answer files are read only by the separate evaluation harness.</li>
+    <li>Keys come from the environment, one key per receiver and release, so two releases cannot be joined.</li>
+    <li>Receivers, purposes and requests are YAML files; code lists and pass marks are config too.</li>
+    <li>A person approves every plan; items marked REVIEW block approval.</li>
+    <li>Runs locally. The local AI helper is optional and off by default.</li></ul></div></section>`;
+}
+
+const VIEWS = { attack: attackView, detect: detectView, plan: planView, text: textView, prove: proveView, report: reportView };
+function wire(step) {
+  const app = document.getElementById("app");
+  app.querySelectorAll("[data-case]").forEach(b => b.onclick = () => { state.caseIdx = +b.dataset.case; state.linkIdx = 0; route(); });
+  app.querySelectorAll("[data-link]").forEach(b => b.onclick = () => { state.linkIdx = +b.dataset.link; route(); });
+  app.querySelectorAll("[data-scen]").forEach(b => b.onclick = () => { state.scenario = b.dataset.scen; route(); });
+  app.querySelectorAll("[data-text]").forEach(b => b.onclick = () => { state.textView = b.dataset.text; route(); });
+}
+document.getElementById("foot").textContent = "Synthetic data from the TrustED PETs Proving Ground. Scores are pets-eval self-assessments, not the official judging.";
+window.addEventListener("hashchange", () => { route(); window.scrollTo(0, 0); });
+route();
+</script>
