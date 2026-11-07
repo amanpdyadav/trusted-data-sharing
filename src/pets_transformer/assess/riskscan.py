@@ -61,16 +61,23 @@ def _keys(det: DetectionReport) -> list[ColumnDetection]:
 
 def find_links(det: DetectionReport, frames: Mapping[str, pd.DataFrame]) -> list[TableLink]:
     """Columns whose values are another table's key: same column name, or both person identifiers."""
+    distinct: dict[tuple[str, str], set[str]] = {}  # built once per column: big tables share key names
+
+    def values_of(table: str, column: str) -> set[str]:
+        if (table, column) not in distinct:
+            distinct[table, column] = set(frames[table][column].dropna().astype(str).unique()) - {""}
+        return distinct[table, column]
+
     links = []
     for key in _keys(det):
-        target = set(frames[key.table][key.column].dropna().astype(str)) - {""}
+        target = values_of(key.table, key.column)
         if not target:
             continue
         for c in det.columns:
             same_kind = c.column == key.column or (c.subtype in PERSON_KEYS and c.subtype == key.subtype)
             if c.table == key.table or not same_kind:
                 continue
-            values = set(frames[c.table][c.column].dropna().astype(str)) - {""}
+            values = values_of(c.table, c.column)
             overlap = len(values & target) / len(values) if values else 0.0
             if overlap >= MIN_OVERLAP:
                 meaning = "same person" if key.subtype in PERSON_KEYS else "same record"
@@ -131,6 +138,6 @@ def person_card(
     return card
 
 
-def scan(det: DetectionReport, frames: Mapping[str, pd.DataFrame]) -> RiskScan:
-    links = find_links(det, frames)
+def scan(det: DetectionReport, frames: Mapping[str, pd.DataFrame], links: list[TableLink] | None = None) -> RiskScan:
+    links = find_links(det, frames) if links is None else links
     return RiskScan(links, exposure(det, frames), person_card(det, frames, links))
