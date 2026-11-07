@@ -74,7 +74,8 @@ Use `--source csv:path/to/folder` with `detect` and `run` to read your own CSV f
 
 | Folder | What is in it |
 |---|---|
-| `src/pets_transformer/` | The tool: detect, text, plan, transform, aggregate, assess, report, web app |
+| `src/pets_transformer/` | The tool: detect, text, plan, transform, aggregate, assess, report, web app backend |
+| `frontend/` | The web app's source (React + TypeScript + shadcn/ui); built into the package, so only needed to change it |
 | `scenarios/` | Receivers described in YAML (who, why, what they need, privacy targets) |
 | `plans/` | Example plans |
 | `codelists/` | Code groupings for statistics (for example diagnosis groups) |
