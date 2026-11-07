@@ -487,23 +487,10 @@ function comparePanel() {
 /* ---------------------------------------------------------------- 4 approve */
 function approveView() {
   const P = S.plan.plan, rev = S.plan.reviews, recipient = esc(S.plan.scenario?.recipient || P.scenario_id);
-  const removed = P.actions.filter(a => a.technique === "drop").length;
-  const leaving = planTables(P).map(t => {
-    const acts = P.actions.filter(a => a.table === t && a.technique !== "drop");
-    return `<div class="leave"><b class="mono">${esc(t)}</b><span class="small">${plural(acts.length, "column")}</span>
-      <div class="row">${LANES.slice(0, 4).map(([tech, icon, name]) => { const n = acts.filter(a => a.technique === tech).length; return n ? `<span class="tag" title="${name}">${icon} ${n} ${name.toLowerCase()}</span>` : ""; }).join("")}</div></div>`;
-  }).join("");
   const signed = P.approved && !S.reapprove;
   return `${head(4, "Check what leaves, then sign it off", "Nothing is shared until a named person approves. Your name is written into the plan and into the release.")}
   ${guide(["Check what leaves and what stays", "Tick the checks", "Type your name and approve"], [signed, signed, signed])}
-  <div class="grid2 leaves">
-    <div class="panel safe"><span class="eyebrow">↗ Leaves your organisation</span><h2>To ${recipient}</h2>
-      ${leaving}${P.aggregates.length ? `<div class="leave"><b>📊 ${plural(P.aggregates.length, "table")} of counts</b><span class="small">with a little noise, never individual records</span></div>` : ""}
-      ${S.plan.scenario?.purpose ? `<p class="small">Purpose: ${esc(S.plan.scenario.purpose)}</p>` : ""}</div>
-    <div class="panel"><span class="eyebrow">🏠 Stays here</span><h2>Never leaves this computer</h2>
-      <ul class="plain">${S.plan.withheld_tables.length ? `<li>Tables not shared: <span class="mono">${esc(S.plan.withheld_tables.join(", "))}</span></li>` : ""}
-        ${removed ? `<li>${plural(removed, "column")} removed from the shared tables</li>` : ""}
-        <li>The original data, with real names and numbers</li><li>The row maps that link codes back to real records</li><li>The secret key behind the codes</li></ul></div></div>
+  ${leavesStays(P, recipient)}
   ${signed ? `<div class="panel ready"><div class="spread"><div><span class="eyebrow">✓ Approved</span><h2>Signed off by ${esc(P.approved_by)}</h2><p class="small">Recorded in the plan and in every release.</p></div>
       <div class="row"><button class="btn" data-reapprove>Change approval</button><button class="btn primary lg" data-go="release">Create the release →</button></div></div></div>`
     : `<div class="panel signoff" id="signoff"><span class="eyebrow">Sign off</span><h2>Before you approve</h2>
@@ -512,6 +499,54 @@ function approveView() {
       <label class="check"><input type="checkbox" data-check> <span><b>I am allowed to approve</b> sharing this data with ${recipient}.</span></label>
       <div class="row"><label class="field grow">Your full name<input type="text" id="approver" value="${esc(S.approver ?? "")}" placeholder="e.g. Maria Virtanen"></label>
         <button class="btn primary lg" data-approve disabled>Approve and continue</button>${busy("approve")}</div></div>`}`;
+}
+
+/* every table and field, and what happens to it: a list of tables on the left, their fields on the right */
+function tableFates(P) {
+  const det = S.scan.detections.columns, shared = new Set(planTables(P));
+  const counted = new Map(P.aggregates.flatMap(g => g.dimensions.map(d => [`${g.table}.${d.column}`, g.name])));
+  const names = [...new Set(det.map(c => c.table))];
+  return names.map(t => {
+    const cols = det.filter(c => c.table === t).map(c => c.column);
+    let fields, kind;
+    if (shared.has(t)) {
+      kind = "shared";
+      fields = cols.map(c => { const a = P.actions.find(x => x.table === t && x.column === c), tech = a?.technique || "drop", [, icon, name] = laneOf(tech);
+        const as = a?.params?.rename_to; return { c, cls: tech, icon, fate: name + (as && tech !== "drop" ? ` → ${as}` : ""), why: a?.reason || "" }; });
+    } else if (P.aggregates.some(g => g.table === t)) {
+      kind = "counts";
+      fields = cols.map(c => counted.has(`${t}.${c}`) ? { c, cls: "statistics", icon: "📊", fate: "Counted only", why: `used to count ${counted.get(`${t}.${c}`)}` } : { c, cls: "stays", icon: "🏠", fate: "Stays here", why: "" });
+    } else {
+      kind = "stays";
+      fields = cols.map(c => ({ c, cls: "stays", icon: "🏠", fate: "Stays here", why: "the table is not shared" }));
+    }
+    const order = ["keep", "generalise", "pseudonymise", "redact_text", "statistics", "drop", "stays"];
+    fields.sort((x, y) => order.indexOf(x.cls) - order.indexOf(y.cls));  // what leaves first, what stays last
+    const out = fields.filter(f => f.cls !== "drop" && f.cls !== "stays").length;
+    return { t, kind, fields, out, rank: { shared: 0, counts: 1, stays: 2 }[kind] };
+  }).sort((x, y) => x.rank - y.rank || x.t.localeCompare(y.t));
+}
+function leavesStays(P, recipient) {
+  const all = tableFates(P), sel = S.apSel || new Set(all.map(x => x.t)), q = (S.apQuery || "").toLowerCase(), kind = S.apKind || "all";
+  const visible = all.filter(x => (kind === "all" || (kind === "shared" ? x.kind !== "stays" : x.kind === "stays")) && x.t.toLowerCase().includes(q));
+  const leaving = all.filter(x => x.kind !== "stays"), staying = all.filter(x => x.kind === "stays");
+  const fieldsOut = leaving.reduce((n, x) => n + x.out, 0), removed = leaving.reduce((n, x) => n + x.fields.length - x.out, 0);
+  const badge = x => x.kind === "shared" ? `<span class="tag safe">${x.out} of ${x.fields.length} shared</span>` : x.kind === "counts" ? `<span class="tag ok">counts only</span>` : `<span class="tag">not shared</span>`;
+  const shown = all.filter(x => sel.has(x.t));
+  return `<div class="grid2 sumtiles">
+      <div class="sumtile out"><span class="eyebrow">↗ Leaves your organisation</span><b>${plural(leaving.length, "table")}${P.aggregates.length && !planTables(P).length ? " as counts" : ""}, ${plural(fieldsOut, "field")}</b><span class="small">to ${recipient}${S.plan.scenario?.purpose ? ` · ${esc(S.plan.scenario.purpose)}` : ""}</span></div>
+      <div class="sumtile stay"><span class="eyebrow">🏠 Stays on this computer</span><b>${plural(staying.length, "table")} not shared${removed ? `, ${plural(removed, "field")} removed` : ""}</b><span class="small">plus the original data, the row maps and the secret key</span></div></div>
+    <div class="explorer">
+      <div class="panel tlist"><div class="spread"><h3>Tables</h3><span class="small">${sel.size} of ${all.length} selected</span></div>
+        ${all.length > 8 ? `<input type="text" placeholder="Search tables…" data-apquery value="${esc(S.apQuery || "")}" aria-label="Search tables">` : ""}
+        <div class="pills">${[["all", "All"], ["shared", "Shared"], ["stays", "Not shared"]].map(([k, l]) => `<button data-apkind="${k}" aria-pressed="${kind === k}">${l}</button>`).join("")}</div>
+        <div class="row small"><button class="linkbtn" data-apall>Select all</button>·<button class="linkbtn" data-apnone>None</button></div>
+        <div class="tlist-items">${visible.map(x => `<label class="titem ${x.kind}"><input type="checkbox" data-apsel="${esc(x.t)}" ${sel.has(x.t) ? "checked" : ""}><span class="mono">${esc(x.t)}</span>${badge(x)}</label>`).join("") || `<p class="small">No table matches.</p>`}</div></div>
+      <div class="fields">${shown.length ? shown.map(x => `<div class="panel fcard ${x.kind}"><div class="spread"><h3 class="mono">${esc(x.t)}</h3>${badge(x)}</div>
+          ${x.kind === "stays" ? `<p class="small">This table is not shared. All ${plural(x.fields.length, "field")} stay here:</p><div class="row">${x.fields.map(f => `<span class="tag">${esc(f.c)}</span>`).join("")}</div>`
+            : `<div class="frows">${x.fields.map(f => `<div class="frow f-${f.cls}" title="${esc(f.why)}"><span class="mono">${esc(f.c)}</span><span class="fate">${f.icon} ${esc(f.fate)}</span></div>`).join("")}</div>`}</div>`).join("")
+        : `<div class="panel"><p class="small">Select one or more tables on the left to see their fields.</p></div>`}</div>
+    </div>`;
 }
 
 /* ---------------------------------------------------------------- 5 release & proof */
@@ -843,6 +878,14 @@ function wire() {
   page.querySelectorAll("[data-exrow]").forEach(b => (b.onclick = () => { S.exRow = +b.dataset.exrow; render(); }));
   page.querySelectorAll("[data-kpick]").forEach(r => (r.oninput = () => { S.kPick = +r.value; render(); $("[data-kpick]")?.focus(); }));
   page.querySelectorAll("[data-epick]").forEach(r => (r.oninput = () => { S.ePick = +r.value; render(); $("[data-epick]")?.focus(); }));
+  const fates = () => tableFates(S.plan.plan).map(x => x.t);
+  page.querySelectorAll("[data-apsel]").forEach(c => (c.onchange = () => {
+    const sel = new Set(S.apSel || fates()); c.checked ? sel.add(c.dataset.apsel) : sel.delete(c.dataset.apsel); S.apSel = sel; render();
+  }));
+  page.querySelectorAll("[data-apall]").forEach(b => (b.onclick = () => { S.apSel = null; render(); }));
+  page.querySelectorAll("[data-apnone]").forEach(b => (b.onclick = () => { S.apSel = new Set(); render(); }));
+  page.querySelectorAll("[data-apkind]").forEach(b => (b.onclick = () => { S.apKind = b.dataset.apkind; render(); }));
+  page.querySelectorAll("[data-apquery]").forEach(i => (i.oninput = () => { S.apQuery = i.value; render(); const n = $("[data-apquery]"); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }));
   page.querySelectorAll("[data-reapprove]").forEach(b => (b.onclick = () => { S.reapprove = true; render(); }));
   page.querySelectorAll("[data-focus]").forEach(b => (b.onclick = () => { const el = $("#" + b.dataset.focus); el?.scrollIntoView({ behavior: "smooth", block: "center" }); el?.querySelector("input[type=checkbox]")?.focus(); }));
   const signoff = $("#signoff");
@@ -910,6 +953,7 @@ async function download(href) {
   tmp.click(); URL.revokeObjectURL(url); S.results.published = true; render();
 }
 function planChanged() {
+  S.apSel = null;
   S.confirmReview = false; S.results = null; S.viewing = null; S.tradeoff = null;
   const plan = S.plan;  // the example and the trade-off load by themselves; a newer plan wins
   S.example = null;

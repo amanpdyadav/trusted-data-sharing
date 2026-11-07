@@ -54,7 +54,10 @@ outsider picks the right person and how many details the receiver keeps. Click *
 
 ## 4. Review & approve
 
-The page shows side by side what **leaves your organisation** and what **stays here**. Tick the checks
+Two tiles sum up what **leaves your organisation** and what **stays on this computer**. Below them, the tables
+are listed on the left (all selected; search, filter or tick the ones you want) and their fields on the right,
+each with what happens to it: shared as is, made less exact, replaced by a code, removed, counted only, or stays
+here. Tick the checks
 (the receiver needs the data, any undecided columns were checked, you may approve), type your full name and click
 **Approve and continue**. The button only unlocks when every check is ticked. Your name is written into the plan
 and into every release.
