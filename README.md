@@ -60,7 +60,7 @@ Use `--source csv:path/to/folder` with `detect` and `run` to read your own CSV f
 These use the organisers' toolkit and answer files, so they live in `evaluation/`, never in the tool.
 
 ```bash
-make release validate          # protect HEALTH-S1 and check every gate (score, k, demo attacks, post and news sweep)
+make release PLAN=<approved plan> validate   # protect HEALTH-S1 and check every gate (see docs/RUNBOOK.md, section 2)
 make sweep                     # replay all 1,050 public posts and news clips on the release; lists anyone exposed
 make detect-all                # score column detection on every labelled dataset
 .venv/bin/python -m evaluation experiment stay-length        # compare plan variants side by side
@@ -93,6 +93,7 @@ Column detection (organisers' scorer, 9 datasets): macro-F1 0.930, sensitive att
 
 ## Documentation
 
+- [Runbook](docs/RUNBOOK.md): every step from a fresh clone to a scored release and the submission files.
 - [User guide](docs/USER_GUIDE.md): the web app screen by screen, and a glossary of the terms.
 - [How it works](docs/HOW_IT_WORKS.md): the pipeline, the protections, the checks and the safety rules.
 - [Contributing](CONTRIBUTING.md): code layout, tests and how to add a new protection or detector.
