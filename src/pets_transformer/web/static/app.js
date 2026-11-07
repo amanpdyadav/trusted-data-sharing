@@ -67,6 +67,7 @@ function render() {
       <span class="n">${done[k] && k !== S.step ? "✓" : i + 1}</span>${label}</button>`).join("");
   renderTicker();
   $("#page").innerHTML = VIEWS[S.step]() + nextBar();
+  renderModal();
   wire();
 }
 function renderTicker() {
@@ -201,7 +202,7 @@ function attackRaw(A) {
   const total = linked.reduce((s, [, n]) => s + n, 0);
   return `<div class="panel attack raw ${S.play === "scan" ? "play" : ""}">
     <div class="spread"><div><span class="eyebrow">Attack replay on your data</span><h2>How an outsider re-identifies one person</h2></div>
-      <button class="btn risk" data-play="scan">▶ Play the attack</button></div>
+      <div class="row"><button class="btn" data-another>🎲 Another person</button><button class="btn risk" data-play="scan">▶ Play the attack</button>${busy("another")}</div></div>
     <div class="chain">
       <div class="stage"><span class="sn">The outsider knows</span>${factList(A.known, A.table)}<span class="small">from a public register, social media or a leaked list</span></div>
       <div class="stage ${hit ? "hit" : ""}"><span class="sn">Searches ${esc(A.table)}</span><span class="big">${hit ? "1 person" : plural(A.matches, "person").replace("persons", "people")}</span><span class="small">of ${fmt(A.rows)} records fit all ${Object.keys(A.known).length} facts</span></div>
@@ -210,7 +211,21 @@ function attackRaw(A) {
     </div>
     ${hit ? `<div class="verdict risk"><span class="badge">Re-identified</span><span>${Object.keys(A.known).length} everyday facts are enough to name this person and open ${plural(total, "record")} across ${plural(linked.length, "table")}. This is the mosaic effect, and it is why the data cannot be shared as it is.</span></div>`
       : `<div class="verdict safe"><span class="badge">Not singled out</span><span>On these facts the person hides among ${fmt(A.matches)} people. Other columns may still expose them; see the tables below.</span></div>`}
+    ${trailView(S.scan.attack)}
   </div>`;
+}
+/* the mosaic effect step by step: from the outsider's facts through each table, and what each one gives away */
+function trailView(A) {
+  const trail = A?.trail || [];
+  if (!trail.length || A.before.outcome !== "identified") return "";
+  const arrow = (label, sub) => `<div class="tarrow"><span class="mono">${esc(label)}</span><i aria-hidden="true"></i><span class="small">${esc(sub)}</span></div>`;
+  const node = h => `<div class="tnode"><div class="spread"><b class="mono">${esc(h.table)}</b><span class="tag risk">${plural(h.rows, "record")}</span></div>
+    ${Object.entries(h.learnt).map(([k, v]) => { const [, vals, more = ""] = v.match(/^(.*?)( \+\d+ more)?$/s);
+      return `<div class="tl"><span>${esc(k)}</span><b class="c-${roleOf(h.table, k)}">${esc(shown(h.table, k, vals))}${esc(more)}</b></div>`; }).join("") || `<span class="small">nothing telling beyond the link</span>`}</div>`;
+  return `<div class="trailwrap"><div class="spread"><h3>Follow the trail: what each table gives away</h3><span class="small">${plural(trail.length, "table")} · ${fmt(trail.reduce((n, h) => n + h.rows, 0))} records about one person</span></div>
+    <div class="trail"><div class="tnode start"><b>The outsider</b>${factList(A.before.known, A.before.table)}</div>
+      ${trail.map((h, i) => `${i === 0 ? arrow("search", "1 person fits") : arrow(`via ${h.via}`, `from ${h.from_table}`)}${node(h)}`).join("")}</div>
+    <p class="small">Red identifies the person, blue is sensitive. Each arrow is a key shared by two tables: knowing one row opens the next table.</p></div>`;
 }
 function connectionMap(R) {
   const tables = R.tables.map(t => t.table), n = tables.length, cols = Math.min(n, 4);
@@ -263,12 +278,10 @@ function personCard(person) {
       ${person[t].map(r => `<div class="record">${Object.entries(r).map(([k, v]) => `<span class="c-${roleOf(t, k)}"><b>${esc(k)}</b>${esc(shown(t, k, String(v).slice(0, 160)))}</span>`).join("")}</div>`).join("")}</div>`).join("")}`;
 }
 function detectionTable(det) {
-  const roles = S.cat.roles, subs = S.cat.subtypes;
-  return `<div class="tablewrap"><table><thead><tr><th>Column</th><th>What it is</th><th>Type</th><th>Confidence</th><th>Evidence</th></tr></thead><tbody>${det.map((c, i) => `<tr>
-    <td class="col">${esc(c.table)}.${esc(c.column)}</td>
-    <td><select data-override="${i}" data-field="privacy_role" aria-label="Role of ${esc(c.column)}">${roles.map(r => `<option value="${r}" ${r === c.privacy_role ? "selected" : ""}>${ROLE_LABEL[r] || r}</option>`).join("")}</select></td>
-    <td><select data-override="${i}" data-field="subtype" aria-label="Type of ${esc(c.column)}">${subs.map(r => `<option ${r === c.subtype ? "selected" : ""}>${r}</option>`).join("")}</select></td>
-    <td class="num">${c.confidence.toFixed(2)}</td><td class="small">${c.evidence.slice(0, 2).map(e => esc(e.detail)).join("<br>")}</td></tr>`).join("")}</tbody></table></div>`;
+  return `<div class="tablewrap"><table><thead><tr><th>Column</th><th>What it is</th><th>Type</th><th>Confidence</th><th></th></tr></thead><tbody>${det.map((c, i) => `<tr class="clickable" data-col="${i}">
+    <td class="col">${esc(c.table)}.${esc(c.column)}</td><td class="c-${c.privacy_role}">${ROLE_LABEL[c.privacy_role] || c.privacy_role}${c.evidence.some(e => e.kind === "manual") ? ` <span class="tag ok">corrected</span>` : ""}</td>
+    <td class="mono small">${esc(c.subtype)}</td><td><div class="meter safe" style="width:80px"><b style="width:${100 * c.confidence}%"></b></div></td>
+    <td><button class="btn small" data-col="${i}">Details</button></td></tr>`).join("")}</tbody></table></div>`;
 }
 
 /* ---------------------------------------------------------------- 3 receiver & plan */
@@ -285,14 +298,13 @@ function planView() {
   return `${head(3, "Who gets the data, and for what?", "The receiver decides the protection. A research group under contract can get coded rows; the public gets noisy statistics only. Pick one, or describe your own.")}
   <div class="cards">${recv.map(r => `<button class="choice" data-receiver="${esc(r.id)}" aria-pressed="${S.receiverChoice === r.id}"><span class="k">${esc(r.trust_level.replace(/_/g, " "))} · ${r.kind === "statistics" ? "statistics only" : "rows"}</span><b>${esc(r.recipient)}</b><span class="small">${esc(r.purpose)}</span><span class="small mono">${esc(r.id)}</span></button>`).join("")}
     <button class="choice" data-receiver="custom" aria-pressed="${custom}"><span class="k">your own</span><b>Describe a receiver</b><span class="small">Who they are, how far they are trusted, and which columns they need.</span></button></div>
-  ${custom ? customForm() : ""}${busy("plan")}
+  ${busy("plan")}
   ${S.plan ? planPanel() : ""}`;
 }
 function customForm() {
   const C = S.custom, det = S.scan.detections.columns.filter(c => c.privacy_role !== "record_key");
   const pub = C.trust_level === "public";
-  return `<div class="panel"><h2>Describe the receiver</h2>
-    <div class="grid3"><label class="field">Receiver<input type="text" data-c="recipient" value="${esc(C.recipient)}"></label>
+  return `<div class="grid3"><label class="field">Receiver<input type="text" data-c="recipient" value="${esc(C.recipient)}"></label>
       <label class="field">Purpose<input type="text" data-c="purpose" value="${esc(C.purpose)}"></label>
       <label class="field">How far they are trusted<select data-c="trust_level">${S.cat.trust_levels.map(t => `<option value="${t}" ${t === C.trust_level ? "selected" : ""}>${t.replace(/_/g, " ")}</option>`).join("")}</select></label></div>
     ${pub ? statisticsBuilder(det) : `<p class="small">Tick what they need. Everything else stays here (data minimisation). Each person must look like at least <input type="text" data-c="k" value="${C.k}" size="2" aria-label="k"> others on what an outsider may know.</p>
@@ -301,7 +313,7 @@ function customForm() {
       return `<tr><td><input type="checkbox" data-need="${esc(key)}" ${need !== undefined ? "checked" : ""} aria-label="Needs ${esc(key)}"></td><td class="col">${esc(key)}</td><td class="c-${c.privacy_role}">${ROLE_LABEL[c.privacy_role]}</td>
         <td>${opts.length > 1 || opts[0] ? `<select data-detail="${esc(key)}">${opts.map(o => `<option ${o === need ? "selected" : ""}>${o}</option>`).join("")}</select>` : ""}</td></tr>`;
     }).join("")}</tbody></table></div>`}
-    <div class="row"><button class="btn primary" data-make="custom">Make the plan</button></div></div>`;
+`;
 }
 function statisticsBuilder(det) {
   const C = S.custom, usable = det.filter(c => ["quasi_identifier", "sensitive_attribute", "non_sensitive"].includes(c.privacy_role));
@@ -318,10 +330,13 @@ function techniqueCounts(P) {
 }
 function planPanel() {
   const P = S.plan.plan;
-  const rows = P.actions.map(a => {
-    const c = S.scan.detections.columns.find(d => d.table === a.table && d.column === a.column), role = c?.privacy_role || "";
-    return `<tr class="${a.reason.startsWith("REVIEW") ? "review" : ""}"><td class="col">${esc(a.table)}.${esc(a.column)}</td><td class="c-${role}">${ROLE_LABEL[role] || ""}</td>
-    <td>${techniqueSelect(a, c)}</td><td class="small">${esc(a.reason)}</td></tr>`;
+  const rows = planTables(P).map(t => {
+    const acts = P.actions.filter(a => a.table === t), out = acts.filter(a => a.technique !== "drop").length;
+    return `<tr class="group"><td colspan="4"><b class="mono">${esc(t)}</b> <span class="small">· ${out} of ${acts.length} columns leave · ${techniqueCounts({ actions: acts })}</span></td></tr>` + acts.map(a => {
+      const c = S.scan.detections.columns.find(d => d.table === a.table && d.column === a.column), role = c?.privacy_role || "";
+      return `<tr class="${a.reason.startsWith("REVIEW") ? "review" : ""}"><td class="col">${esc(a.column)}</td><td class="c-${role}">${ROLE_LABEL[role] || ""}</td>
+      <td>${techniqueSelect(a, c)}</td><td class="small">${esc(a.reason)}</td></tr>`;
+    }).join("");
   }).join("");
   const stats = P.aggregates.length ? `<div class="panel flat"><h3>Published statistics · ε ${P.epsilon} per release, ${P.differential_privacy.max_rows_per_unit} records per person, one person = one ${esc(P.differential_privacy.unit)}</h3>
     <div class="stack">${P.aggregates.map((a, i) => `<div style="flex:${a.epsilon};background:${i % 2 ? "var(--ink)" : "var(--safe)"}" title="${esc(a.name)}">${a.epsilon}</div>`).join("")}</div>
@@ -363,7 +378,7 @@ function lineChart(points, xKey, series, xLabel) {
 }
 function tradeoffPanel() {
   const T = S.tradeoff;
-  if (!T) return `<p class="small">See how privacy and usefulness move before you choose, computed on your data without releasing anything.</p><div class="row"><button class="btn" data-tradeoff>Show the trade-off</button>${busy("tradeoff")}</div>`;
+  if (!T) return `<p class="small">Working out how privacy and usefulness move with k and ε, on your data, without releasing anything… <span class="busy"></span></p>`;
   const k = T.k.length ? `<div class="legend"><span><i style="background:var(--risk)"></i>attacker's chance to pick the right person</span><span><i style="background:var(--safe)"></i>values kept</span></div>
     ${lineChart(T.k, "k", [["guess_chance", 1], ["cells_kept", 2]], "k: each person looks like at least k-1 others")}
     <div class="row"><span class="small">Use k =</span>${T.k.map(p => `<button class="btn small" data-setk="${p.k}" ${p.current ? "disabled" : ""}>${p.k}</button>`).join("")}${busy("tradeoff")}</div>` : "";
@@ -388,11 +403,10 @@ function approveView() {
     <div class="panel"><span class="eyebrow">Receiver</span><b>${esc(S.plan.scenario?.recipient || P.scenario_id)}</b><span class="small">${esc(S.plan.scenario?.purpose || "")}</span></div>
     <div class="panel"><span class="eyebrow">What leaves</span><div class="row">${techniqueCounts(P)}</div><span class="small">${planTables(P).length ? `Tables: ${esc(planTables(P).join(", "))}` : ""}${P.aggregates.length ? ` ${P.aggregates.length} statistics tables, ε ${P.epsilon}` : ""}</span></div>
     <div class="panel ${rev.length ? "risk" : "safe"}"><span class="eyebrow">Open questions</span><b>${rev.length ? rev.length + " to check" : "none"}</b><span class="small">${esc(rev.join(", "))}</span></div></div>
-  <div class="panel">${P.approved ? `<div class="callout ok">Approved by <b>${esc(P.approved_by)}</b>.</div>` : ""}
-    <div class="row"><label class="field">Approved by<input type="text" id="approver" value="${esc(S.approver ?? P.approved_by ?? "")}" placeholder="Your name"></label>
-    ${rev.length ? `<label class="row small"><input type="checkbox" id="confirmrev" ${S.confirmReview ? "checked" : ""}> I checked the open questions</label>` : ""}
-    <button class="btn primary" data-approve>${P.approved ? "Approve again" : "Approve the plan"}</button>${busy("approve")}</div></div>
-  ${P.approved ? `<div class="row"><button class="btn primary" data-go="release">Create the release →</button></div>` : ""}`;
+  ${P.approved ? `<div class="panel safe"><div class="spread"><div><span class="eyebrow">Approved</span><h2>Approved by ${esc(P.approved_by)}</h2><p class="small">Recorded in the plan and in every release manifest.</p></div>
+      <div class="row"><button class="btn" data-modal="approve">Approve again</button><button class="btn primary lg" data-go="release">Create the release →</button></div></div></div>`
+    : `<div class="panel ready"><div class="spread"><div><span class="eyebrow">Needs your approval</span><h2>Check what leaves, then sign it off</h2><p class="small">The dialog lists every table and column that leaves${rev.length ? " and the questions to check" : ""}.</p></div>
+      <button class="btn primary lg" data-modal="approve">Review and approve…</button></div></div>`}`;
 }
 
 /* ---------------------------------------------------------------- 5 release & proof */
@@ -404,10 +418,9 @@ function valuesKept(R) {
 }
 function releaseView() {
   const R = S.results, approved = S.plan?.plan.approved;
-  const create = approved && !S.viewing ? `<div class="panel"><div class="row"><label class="field">Receiver name (selects their own key)<input type="text" id="receiver" value="${esc(S.lastReceiver || "receiver")}"></label>
-    <button class="btn primary" data-run>${R ? "Create again" : "Create the release"}</button>${busy("run")}</div>
-    <p class="small">Each receiver gets codes from a different key, so two receivers cannot join their copies. Every release is kept below for download and comparison.</p></div>` : "";
-  if (!R) return `${head(5, "Release and proof")}${create}`;
+  if (!R) return `${head(5, "Release and proof")}<div class="panel ready"><div class="spread"><div><span class="eyebrow">Approved by ${esc(S.plan.plan.approved_by)}</span><h2>Create the release for ${esc(S.plan.scenario?.recipient || S.plan.plan.scenario_id)}</h2>
+    <p class="small">The protected files are written, checked against the plan, and replayed against the same attacker.</p></div><button class="btn primary lg" data-modal="release">Create the release…</button></div>${busy("run")}</div>`;
+  const create = approved && !S.viewing ? `<div class="row"><button class="btn" data-modal="release">New release…</button>${busy("run")}</div>` : "";
   const m = R.summary, kept = valuesKept(R), A = R.attack;
   const banner = S.viewing ? `<div class="banner"><span>Viewing an earlier release: <b>${esc(m.release_id)}</b>, made ${esc(when(m.created_at))}.</span>${S.history[0] && S.history[0].release_id !== m.release_id ? `<button class="btn small" data-view="${esc(S.history[0].release_id)}">Open the latest</button>` : ""}</div>` : "";
   return `${head(5, "Release and proof", `<b>${esc(m.release_id)}</b> for ${esc(m.recipient)} · approved by ${esc(m.approved_by || "–")} · ${esc(when(m.created_at))}`)}
@@ -475,10 +488,10 @@ function recordsTab(R) {
     const v = pair.released[renamed[c]];
     return v === "" || v == null ? `<td class="d-blank"></td>` : `<td class="d-${base}" title="${esc(v)}">${esc(v)}</td>`;
   };
-  return `<div class="spread"><p class="small">The same records, raw and released, matched on this computer through the private row map (which never leaves). Read each pair top to bottom.</p>
+  return `<div class="spread"><p class="small">The same records, raw and released, matched on this computer through the private row map (which never leaves). Read each pair top to bottom; click one to see it in full.</p>
       ${withPairs.length > 1 ? `<div class="pills">${withPairs.map(x => `<button data-table="${esc(x.name)}" aria-pressed="${x.name === t.name}">${esc(x.name)}</button>`).join("")}</div>` : ""}</div>
     <div class="tablewrap"><table class="diff"><thead><tr><th></th>${cols.map(c => `<th>${esc(c)}<br><span class="tech ${tech(c).split(":")[0]}">${esc(tech(c))}</span></th>`).join("")}</tr></thead><tbody>
-      ${t.pairs.map(p => `<tr class="rawrow"><td class="who">raw</td>${cols.map(c => `<td class="c-${roleOf(t.name, c)}" title="${esc(shown(t.name, c, p.raw[c]))}">${esc(shown(t.name, c, p.raw[c]))}</td>`).join("")}</tr>
+      ${t.pairs.map((p, i) => `<tr class="rawrow clickable" data-record="${esc(t.name)}|${i}"><td class="who">raw ↗</td>${cols.map(c => `<td class="c-${roleOf(t.name, c)}" title="${esc(shown(t.name, c, p.raw[c]))}">${esc(shown(t.name, c, p.raw[c]))}</td>`).join("")}</tr>
         <tr class="relrow"><td class="who">released</td>${cols.map(c => cell(p, c)).join("")}</tr>`).join("")}</tbody></table></div>
     <div class="legend"><span><i style="background:var(--risk)"></i>dropped</span><span><i style="background:var(--safe)"></i>coded or coarsened</span><span><i style="background:var(--warn)"></i>blanked so every row has look-alikes</span><span><i style="background:var(--line-strong)"></i>kept as is</span></div>`;
 }
@@ -522,14 +535,14 @@ function historyTab() {
   const H = S.history;
   if (!H.length) return `<p class="small">No releases yet.</p>`;
   const cur = S.results?.release_id;
-  return `<p class="small">Every release made from this dataset is kept here. Tick two to compare them.</p>
+  return `<div class="spread"><p class="small">Every release made from this dataset is kept here. Tick two to compare them.</p>${S.cmp ? `<button class="btn small" data-modal="compare">Show the comparison</button>` : ""}</div>
     <div class="list">${H.map(h => `<div class="item ${h.release_id === cur ? "current" : ""}">
       <div><b class="mono">${esc(h.release_id)}</b><span class="small">${esc(when(h.created_at))} · for ${esc(h.recipient)} · approved by ${esc(h.approved_by || "–")}</span></div>
       <div class="small">${h.k != null ? `k ${h.k}` : ""}${h.epsilon != null ? ` ε ${h.epsilon}` : ""} · ${plural(h.files.length, "file")}</div>
       <div class="small">${h.singled_out_after != null ? `singled out ${pct(h.singled_out_before)} → <b>${pct(h.singled_out_after)}</b>, guess ${pct(h.guess_chance_after, 1)}` : "statistics only"}</div>
       <div class="row"><label class="switch"><input type="checkbox" data-pick="${esc(h.release_id)}" ${S.picked.includes(h.release_id) ? "checked" : ""}> compare</label>
         ${h.release_id === cur ? `<span class="tag ok">open</span>` : `<button class="btn small" data-view="${esc(h.release_id)}">Open</button>`}</div></div>`).join("")}</div>
-    ${busy("cmp")}${S.cmp ? compareReleases(S.cmp) : S.picked.length === 1 ? `<p class="small">Tick one more release to compare.</p>` : ""}`;
+    ${busy("cmp")}${S.picked.length === 1 ? `<p class="small">Tick one more release to compare.</p>` : ""}`;
 }
 function compareReleases([a, b]) {
   const A = a.summary, B = b.summary;
@@ -542,7 +555,7 @@ function compareReleases([a, b]) {
   const changed = cols.filter(c => a.techniques[c] !== b.techniques[c]);
   return `<div class="grid2">
     <div class="head"><h3>Headline numbers</h3><p class="small">A = ${esc(A.release_id)} · B = ${esc(B.release_id)}</p><div class="tablewrap free"><table class="metrics"><thead><tr><th></th><th>A</th><th>B</th><th>B − A</th></tr></thead><tbody>
-      <tr><td>Receiver</td><td>${esc(A.recipient)}</td><td>${esc(B.recipient)}</td><td></td></tr>
+      <tr><td>Receiver</td>${A.recipient === B.recipient ? `<td colspan="3">${esc(A.recipient)} <span class="small">(both)</span></td>` : `<td>${esc(A.recipient)}</td><td>${esc(B.recipient)}</td><td></td>`}</tr>
       ${metric("k", A.k, B.k, v => fmt(v), false)}${metric("ε", A.epsilon, B.epsilon, v => (+v).toFixed(2), true)}
       ${metric("Singled out", A.singled_out_after, B.singled_out_after, v => pct(v, 1), true)}
       ${metric("Guess chance", A.guess_chance_after, B.guess_chance_after, v => pct(v, 1), true)}
@@ -555,9 +568,80 @@ function compareReleases([a, b]) {
 
 const VIEWS = { data: dataView, scan: scanView, plan: planView, approve: approveView, release: releaseView };
 
+/* ---------------------------------------------------------------- dialogs: one native <dialog>, filled from S.modal */
+function openModal(kind, data = {}) { S.modal = { kind, ...data }; render(); }
+function closeModal() { S.modal = null; render(); }
+const dialog = (title, body, actions = "") => `<div class="mhead"><h2>${title}</h2><button class="btn ghost" data-close aria-label="Close">✕</button></div>
+  <div class="mbody">${body}</div>${actions ? `<div class="mfoot">${actions}</div>` : ""}`;
+const WIDE = ["record", "compare", "receiver"];
+function renderModal() {
+  const d = $("#modal");
+  if (!S.modal) { if (d.open) d.close(); return; }
+  d.className = "modal" + (WIDE.includes(S.modal.kind) ? " wide" : "");
+  d.innerHTML = MODALS[S.modal.kind](S.modal);
+  if (!d.open) d.showModal();
+}
+function columnModal({ i }) {
+  const c = S.scan.detections.columns[i], roles = S.cat.roles, subs = S.cat.subtypes;
+  const table = S.session.tables.find(t => t.name === c.table), samples = (table?.preview || []).map(r => r[c.column]).filter(v => v !== "" && v != null).slice(0, 6);
+  return dialog(`<span class="mono">${esc(c.table)}.${esc(c.column)}</span>`, `
+    <div class="grid2"><label class="field">What it is<select data-override="${i}" data-field="privacy_role">${roles.map(r => `<option value="${r}" ${r === c.privacy_role ? "selected" : ""}>${ROLE_LABEL[r] || r}</option>`).join("")}</select></label>
+      <label class="field">Type<select data-override="${i}" data-field="subtype">${subs.map(r => `<option ${r === c.subtype ? "selected" : ""}>${r}</option>`).join("")}</select></label></div>
+    <div><span class="eyebrow">How sure</span><div class="spread"><div class="meter safe" style="flex:1"><b style="width:${100 * c.confidence}%"></b></div><b class="num">${c.confidence.toFixed(2)}</b></div></div>
+    <div><span class="eyebrow">Why</span><ul class="plain">${c.evidence.map(e => `<li><span class="tag">${esc(e.kind)}</span> ${esc(e.detail)}</li>`).join("")}</ul></div>
+    ${samples.length ? `<div><span class="eyebrow">Values from the first rows</span><div class="row">${samples.map(v => `<span class="tag">${esc(clip(shown(c.table, c.column, v), 40))}</span>`).join("")}</div></div>` : ""}
+    <p class="small">A change here is kept as a reviewer's correction (with your name in the evidence) and the plan follows it.</p>${busy("scan")}`,
+  `<button class="btn primary" data-close>Done</button>`);
+}
+function approveModal() {
+  const P = S.plan.plan, rev = S.plan.reviews;
+  const leaving = planTables(P).map(t => {
+    const acts = P.actions.filter(a => a.table === t && a.technique !== "drop");
+    return `<div class="leave"><b class="mono">${esc(t)}</b><div class="row">${acts.map(a => `<span class="tech ${a.technique}" title="${esc(a.reason)}">${esc(a.column)}${a.technique !== "keep" ? ` · ${esc(a.technique)}` : ""}</span>`).join("")}</div></div>`;
+  }).join("");
+  return dialog("Approve the plan", `
+    <p class="small">For <b>${esc(S.plan.scenario?.recipient || P.scenario_id)}</b>${S.plan.scenario?.purpose ? `: ${esc(S.plan.scenario.purpose)}` : ""}.</p>
+    <div><span class="eyebrow">What leaves</span>${leaving || `<p class="small">No rows.</p>`}${P.aggregates.length ? `<p class="small">${plural(P.aggregates.length, "statistics table")} with noise, ε ${P.epsilon} per release.</p>` : ""}
+      ${S.plan.withheld_tables.length ? `<p class="small">Stays here: ${esc(S.plan.withheld_tables.join(", "))}.</p>` : ""}</div>
+    ${rev.length ? `<div class="callout warn"><b>Check before approving</b><ul class="plain">${rev.map(r => `<li class="mono">${esc(r)}</li>`).join("")}</ul>
+      <label class="row small"><input type="checkbox" id="confirmrev" ${S.confirmReview ? "checked" : ""}> I checked these questions</label></div>` : ""}
+    <label class="field">Approved by<input type="text" id="approver" value="${esc(S.approver ?? P.approved_by ?? "")}" placeholder="Your full name" autofocus></label>${busy("approve")}`,
+  `<button class="btn" data-close>Cancel</button><button class="btn primary" data-approve>Approve the plan</button>`);
+}
+function releaseModal() {
+  const P = S.plan.plan;
+  return dialog("Create the release", `
+    <label class="field">Receiver name<input type="text" id="receiver" value="${esc(S.lastReceiver || "receiver")}" autofocus></label>
+    <p class="small">The name selects the receiver's own key: each receiver gets different codes, so two receivers cannot join their copies.</p>
+    <div><span class="eyebrow">Files</span><div class="row">${planTables(P).map(t => `<span class="tag safe">${esc(t)}.csv</span>`).join("")}${P.aggregates.map(a => `<span class="tag safe">${esc(a.name)}.csv</span>`).join("")}<span class="tag">manifest.json</span></div></div>
+    <p class="small">Row maps (which released row came from which record) stay in the private folder on this computer.</p>${busy("run")}`,
+  `<button class="btn" data-close>Cancel</button><button class="btn primary" data-run>Create the release</button>`);
+}
+function publishModal({ href }) {
+  const m = S.results.summary;
+  return dialog("Publish these statistics?", `
+    <p>Downloading publishes <b>${plural(S.results.statistics.length, "statistics table")}</b> and spends <b>ε ${m.epsilon}</b> of the privacy budget for this receiver${m.budget_cap ? ` (cap ε ${m.budget_cap})` : ""}.</p>
+    <p class="small">The spending is written to the privacy budget ledger once; downloading again later does not spend more.</p>`,
+  `<button class="btn" data-close>Cancel</button><button class="btn safe" data-publish="${esc(href)}">Publish and download</button>`);
+}
+function recordModal({ table, i }) {
+  const R = S.results, t = R.tables.find(x => x.name === table), p = t.pairs[i];
+  const renamed = Object.fromEntries(t.changes.map(c => [c.column, c.released_as || c.column]));
+  const rows = Object.keys(p.raw).map(c => {
+    const k = R.techniques[`${table}.${c}`] || "keep", base = k.split(":")[0], v = p.released[renamed[c]];
+    const after = base === "drop" || base === "withheld" ? `<span class="d-drop"></span>` : v === "" || v == null ? `<span class="d-blank"></span>` : `<span class="d-${base}">${esc(v)}</span>`;
+    return `<tr><td class="col">${esc(c)}</td><td class="c-${roleOf(table, c)}">${esc(shown(table, c, p.raw[c]))}</td><td class="diff">${after}</td><td><span class="tech ${base}">${esc(k)}</span></td></tr>`;
+  }).join("");
+  return dialog(`One record of <span class="mono">${esc(table)}</span>, before and after`, `<div class="tablewrap free"><table><thead><tr><th>Column</th><th>Raw (stays here)</th><th>Released</th><th>Protection</th></tr></thead><tbody>${rows}</tbody></table></div>`,
+    `<button class="btn" data-record="${esc(table)}|${(i + t.pairs.length - 1) % t.pairs.length}">← Previous</button><button class="btn" data-record="${esc(table)}|${(i + 1) % t.pairs.length}">Next →</button>`);
+}
+const compareModal = () => dialog("Two releases side by side", compareReleases(S.cmp), `<button class="btn primary" data-close>Close</button>`);
+const receiverModal = () => dialog("Describe the receiver", customForm(), `<button class="btn" data-close>Cancel</button><button class="btn primary" data-make="custom">Make the plan</button>${busy("plan")}`);
+const MODALS = { column: columnModal, approve: approveModal, release: releaseModal, publish: publishModal, record: recordModal, compare: compareModal, receiver: receiverModal };
+
 /* ---------------------------------------------------------------- events */
 function wire() {
-  const page = $("#page");
+  const page = document.body;  // the page and the open dialog
   document.querySelectorAll("[data-step]").forEach(b => (b.onclick = () => go(b.dataset.step)));
   page.querySelectorAll("[data-go]").forEach(b => (b.onclick = () => { go(b.dataset.go); if (b.dataset.go === "scan" && !S.scan) runScan(); }));
   page.querySelectorAll("[data-tab]").forEach(b => (b.onclick = () => {
@@ -569,6 +653,15 @@ function wire() {
   page.querySelectorAll("[data-sample]").forEach(b => (b.onclick = () => withProgress(`Opening the ${b.dataset.sample.replace(/_/g, " ")} example`, "Copying the tables into your workspace and reading them…",
     async () => openSession(await api("/api/sessions/sample", { body: { name: b.dataset.sample } })))));
   page.querySelectorAll("[data-scan]").forEach(b => (b.onclick = runScan));
+  page.querySelectorAll("[data-close]").forEach(b => (b.onclick = closeModal));
+  page.querySelectorAll("[data-modal]").forEach(b => (b.onclick = () => openModal(b.dataset.modal)));
+  page.querySelectorAll("[data-col]").forEach(b => (b.onclick = e => { e.stopPropagation(); openModal("column", { i: +b.dataset.col }); }));
+  page.querySelectorAll("[data-record]").forEach(b => (b.onclick = () => { const [table, i] = b.dataset.record.split("|"); openModal("record", { table, i: +i }); }));
+  page.querySelectorAll("[data-another]").forEach(b => (b.onclick = () => act("another", async () => {
+    S.scan.attack = await api(`/api/sessions/${sid()}/attack/another`, { body: {} });
+    play("scan", false);
+  })));
+  page.querySelectorAll("[data-publish]").forEach(b => (b.onclick = () => { closeModal(); download(b.dataset.publish); }));
   page.querySelectorAll("details.switcher").forEach(d => (d.ontoggle = () => (S.switchOpen = d.open)));
   page.querySelectorAll("[data-open]").forEach(b => (b.onclick = () => reopen(b.dataset.open)));
   const drop = $("#drop"), input = $("#files");
@@ -591,7 +684,7 @@ function wire() {
   }));
   page.querySelectorAll("[data-receiver]").forEach(b => (b.onclick = () => {
     S.receiverChoice = b.dataset.receiver;
-    if (S.receiverChoice === "custom") { if (!S.custom) S.custom = newCustom(); render(); return; }
+    if (S.receiverChoice === "custom") { if (!S.custom) S.custom = newCustom(); openModal("receiver"); return; }
     makePlan({ scenario_id: S.receiverChoice });
   }));
   page.querySelectorAll("[data-c]").forEach(inp => (inp.onchange = () => { S.custom[inp.dataset.c] = inp.value; if (inp.dataset.c === "trust_level") render(); }));
@@ -603,7 +696,7 @@ function wire() {
   page.querySelectorAll("[data-stat]").forEach(sel => (sel.onchange = () => { S.custom.stats[+sel.dataset.stat][+sel.dataset.pos] = sel.value; }));
   page.querySelectorAll("[data-addstat]").forEach(b => (b.onclick = () => { S.custom.stats.push(["", "", ""]); render(); }));
   page.querySelectorAll("[data-make]").forEach(b => (b.onclick = () => act("plan", async () => {
-    S.plan = await api(`/api/sessions/${sid()}/plan`, { body: { custom: customScenario() } }); planChanged(); S.compare = null;
+    S.plan = await api(`/api/sessions/${sid()}/plan`, { body: { custom: customScenario() } }); planChanged(); S.compare = null; S.modal = null;
   })));
   page.querySelectorAll("[data-action]").forEach(sel => (sel.onchange = () => {
     const [table, column] = sel.dataset.action.split("|"), opt = sel.selectedOptions[0];
@@ -625,6 +718,7 @@ function wire() {
     const body = { by: (S.approver ?? approver.value).trim(), confirm_review: !!S.confirmReview };
     act("approve", async () => {
       S.plan = await api(`/api/sessions/${sid()}/approve`, { body });
+      S.modal = null;
       toast(`Approved by ${S.plan.plan.approved_by}.`);
     });
   }));
@@ -632,7 +726,7 @@ function wire() {
     S.lastReceiver = receiver.value.trim();
     act("run", async () => {
       S.results = await api(`/api/sessions/${sid()}/run`, { body: { receiver: S.lastReceiver } });
-      S.viewing = null; S.cmp = null; S.picked = [];
+      S.viewing = null; S.cmp = null; S.picked = []; S.modal = null;
       await refreshHistory();
       play("release", false);
       toast(`Release ${S.results.release_id} created.`);
@@ -650,19 +744,28 @@ function wire() {
     if (S.picked.length === 2) act("cmp", async () => {
       const ordered = S.history.filter(h => S.picked.includes(h.release_id)).reverse();  // older first
       S.cmp = await Promise.all(ordered.map(h => api(`/api/sessions/${sid()}/releases/${encodeURIComponent(h.release_id)}`)));
+      S.modal = { kind: "compare" };
     }); else render();
   }));
   page.querySelectorAll("[data-textview]").forEach(b => (b.onclick = () => { S.textView = b.dataset.textview; render(); }));
-  page.querySelectorAll("[data-download]").forEach(a => (a.onclick = async e => {
+  page.querySelectorAll("[data-download]").forEach(a => (a.onclick = e => {
     e.preventDefault();
-    const res = await fetch(a.href);
-    if (!res.ok) { toast((await res.json()).error || "download refused", true); return; }
-    const blob = await res.blob(), url = URL.createObjectURL(blob), tmp = document.createElement("a");
-    tmp.href = url; tmp.download = (res.headers.get("Content-Disposition") || "").split('filename="')[1]?.replace('"', "") || "release.zip";
-    tmp.click(); URL.revokeObjectURL(url); S.results.published = true; render();
+    if (S.results?.summary.epsilon != null && !S.results.published) openModal("publish", { href: a.getAttribute("href") });  // spending ε needs a yes
+    else download(a.getAttribute("href"));
   }));
 }
-function planChanged() { S.confirmReview = false; S.results = null; S.viewing = null; S.tradeoff = null; }
+async function download(href) {
+  const res = await fetch(href);
+  if (!res.ok) { toast((await res.json()).error || "download refused", true); return; }
+  const blob = await res.blob(), url = URL.createObjectURL(blob), tmp = document.createElement("a");
+  tmp.href = url; tmp.download = (res.headers.get("Content-Disposition") || "").split('filename="')[1]?.replace('"', "") || "release.zip";
+  tmp.click(); URL.revokeObjectURL(url); S.results.published = true; render();
+}
+function planChanged() {
+  S.confirmReview = false; S.results = null; S.viewing = null; S.tradeoff = null;
+  const plan = S.plan;  // the trade-off loads by itself; a newer plan wins
+  api(`/api/sessions/${sid()}/tradeoff`).then(t => { if (S.plan === plan) { S.tradeoff = t; render(); } }).catch(() => {});
+}
 function loadCompare() {
   act("compare", async () => { S.compare = await api(`/api/sessions/${sid()}/compare`, { body: { scenario_ids: S.cat.receivers.map(r => r.id) } }); });
 }
@@ -730,7 +833,7 @@ function runScan() {
 function play(which, now = true) {
   S.play = which;
   if (now) render();
-  setTimeout(() => { if (S.play === which) S.play = ""; }, 3600);
+  setTimeout(() => { if (S.play === which) S.play = ""; }, 5600);  // the trail finishes last
 }
 function makePlan(body) {
   act("plan", async () => { S.plan = await api(`/api/sessions/${sid()}/plan`, { body }); planChanged(); S.compare = null; });
@@ -757,6 +860,9 @@ function customScenario() {
 
 /* ---------------------------------------------------------------- start */
 (async () => {
+  const d = $("#modal");
+  d.addEventListener("close", () => { if (S.modal) { S.modal = null; render(); } });  // Esc
+  d.addEventListener("click", e => { if (e.target === d) closeModal(); });  // a click on the backdrop
   const mask = $("#mask");
   mask.onchange = () => { S.mask = mask.checked; render(); };
   render();  // draw at once; reopening earlier work follows and may take a while on large data
