@@ -20,6 +20,9 @@ evidence written down.
 
 - **Rules first:** column names, value shapes and check digits (Finnish personal identity code, IBAN
   (International Bank Account Number), payment cards), phone formats, name lists, dates, code sets.
+- **Two detectors, one answer:** a rule-based detector and a layered detector (values first: trade-union words,
+  health context from diagnosis codes, people tables) label every column; where they disagree, the stronger
+  evidence wins. Labels cite the law or standard behind them. Details and scores: `docs/detection/`.
 - **Free text:** finds names, ID codes, phones, emails, addresses and secrets inside notes and chat messages,
   including spoken or spelled-out numbers and emails (Finnish, Swedish, English).
 - A person can correct any column; the correction is kept as evidence.
