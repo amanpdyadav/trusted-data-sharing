@@ -4,7 +4,7 @@ The app runs as one container behind a Traefik you already run as its own stack.
 Traefik; it only joins the external `traefik` network and tells Traefik how to route to it with labels.
 
 ```
-internet ─► Traefik (other stack, :443, TLS) ─► basic auth ─► pets-transformer:8765 (network "traefik", no published port)
+internet ─► Traefik (other stack, :443, TLS) ─► pets-transformer:8765 (network "traefik", no published port)
 ```
 
 ## What is in the repo
@@ -12,7 +12,7 @@ internet ─► Traefik (other stack, :443, TLS) ─► basic auth ─► pets-t
 | File | Purpose |
 | --- | --- |
 | `Dockerfile` | Two stages: builds `frontend/` with Node, then a slim Python 3.12 image running uvicorn as user `app` (uid 1000). |
-| `docker-compose.yml` | The app service, its volumes, Traefik labels (router, TLS, basic auth, security headers). |
+| `docker-compose.yml` | The app service, its volumes, Traefik labels (router, TLS, security headers). |
 | `.env.docker.example` | Every variable the compose file needs. Copy to `.env` on the server. |
 | `.dockerignore` | Keeps `.env`, the data package, outputs and dev files out of the image. |
 
@@ -44,7 +44,6 @@ Fill in `.env`:
 - `APP_DOMAIN`: a hostname whose DNS points at the VPS.
 - `TRAEFIK_ENTRYPOINT` / `TRAEFIK_CERTRESOLVER`: the names used in your Traefik static config (defaults
   `websecure` / `letsencrypt`).
-- `BASIC_AUTH_USERS`: output of `htpasswd -nbB admin 'strong-password'` (from `apache2-utils`), **in single quotes**.
 - `PETS_MASTER_KEY`: `openssl rand -base64 48`. Store a copy somewhere safe: pseudonyms from earlier releases can
   only be reproduced with the same key.
 - `PETS_PACKAGE_HOST_DIR`: where you unpacked the TrustED package on the VPS.
@@ -59,7 +58,7 @@ docker compose up -d --build
 docker compose ps
 ```
 
-Open `https://$APP_DOMAIN`; the browser asks for the basic-auth user.
+Open `https://$APP_DOMAIN`.
 
 ## Update
 
@@ -83,9 +82,10 @@ The archive contains row maps and raw uploads: treat it as sensitive data.
 
 ## Notes and limits
 
-- **Exposure.** The app itself has no login; it was built to listen on 127.0.0.1. In the container it listens on
-  the container's interfaces but publishes no port, so the only way in is Traefik, behind basic auth and HTTPS.
-  Do not add `ports:` to the compose file. For tighter control add a Traefik `ipallowlist` middleware.
+- **Exposure.** The app has no login, and no auth is configured in front of it: anyone who reaches
+  `https://$APP_DOMAIN` can upload data and download releases. The container publishes no port, so Traefik is the
+  only way in. To restrict access, add a Traefik middleware (`basicauth`, `forwardauth` or `ipallowlist`) to the
+  router's `middlewares` label.
 - **Local AI is off.** `PETS_LLM_URL` must be a localhost address by design, so Ollama in another container cannot be
   used. Everything works on rules alone.
 - **One worker.** Sessions are folders on disk; one uvicorn process keeps writes ordered. Uploads are capped at
