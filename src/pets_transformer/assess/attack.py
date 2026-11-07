@@ -75,33 +75,79 @@ MAX_SHOWN = 3  # distinct values shown per column in the trail
 MAX_TEXT = 90  # characters of one value: a readable line
 
 
+# facts people share without thinking (registers, profiles, forms): the outsider most likely has these
+EVERYDAY = frozenset({S.BIRTH_DATE, S.AGE, S.SEX, S.POSTCODE, S.MUNICIPALITY, S.LANGUAGE, S.NATIONALITY, S.OCCUPATION})
+TOP_TABLES = 6  # "another person" picks among this many of the best tables to attack
+
+
+def _connected(table: str, links: Sequence[TableLink]) -> int:
+    """How many tables can be reached from this one by following keys (itself included)."""
+    seen, todo = {table}, [table]
+    while todo:
+        here = todo.pop()
+        for link in links:
+            for a, b in ((link.from_table, link.to_table), (link.to_table, link.from_table)):
+                if a == here and b not in seen:
+                    seen.add(b)
+                    todo.append(b)
+    return len(seen)
+
+
+def attack_tables(det: DetectionReport, frames: Mapping[str, pd.DataFrame], links: Sequence[TableLink]) -> list[str]:
+    """Tables worth attacking, best first: personal facts, a long trail of links, a person key, everyday facts."""
+
+    def score(table: str) -> tuple[bool, int, bool, int, int]:
+        qis = [c for c in det.columns if c.table == table and c.privacy_role is R.QUASI_IDENTIFIER]
+        everyday = sum(c.subtype in EVERYDAY for c in qis)
+        personal = len(_personal(det, table))
+        return personal > 0, _connected(table, links), person_column(det, table) is not None, everyday, personal
+
+    return sorted((t for t in frames if background(det, t) and len(frames[t])), key=score, reverse=True)
+
+
 def pick_target(
     det: DetectionReport,
     frames: Mapping[str, pd.DataFrame],
     links: Sequence[TableLink] = (),
     rng: np.random.Generator | None = None,
 ) -> Target | None:
-    """Someone an attacker would go after, in the table with the most personal facts about people.
+    """Someone an attacker would go after, in a table rich in personal facts and links to other tables.
 
-    With a person key, a few people with several records are tried, and the one whose records reach the most
-    linked tables is attacked (with rng: one of those, at random). Without a person key: a row nobody resembles.
+    Without rng: the best table. With rng ("another person"): one of the best few tables, at random. Within the
+    table, people with several records are tried and one whose records reach the most tables is attacked; without
+    a person key, a row nobody resembles.
     """
-    tables = sorted((t for t in frames if background(det, t)), key=lambda t: -len(_personal(det, t)))
+    tables = attack_tables(det, frames, links)
+    if rng is not None:
+        tables = list(rng.permutation(tables[:TOP_TABLES])) + tables[TOP_TABLES:]
     for table in tables:
-        frame, key = frames[table], person_column(det, table)
-        if key is not None:
-            ids = frame[key].astype(str).to_numpy()
-            counts = pd.Series(ids[ids != ""]).value_counts()
-            pool = counts[(counts > 1) & (counts <= 5)]  # a few records, not a test account
-            values = list((pool if not pool.empty else counts).index)
-            if values:
-                picked = values[:CANDIDATES] if rng is None else list(rng.permutation(values)[:CANDIDATES])
-                targets = [Target(table, int(np.flatnonzero(ids == v)[0])) for v in picked]
-                return _richest(det, frames, links, targets, rng)
-        sizes = group_sizes(frame, background(det, table))
-        alone = np.flatnonzero((sizes == 1).to_numpy())
-        if len(alone):
-            return Target(table, int(alone[0] if rng is None else rng.choice(alone[:1000])))
+        target = _target_in(det, frames, links, str(table), rng)
+        if target is not None:
+            return target
+    return None
+
+
+def _target_in(
+    det: DetectionReport,
+    frames: Mapping[str, pd.DataFrame],
+    links: Sequence[TableLink],
+    table: str,
+    rng: np.random.Generator | None,
+) -> Target | None:
+    frame, key = frames[table], person_column(det, table)
+    if key is not None:
+        ids = frame[key].astype(str).to_numpy()
+        counts = pd.Series(ids[ids != ""]).value_counts()
+        pool = counts[(counts > 1) & (counts <= 5)]  # a few records, not a test account
+        values = list((pool if not pool.empty else counts).index)
+        if values:
+            picked = values[:CANDIDATES] if rng is None else list(rng.permutation(values)[:CANDIDATES])
+            targets = [Target(table, int(np.flatnonzero(ids == v)[0])) for v in picked]
+            return _richest(det, frames, links, targets, rng)
+    sizes = group_sizes(frame, background(det, table))
+    alone = np.flatnonzero((sizes == 1).to_numpy())
+    if len(alone):
+        return Target(table, int(alone[0] if rng is None else rng.choice(alone[:1000])))
     return None
 
 

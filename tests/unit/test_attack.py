@@ -114,3 +114,18 @@ def test_another_person_can_be_picked_at_random() -> None:
     picked = {attack.pick_target(DET, frames, (), np.random.default_rng(seed)) for seed in range(12)}
     assert len(picked) > 1  # different people on different tries
     assert all(t is not None and t.table == "visits" for t in picked)
+
+
+def test_tables_with_everyday_facts_and_links_are_attacked_first() -> None:
+    det = DET.model_copy(update={"columns": [*DET.columns,
+                                             _c("trips", "trip_id", R.RECORD_KEY, S.RECORD_ID),
+                                             _c("trips", "lat", R.QUASI_IDENTIFIER, S.GPS_COORDINATE),
+                                             _c("trips", "lon", R.QUASI_IDENTIFIER, S.GPS_COORDINATE),
+                                             _c("trips", "alt", R.QUASI_IDENTIFIER, S.GPS_COORDINATE)]})  # fmt: skip
+    frames = {
+        **FRAMES,
+        "trips": pd.DataFrame({"trip_id": ["T1", "T2"], "lat": ["1", "2"], "lon": ["1", "2"], "alt": ["1", "2"]}),
+    }
+    links = find_links(det, frames)
+    assert attack.attack_tables(det, frames, links)[0] == "visits"  # linked to labs, birth dates: not three coordinates
+    assert attack.pick_target(det, frames, links).table == "visits"  # type: ignore[union-attr]
