@@ -12,7 +12,7 @@ import { Checkbox, Input, Label } from "@/components/ui/form";
 import { Meter, Spinner, TableWrap, Td, Th } from "@/components/ui/misc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AttackResult, Lookalikes, Results } from "@/lib/api";
-import { ROLE_TONE, fmt, maskValue, pct, plural, when } from "@/lib/format";
+import { ROLE_TONE, fmt, pct, plural, when } from "@/lib/format";
 import { laneOf } from "@/lib/lanes";
 import { askDownload, createRelease, downloadRelease, fetchRelease, planHref, play, useApp, viewRelease } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -268,7 +268,7 @@ function AttackerView({ R }: { R: Results }) {
 }
 
 function FreeText({ R }: { R: Results }) {
-  const mask = useApp(s => s.mask), [after, setAfter] = useState(true);
+  const [after, setAfter] = useState(true);
   return <>{R.text.map(t => (
     <div key={t.column} className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-mono font-semibold">{t.column}</h3>
@@ -277,7 +277,7 @@ function FreeText({ R }: { R: Results }) {
         <div key={i} className="whitespace-pre-wrap rounded-xl border bg-muted px-3.5 py-3 text-sm leading-7 [overflow-wrap:anywhere]">
           {parts.map((p, j) => !p.label ? <span key={j}>{p.t}</span> : after
             ? <span key={j} className="rounded bg-safe-soft px-1 font-mono text-xs text-safe">[{p.label}]</span>
-            : <mark key={j} title={p.label} className="rounded bg-risk-soft px-0.5 text-risk">{mask ? maskValue(p.t) : p.t}</mark>)}
+            : <mark key={j} title={p.label} className="rounded bg-risk-soft px-0.5 text-risk">{p.t}</mark>)}
         </div>))}</div>
     </div>))}</>;
 }

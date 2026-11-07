@@ -571,7 +571,7 @@ class App:
         """The automatic planner measured on every receiver: results/receivers.csv (`make receivers`)."""
         path = RESULTS / "receivers.csv"
         if not path.exists():
-            return {"rows": [], "measured_at": None}
+            return {"rows": [], "measured_at": None, "baselines_generated": None}
         with path.open(encoding="utf-8", newline="") as f:
             rows = list(csv.DictReader(f))
         num = ("privacy", "utility", "composite", "epsilon")
@@ -579,7 +579,15 @@ class App:
             for k in num:
                 r[k] = float(r[k]) if r.get(k) else None
             r["released_tables"] = int(r["released_tables"] or 0)
-        return {"rows": rows, "measured_at": max((r["measured_at"] for r in rows), default=None)}
+        base = _read_baselines(RESULTS / "baselines.csv")
+        for r in rows:
+            r["baselines"] = base.get(r["id"])
+        generated = next((b["generated"] for b in base.values()), None)
+        return {
+            "rows": rows,
+            "measured_at": max((r["measured_at"] for r in rows), default=None),
+            "baselines_generated": generated,
+        }
 
     def screens(self) -> list[str]:
         """The presentation screens whose data has been built (`python -m evaluation screens`)."""
@@ -681,6 +689,25 @@ def _summary(
         "guess_chance_after": worst["after"]["guess_chance"] if worst else None,
         "attack_outcome": after.get("outcome"), "attack_matches": after.get("matches"),
     }  # fmt: skip
+
+
+def _read_baselines(path: Path) -> dict[str, dict[str, Any]]:
+    """The organisers' B0, B2 and B2-k per receiver (results/baselines.csv, `make baselines`): privacy per dataset,
+    usefulness per receiver."""
+    if not path.exists():
+        return {}
+    with path.open(encoding="utf-8", newline="") as f:
+        found = list(csv.DictReader(f))
+    return {
+        r["id"]: {
+            "generated": r["generated"],
+            **{
+                k: {"privacy": float(r[f"privacy_{k}"]), "utility": float(r[f"utility_{k}"])}
+                for k in ("b0", "b2", "b2k")
+            },
+        }
+        for r in found
+    }
 
 
 def _scorecard_for(release_id: str) -> dict[str, Any] | None:

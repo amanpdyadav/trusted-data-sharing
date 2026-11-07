@@ -95,8 +95,8 @@ make ui-dev                     # live reload at http://localhost:5173 while `ma
 | Show the risk → Mosaic attack | One public post or news clip followed across datasets | See [4](#4-presentation-screens) |
 | Show the risk → Release audit | Every check, decision and fingerprint of a release | See [4](#4-presentation-screens) |
 
-"Hide personal values on screen" (bottom left) masks names and contact details on the workflow screens, for screen
-sharing. The Mosaic attack screen shows its synthetic people as they are, because it demonstrates the attack.
+The screens show values as they are in the data (the app runs on this computer only); take care when sharing your
+screen with real data.
 
 Screen-by-screen details: [USER_GUIDE.md](USER_GUIDE.md).
 

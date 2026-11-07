@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Meter, Spinner, TableWrap, Td, Th } from "@/components/ui/misc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { api, type AuditDetail, type AuditItem, type ReceiverResult, type ReceiversBenchmark } from "@/lib/api";
+import { api, type AuditDetail, type AuditItem, type Baselines, type ReceiverResult, type ReceiversBenchmark } from "@/lib/api";
 import { clip, fmt, pct, plural, when } from "@/lib/format";
 import { go, useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -171,6 +171,8 @@ function Receivers({ bench }: { bench: ReceiversBenchmark }) {
       <p className="text-sm text-muted-foreground">Run <code>make receivers</code> (needs the challenge pack): it plans, releases and scores every receiver and writes <code>results/receivers.csv</code>.</p></Card>
   );
   const count = (st: ReceiverResult["status"]) => bench.rows.filter(r => r.status === st).length;
+  const verdicts = bench.rows.map(versusB2k).filter((v): v is Verdict => v !== null);
+  const beats = verdicts.filter(v => v.key === "beats").length, lessUseful = verdicts.filter(v => v.key === "less-useful").length;
   return (
     <div className="flex flex-col gap-4">
       <Kpis>
@@ -179,9 +181,18 @@ function Receivers({ bench }: { bench: ReceiversBenchmark }) {
         <Kpi tone="warn" value={count("needs tuning")} label="need a person to tune the plan" />
         {count("failed") > 0 && <Kpi tone="risk" value={count("failed")} label="did not release" />}
       </Kpis>
+      {verdicts.length > 0 && (
+        <Kpis>
+          <Kpi tone="ok" value={<>{beats}<span className="text-lg text-muted-foreground">/ {verdicts.length}</span></>} label="beat the organisers' B2-k baseline on both privacy and usefulness" />
+          <Kpi tone="warn" value={<>{lessUseful}<span className="text-lg text-muted-foreground">/ {verdicts.length}</span></>} label="more private than B2-k but less useful: the plans to tune first" />
+        </Kpis>
+      )}
       <Card className="flex flex-col gap-3 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="max-w-3xl text-sm text-muted-foreground">Each receiver planned by the automatic planner (approved for this benchmark only), released, and scored with the organisers' <code>pets-eval</code>. Measured {when(bench.measured_at)}; <code>make receivers</code> measures again.</p>
+          <div className="flex max-w-3xl flex-col gap-1.5 text-sm text-muted-foreground">
+            <p>Each receiver planned by the automatic planner (approved for this benchmark only), released, and scored with the organisers' <code>pets-eval</code>. Measured {when(bench.measured_at)}; <code>make receivers</code> measures again.</p>
+            {bench.baselines_generated && <p>Under each score, the organisers' baselines from the challenge pack ({bench.baselines_generated}): <b>B0</b> drops names and ID codes, <b>B2</b> adds classic protection, <b>B2-k</b> also suppresses rows until k ≥ 5. Their privacy is measured once per dataset, ours per receiver; they release rows even to public receivers, which only get statistics from us.</p>}
+          </div>
           <ToggleGroup type="single" value={filter} onValueChange={v => v && setFilter(v as Filter)}>
             <ToggleGroupItem value="all">All</ToggleGroupItem>
             {session && <ToggleGroupItem value="fits">Fit {session.name}</ToggleGroupItem>}
@@ -190,16 +201,16 @@ function Receivers({ bench }: { bench: ReceiversBenchmark }) {
             <ToggleGroupItem value="unscored">Statistics</ToggleGroupItem>
           </ToggleGroup>
         </div>
-        <TableWrap><table className="w-full">
-          <thead><tr><Th>Receiver</Th><Th>Data</Th><Th>Gets</Th><Th>Privacy</Th><Th>Usefulness</Th><Th>Combined</Th><Th>Status</Th></tr></thead>
+        <TableWrap className="max-h-none"><table className="w-full">
+          <thead><tr><Th>Receiver</Th><Th>Data · gets</Th><Th>Privacy</Th><Th>Usefulness</Th><Th>Combined</Th><Th>vs B2-k</Th><Th>Status</Th></tr></thead>
           <tbody>{rows.map(r => (
             <tr key={r.id} className="align-top">
-              <Td><b className="block leading-snug">{r.recipient}</b><span className="font-mono text-[11px] text-muted-foreground">{r.id} · {r.trust_level.replace(/_/g, " ")}{r.source === "hand-written" ? " · hand-written" : ""}</span>
+              <Td className="min-w-[240px]"><b className="block leading-snug">{r.recipient}</b><span className="font-mono text-[11px] text-muted-foreground">{r.id} · {r.trust_level.replace(/_/g, " ")}{r.source === "hand-written" ? " · hand-written" : ""}</span>
                 {r.why && <span className="mt-1 block text-xs text-muted-foreground">{r.why}</span>}</Td>
-              <Td className="whitespace-nowrap text-sm">{r.dataset.replace(/_/g, " ")}</Td>
-              <Td className="whitespace-nowrap text-sm">{r.gets === "statistics" ? `statistics${r.epsilon != null ? ` · ε ${r.epsilon.toFixed(2)}` : ""}` : "rows"}</Td>
-              <Td><Score v={r.privacy} /></Td><Td><Score v={r.utility} /></Td>
+              <Td className="whitespace-nowrap text-sm">{r.dataset.replace(/_/g, " ")}<span className="block text-xs text-muted-foreground">{r.gets === "statistics" ? `statistics${r.epsilon != null ? ` · ε ${r.epsilon.toFixed(2)}` : ""}` : "rows"}</span></Td>
+              <Td><Score v={r.privacy} /><Base b={r.baselines} of="privacy" /></Td><Td><Score v={r.utility} /><Base b={r.baselines} of="utility" /></Td>
               <Td className="font-mono tabular-nums">{r.composite?.toFixed(2) ?? "–"}</Td>
+              <Td><VsB2k r={r} /></Td>
               <Td><Badge variant={STATUS[r.status].tone}>{STATUS[r.status].label}</Badge></Td>
             </tr>))}</tbody>
         </table></TableWrap>
@@ -208,6 +219,27 @@ function Receivers({ bench }: { bench: ReceiversBenchmark }) {
     </div>
   );
 }
+
+type Verdict = { key: "beats" | "less-useful" | "less-private"; label: string; tone: "ok" | "warn" | "risk" };
+/** Ours against the strongest baseline, B2-k (k >= 5 like our plans). Unscored receivers have no verdict. */
+function versusB2k(r: ReceiverResult): Verdict | null {
+  const b = r.baselines?.b2k;
+  if (!b || r.privacy == null || r.utility == null) return null;
+  if (r.privacy + 0.005 < b.privacy) return { key: "less-private", label: "less private", tone: "risk" };
+  if (r.utility + 0.005 < b.utility) return { key: "less-useful", label: `−${Math.round((b.utility - r.utility) * 100)} pts useful`, tone: "warn" };
+  return { key: "beats", label: "beats B2-k", tone: "ok" };
+}
+const VsB2k = ({ r }: { r: ReceiverResult }) => {
+  const v = versusB2k(r);
+  if (v) return <Badge variant={v.tone} title={v.key === "less-useful" ? "More private than B2-k, but its usefulness is higher" : undefined}>{v.label}</Badge>;
+  return <span className="text-xs text-muted-foreground" title="B2-k releases rows to this receiver; we publish statistics only">–</span>;
+};
+const short = (x: number) => x.toFixed(2).replace(/^0\./, ".");
+const Base = ({ b, of }: { b: Baselines | null; of: "privacy" | "utility" }) => !b ? null : (
+  <span className="mt-1 block whitespace-nowrap font-mono text-[11px] text-muted-foreground" title="The organisers' baselines: B0, B2, B2-k">
+    B0 {short(b.b0[of])} · B2 {short(b.b2[of])} · B2-k {short(b.b2k[of])}
+  </span>
+);
 
 /** Plan parameters in a line: "to age_band · width 10 · rename_to age" (lists clipped). */
 const params = (p: Record<string, unknown>) =>

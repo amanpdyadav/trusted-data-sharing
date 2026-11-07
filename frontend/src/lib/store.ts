@@ -21,7 +21,7 @@ interface State {
   step: Step; cat: Catalogue | null; sessions: SessionListItem[]; session: SessionOverview | null;
   scan: Scan | null; plan: PlanView | null; results: Results | null; history: ReleaseSummary[]; viewing: string | null;
   tradeoff: Tradeoff | null; example: Example | null; compare: Compare | null; versions: PlanVersions | null;
-  busy: string; progress: Progress | null; play: "" | "scan" | "release"; mask: boolean; theme: Theme; receiverChoice: string | null;
+  busy: string; progress: Progress | null; play: "" | "scan" | "release"; theme: Theme; receiverChoice: string | null;
   publishAsk: boolean;  // a statistics download waits for a yes
 }
 
@@ -31,7 +31,7 @@ const remember = (id: string) => { try { localStorage.setItem("pets.session", id
 const set = (p: Partial<State>) => useApp.setState(p);
 
 export const useApp = create<State>(() => ({
-  step: "data", cat: null, sessions: [], ...empty, busy: "", progress: null, play: "", mask: true, publishAsk: false,
+  step: "data", cat: null, sessions: [], ...empty, busy: "", progress: null, play: "", publishAsk: false,
   theme: (() => { try { return (localStorage.getItem("pets.theme") as Theme) || "light"; } catch { return "light"; } })(),
 }));
 
@@ -60,7 +60,7 @@ export const can = (step: Step) => {
 };
 export function go(step: Step) { if (can(step)) { set({ step }); window.scrollTo(0, 0); } }
 
-// ---------------------------------------------------------------- start, theme, mask
+// ---------------------------------------------------------------- start, theme
 export async function init() {
   applyTheme(useApp.getState().theme);
   try { set({ cat: await api<Catalogue>("/api/catalogue"), sessions: await api<SessionListItem[]>("/api/sessions") }); }
@@ -74,7 +74,6 @@ export function applyTheme(theme: Theme) {
   try { localStorage.setItem("pets.theme", theme); } catch { /* storage off */ }
   set({ theme });
 }
-export const setMask = (mask: boolean) => set({ mask });
 
 // ---------------------------------------------------------------- datasets
 const refreshSessions = async () => set({ sessions: await api<SessionListItem[]>("/api/sessions") });

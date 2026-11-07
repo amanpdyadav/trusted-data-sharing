@@ -114,7 +114,7 @@ function Ready() {
 }
 
 function Inside() {
-  const session = useApp(s => s.session)!, scan = useApp(s => s.scan), mask = useApp(s => s.mask);
+  const session = useApp(s => s.session)!, scan = useApp(s => s.scan);
   const [current, setCurrent] = useState(session.tables[0]?.name), [removing, setRemoving] = useState(""), [dup, setDup] = useState(false);
   const shown = useShown(), role = useRole(), add = useRef<HTMLInputElement>(null);
   const t = session.tables.find(x => x.name === current) ?? session.tables[0];
@@ -122,7 +122,7 @@ function Inside() {
   return (
     <Section title="What is inside" right={!frozen && <><Button variant="outline" onClick={() => add.current?.click()}><Plus /> Add tables</Button>
       <input ref={add} type="file" accept=".csv,.zip" multiple hidden onChange={e => e.target.files?.length && addTables(e.target.files)} /></>}>
-      <p className="-mt-2 text-sm text-muted-foreground">{plural(session.tables.length, "table")} · first rows of each{mask && !scan ? " · text hidden until the scan knows which columns are personal" : ""}</p>
+      <p className="-mt-2 text-sm text-muted-foreground">{plural(session.tables.length, "table")} · first rows of each</p>
       {frozen && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-safe/40 bg-safe-soft px-4 py-3 text-sm">
           <Lock className="size-4 text-safe" /><span className="flex-1">This dataset has releases, so its tables are frozen: each release must stay traceable to exactly this data.</span>

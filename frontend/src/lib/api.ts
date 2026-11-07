@@ -44,8 +44,12 @@ export interface ReceiverResult {
   id: string; dataset: string; recipient: string; trust_level: string; gets: "rows" | "statistics"; source: string;
   privacy: number | null; utility: number | null; composite: number | null; released_tables: number; epsilon: number | null;
   status: "ready" | "needs tuning" | "unscored" | "failed"; why: string; measured_at: string; commit: string;
+  baselines: Baselines | null;
 }
-export interface ReceiversBenchmark { rows: ReceiverResult[]; measured_at: string | null }
+/** The organisers' reference baselines: privacy per dataset, usefulness per receiver (results/baselines.csv). */
+export type BaselineScore = { privacy: number; utility: number };
+export interface Baselines { generated: string; b0: BaselineScore; b2: BaselineScore; b2k: BaselineScore }
+export interface ReceiversBenchmark { rows: ReceiverResult[]; measured_at: string | null; baselines_generated: string | null }
 export interface Column { table: string; column: string; privacy_role: string; subtype: string; confidence: number; evidence: { kind: string; detail: string }[] }
 export interface TableExposure {
   table: string; rows: number; direct_identifiers: string[]; outside_links: string[]; quasi_identifiers: string[];

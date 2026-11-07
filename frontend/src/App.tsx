@@ -4,11 +4,10 @@ import { Check, Download, Loader2, Plus } from "lucide-react";
 import { useEffect } from "react";
 import { Toaster } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/form";
 import { Meter, TooltipProvider } from "@/components/ui/misc";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { pct, plural } from "@/lib/format";
-import { SCREENS, STEPS, applyTheme, askDownload, can, go, init, isScreen, newDataset, runScan, setMask, useApp, type Theme } from "@/lib/store";
+import { SCREENS, STEPS, applyTheme, askDownload, can, go, init, isScreen, newDataset, runScan, useApp, type Theme } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { Approve } from "@/steps/Approve";
 import { DataStep, openPicker } from "@/steps/DataStep";
@@ -95,13 +94,12 @@ function Ticker() {
 }
 
 function RailFooter() {
-  const theme = useApp(s => s.theme), mask = useApp(s => s.mask);
+  const theme = useApp(s => s.theme);
   return (
     <div className="mt-auto flex flex-wrap items-start justify-between gap-3 text-xs text-muted-foreground lg:flex-col">
       <ToggleGroup type="single" value={theme} onValueChange={v => v && applyTheme(v as Theme)} aria-label="Colour theme">
         <ToggleGroupItem value="light">☀ Light</ToggleGroupItem><ToggleGroupItem value="dark">☾ Dark</ToggleGroupItem><ToggleGroupItem value="system">Auto</ToggleGroupItem>
       </ToggleGroup>
-      <label className="flex cursor-pointer items-center gap-2 text-[13px] text-foreground"><Switch checked={mask} onCheckedChange={setMask} /> Hide personal values on screen</label>
       <span><b className="font-semibold text-ok">● Runs on this computer only.</b> Files stay in a local folder; nothing is sent anywhere.</span>
     </div>
   );

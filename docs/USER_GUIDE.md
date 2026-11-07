@@ -3,9 +3,8 @@
 This guide walks through the web app. Start it with `make web` and open http://127.0.0.1:8765.
 
 The bar at the top of the screen always shows which step you are on and the next thing to do (top right).
-The switch **Hide personal values on screen** (left, on by default) masks names, ID codes and free text, so you
-can share your screen safely. It only changes what you see, not the data. Next to it, **Light / Dark / Auto** sets the
-colours (light by default; Auto follows your computer's setting).
+Values are always shown as they are in your data: the app runs on this computer only. Bottom left,
+**Light / Dark / Auto** sets the colours (light by default; Auto follows your computer's setting).
 
 ## 1. Data
 

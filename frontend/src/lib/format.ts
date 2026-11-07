@@ -7,11 +7,6 @@ export const when = (iso?: string | null) =>
 export const clip = (v: unknown, n = 120) => { const t = String(v ?? ""); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
 export const mb = (bytes: number) => (bytes / 2 ** 20).toFixed(bytes < 10 * 2 ** 20 ? 1 : 0);
 
-/** "Ruohosalo Pentti" -> "R••••••• P•••••": the first letter of each word stays. */
-export const maskValue = (v: unknown) => String(v ?? "").replace(/[\p{L}\p{N}]+/gu, w => w[0] + "•".repeat(Math.min(w.length - 1, 6)));
-
-/** Free text often holds names (signatures, relatives), so it is masked with the identifiers. */
-export const MASKED_ROLES = new Set(["direct_identifier", "free_text"]);
 
 /** Plain words for each privacy role. */
 export const ROLE_LABEL: Record<string, string> = {

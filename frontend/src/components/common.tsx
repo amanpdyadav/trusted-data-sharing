@@ -3,7 +3,7 @@ import { Check } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/misc";
-import { MASKED_ROLES, ROLE_TONE, clip, maskValue } from "@/lib/format";
+import { ROLE_TONE, clip } from "@/lib/format";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -51,15 +51,9 @@ export function useRole() {
   const columns = useApp(s => s.scan?.detections.columns);
   return (table: string, column: string) => columns?.find(c => c.table === table && c.column === column)?.privacy_role ?? "";
 }
-/** A value as it may be shown: personal values are masked unless the user turned masking off. */
+/** A value as shown on screen: always as it is in the data (the app runs on this computer only). */
 export function useShown() {
-  const mask = useApp(s => s.mask), scanned = useApp(s => !!s.scan), role = useRole();
-  return (table: string, column: string, v: unknown) => {
-    const text = String(v ?? "");
-    if (!mask) return text;
-    if (!scanned) return /^[\d\s.,:+\-/]*$/.test(text) ? text : maskValue(text);  // roles unknown until the scan
-    return MASKED_ROLES.has(role(table, column)) ? maskValue(text) : text;
-  };
+  return (_table: string, _column: string, v: unknown) => String(v ?? "");
 }
 
 /** column → value rows, used by the attack replay and its trail. */

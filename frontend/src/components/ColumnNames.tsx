@@ -8,7 +8,7 @@ import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTi
 import { Checkbox, Input } from "@/components/ui/form";
 import { Spinner, Tip } from "@/components/ui/misc";
 import type { NameSource, NameSuggestion, TableOverview } from "@/lib/api";
-import { clip, maskValue, pct, plural } from "@/lib/format";
+import { clip, pct, plural } from "@/lib/format";
 import { saveNames, setHeaderless, suggestNames, useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -49,7 +49,7 @@ export function NamingNote({ table, frozen }: { table: TableOverview; frozen: bo
 type Row = { original: string; value: string; keep: boolean; existing: { name: string; by: NameSource } | null; suggestion: NameSuggestion | null; avoid: string[] };
 
 function NamesDialog({ table, ai, open, onOpenChange }: { table: TableOverview; ai: boolean; open: boolean; onOpenChange: (o: boolean) => void }) {
-  const busy = useApp(s => s.busy), mask = useApp(s => s.mask);  // samples of unnamed columns: all could be personal
+  const busy = useApp(s => s.busy);
   const [rows, setRows] = useState<Row[]>([]), [note, setNote] = useState<string | null>(null), [loading, setLoading] = useState(true);
   const unnamedNow = new Set(table.naming.unnamed.map(u => u.name ?? u.original));
   const named = table.columns.filter(c => !unnamedNow.has(c));  // columns with a real name: never renamed, never reused
@@ -122,7 +122,7 @@ function NamesDialog({ table, ai, open, onOpenChange }: { table: TableOverview; 
                 <div key={r.original} className={cn("grid gap-3 px-3 py-2.5 md:grid-cols-[90px_minmax(0,1.1fr)_minmax(0,1.3fr)_minmax(180px,1fr)]", r.keep && "opacity-60")}>
                   <div className="font-mono text-sm font-semibold">{r.original}</div>
                   <div className="flex min-w-0 flex-wrap gap-1 text-xs text-muted-foreground">
-                    {(sg?.samples ?? []).slice(0, 4).map((v, i) => <span key={i} className="max-w-full truncate rounded bg-muted px-1.5 py-0.5 font-mono">{clip(mask ? maskValue(v) : v, 28)}</span>)}
+                    {(sg?.samples ?? []).slice(0, 4).map((v, i) => <span key={i} className="max-w-full truncate rounded bg-muted px-1.5 py-0.5 font-mono">{clip(v, 28)}</span>)}
                     {sg && !sg.samples.length && <span>empty in every row</span>}
                   </div>
                   <div className="flex min-w-0 flex-col gap-1 text-sm">

@@ -8,6 +8,7 @@
     python -m evaluation text              # free-text redaction vs gold spans, quickstart regex as 'before'
     python -m evaluation redact-eval       # pets_submission/customer_service_eval_redacted.csv for the organisers
     python -m evaluation receivers         # plan, release and score every receiver: results/receivers.csv
+    python -m evaluation baselines         # the organisers' B0/B2/B2-k per receiver: results/baselines.csv
 
 Each run writes results/runs/<run_id>/ (scorecard + metrics.json, not committed) and appends results/history.csv.
 `--gate` makes the command fail when a pass mark in evaluation/targets.yaml is missed (for CI or make).
@@ -156,6 +157,15 @@ def cmd_receivers(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_baselines(_: argparse.Namespace) -> int:
+    """Write the organisers' reference baselines per receiver (from the pack's results/benchmark.json)."""
+    from evaluation import baselines  # noqa: PLC0415
+
+    found = baselines.rows(Settings.from_env().package_root)
+    print(f"wrote {baselines.write(found)}: {len(found)} receivers with B0, B2 and B2-k")
+    return 0
+
+
 def cmd_baseline(args: argparse.Namespace) -> int:
     quickstart = Settings.from_env().package_root / "results" / "quickstart" / "health"
     if not (quickstart / "ed_visits.csv").exists():
@@ -275,6 +285,9 @@ def build_parser() -> argparse.ArgumentParser:
     rc = sub.add_parser("receivers", help="plan, release and score every receiver (results/receivers.csv)")
     rc.add_argument("--only", nargs="+", help="receiver IDs to measure (default: all)")
     rc.set_defaults(func=cmd_receivers)
+
+    bl = sub.add_parser("baselines", help="the organisers' B0/B2/B2-k per receiver (results/baselines.csv)")
+    bl.set_defaults(func=cmd_baselines)
 
     sw = sub.add_parser("sweep", help="replay every public post and news clip on a release (health)")
     sw.add_argument("--release", required=True)
