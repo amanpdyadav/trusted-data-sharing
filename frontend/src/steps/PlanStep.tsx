@@ -121,14 +121,31 @@ function Board() {
             </AccordionItem>
           );
         })}
+        <StaysHereTables tables={view.withheld_tables} reason="This receiver's request does not include this table, so all of it stays on this computer." />
       </Accordion>
-      {view.withheld_tables.length > 0 && <p className="text-sm text-muted-foreground">Not shared at all: {view.withheld_tables.join(", ")}.</p>}
-      <p className="text-sm text-muted-foreground">Click any column to see why, and to change how it is shared.</p>
+      <p className="text-sm text-muted-foreground">Click any column to see why, and to change how it is shared. Tables marked "not shared" stay here entirely.</p>
       </TabsContent>
       </Tabs>
       {change && <ChangeDialog action={change} onClose={() => setChange(null)} />}
     </Section>
   );
+}
+
+/** Tables the plan does not share, listed with the shared ones so the plan always shows every table of the dataset. */
+function StaysHereTables({ tables, reason }: { tables: string[]; reason: string }) {
+  const columns = useApp(s => s.scan!.detections.columns);
+  return <>{tables.map(t => {
+    const cols = columns.filter(c => c.table === t);
+    return (
+      <AccordionItem key={t} value={`stays:${t}`} className="border-dashed bg-muted/40">
+        <AccordionTrigger right={`0 of ${cols.length} columns shared`}><b className="font-mono">{t}</b><Badge>🏠 not shared</Badge></AccordionTrigger>
+        <AccordionContent>
+          <p className="text-sm text-muted-foreground">{reason}</p>
+          <div className="flex flex-wrap gap-1.5">{cols.map(c => <span key={c.column} className="rounded-lg border bg-card px-2 py-1 font-mono text-[12.5px] text-muted-foreground">{c.column}</span>)}</div>
+        </AccordionContent>
+      </AccordionItem>
+    );
+  })}</>;
 }
 
 /** The ways a column can be shared, given what it holds. */
@@ -191,10 +208,13 @@ function CountsBoard() {
       <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] gap-3">
         {P.aggregates.map(a => (
           <div key={a.name} className="flex flex-col gap-1.5 rounded-xl border bg-muted p-4"><span className="text-2xl">📊</span><b>{a.name.replace(/_/g, " ")}</b>
-            <span className="text-[13px] text-muted-foreground">Counted by {a.dimensions.map(d => (d.name ?? d.column).replace(/_/g, " ")).join(" and ")}</span></div>
+            <span className="text-[13px] text-muted-foreground">Counted by {a.dimensions.map(d => (d.name ?? d.column).replace(/_/g, " ")).join(" and ")}, from <span className="font-mono">{a.table}</span></span></div>
         ))}
       </div>
       <p className="text-sm text-muted-foreground">A little random noise is added to every number, so nobody can tell whether one particular person is in the data.{P.differential_privacy && ` Each person is counted at most ${P.differential_privacy.max_rows_per_unit} times.`}</p>
+      <Accordion type="multiple" className="flex flex-col gap-2">
+        <StaysHereTables tables={view.withheld_tables} reason="Not used for any of the counts, so all of it stays on this computer." />
+      </Accordion>
       </TabsContent>
       </Tabs>
     </Section>
