@@ -111,6 +111,16 @@ def test_full_release_flow_and_downloads(client: TestClient, sid: str) -> None:
     assert "approved_by: Test Steward" in client.get(f"/api/sessions/{sid}/download/plan.yaml").text
 
 
+def test_plan_example_shows_records_before_and_after(client: TestClient, sid: str) -> None:
+    _ok(client.post(f"/api/sessions/{sid}/scan"))
+    _ok(client.post(f"/api/sessions/{sid}/plan", json={"custom": RECEIVER}))
+    (visits,) = _ok(client.get(f"/api/sessions/{sid}/plan/example"))["tables"]
+    first = visits["rows"][0]
+    assert visits["renamed"]["date_of_birth"] in first["after"]  # made less exact, under its released name
+    assert "patient_name" not in first["after"]  # removed
+    assert first["after"]["hetu"] != first["raw"]["hetu"]  # replaced by a code
+
+
 def test_tradeoff_and_override(settings: Settings, client: TestClient, sid: str) -> None:
     first = _ok(client.post(f"/api/sessions/{sid}/scan"))
     kept = settings.out_dir / "web" / sid / "scan.json"

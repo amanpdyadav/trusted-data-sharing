@@ -95,9 +95,10 @@ class RunOutcome:
     epsilon_total: float | None = None  # running total for this receiver, from the ledger
 
 
-def protect_table(
+def transform_rows(
     table: str, frame: pd.DataFrame, plan: Plan, scope: KeyScope, tables: Mapping[str, pd.DataFrame] | None = None
-) -> ProtectedTable:
+) -> pd.DataFrame:
+    """Apply each column's decision (drop, keep or a technique) to these rows; no k check, no shuffle."""
     undecided = [c for c in frame.columns if plan.action_for(table, c) is None]
     if undecided:
         raise PlanError(f"{table}: no decision for columns {undecided}; every column needs keep, drop or a technique")
@@ -117,8 +118,13 @@ def protect_table(
             out[name] = TRANSFORMS.get(action.technique).apply(frame[column], action.params, ctx)
         else:
             raise PlanError(f"{table}.{column}: technique {action.technique.value!r} is not implemented yet")
-    protected = pd.DataFrame(out, index=frame.index)
+    return pd.DataFrame(out, index=frame.index)
 
+
+def protect_table(
+    table: str, frame: pd.DataFrame, plan: Plan, scope: KeyScope, tables: Mapping[str, pd.DataFrame] | None = None
+) -> ProtectedTable:
+    protected = transform_rows(table, frame, plan, scope, tables)
     suppression = None
     if qis := plan.quasi_identifiers.get(table):
         missing = [q for q in qis if q not in protected.columns]

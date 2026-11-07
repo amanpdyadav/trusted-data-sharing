@@ -136,6 +136,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def plan_view(sid: str) -> dict[str, Any]:
         return svc.plan_view(session(sid))
 
+    @api.get("/api/sessions/{sid}/plan/example")
+    def plan_example(sid: str) -> dict[str, Any]:
+        return svc.plan_example(session(sid))
+
     @api.post("/api/sessions/{sid}/plan/action")
     def edit_action(sid: str, req: ActionRequest) -> dict[str, Any]:
         return svc.edit_action(session(sid), ActionEdit(**req.model_dump()))

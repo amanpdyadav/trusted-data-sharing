@@ -40,6 +40,7 @@ from pets_transformer.pipeline import (
     publish_aggregates,
     release_id,
     run_release,
+    transform_rows,
 )
 from pets_transformer.plan.common import REVIEW
 from pets_transformer.plan.policy import RulePolicy
@@ -49,6 +50,7 @@ from pets_transformer.text.redactor import build_redactor
 from pets_transformer.web.workspace import Session, Workspace, WorkspaceError
 
 PREVIEW_ROWS = 6
+EXAMPLE_ROWS = 3
 TEXT_SAMPLES = 6
 K_VALUES = (2, 3, 5, 8, 10, 15, 20)
 EPSILON_FACTORS = (0.25, 0.5, 1.0, 2.0, 4.0)
@@ -319,6 +321,22 @@ class App:
             picked = sorted(values, key=lambda v: -len(redactor.spans(v)))[:TEXT_SAMPLES]
             out.append({"column": f"{a.table}.{a.column}", "samples": [_parts(v, redactor.spans(v)) for v in picked]})
         return out
+
+    def plan_example(self, s: Session) -> dict[str, Any]:
+        """A few records before and after the plan, made by the real transforms (the attacked person first)."""
+        plan = _need(s.plan, "make a plan first")
+        raw, scope = s.tables(), self.scope(s, "preview")
+        target = (s.cached_scan() or {}).get("target") or {}
+        out = []
+        for table in plan.tables:
+            frame = raw[table]
+            first = [int(target["row"])] if target.get("table") == table else []
+            rows = frame.iloc[list(dict.fromkeys([*first, *range(min(EXAMPLE_ROWS, len(frame)))]))[:EXAMPLE_ROWS]]
+            after = _records(transform_rows(table, rows, plan, scope, raw))
+            renamed = {a.column: str(a.params.get("rename_to", a.column)) for a in plan.actions if a.table == table}
+            pairs = [{"raw": r, "after": p} for r, p in zip(_records(rows), after, strict=True)]
+            out.append({"table": table, "renamed": renamed, "rows": pairs})
+        return {"tables": out}
 
     # ------------------------------------------------------------ trade-offs and comparison
     def tradeoff(self, s: Session) -> dict[str, Any]:
