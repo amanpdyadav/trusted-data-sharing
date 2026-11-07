@@ -136,18 +136,18 @@ function Duel({ before: b, after: a }: { before: AttackResult; after: AttackResu
       <div className="grid gap-4 md:grid-cols-2">
         <div className="flex min-w-0 flex-col gap-2.5"><span className="eyebrow">Raw data</span>
           <StageV label="Knows"><Facts facts={b.known} table={b.table} /></StageV>
-          <StageV label="Fits" tone={b.outcome === "identified" ? "hit" : undefined}><span className="big-number text-[26px] text-risk">{b.matches === 1 ? "1 person" : `${fmt(b.matches)} people`}</span><span className="text-[13px] text-muted-foreground">of {fmt(b.rows)} records</span></StageV>
-          <StageV label="Learns" tone={b.outcome === "identified" ? "hit" : undefined}>{Object.keys(b.revealed).length ? <Facts facts={b.revealed} table={b.table} tone="risk" /> : <span className="text-[13px] text-muted-foreground">nothing certain</span>}</StageV>
-          <StageV label="Unlocks" tone={total ? "hit" : undefined}><span className="big-number text-[26px] text-risk">{fmt(total)}</span><span className="text-[13px] text-muted-foreground">linked records</span></StageV>
+          <StageV label="Fits" tone={b.outcome === "identified" ? "hit" : undefined}><span className="big-number text-[26px] text-risk">{b.matches === 1 ? "1 person" : `${fmt(b.matches)} people`}</span><span className="text-sm text-muted-foreground">of {fmt(b.rows)} records</span></StageV>
+          <StageV label="Learns" tone={b.outcome === "identified" ? "hit" : undefined}>{Object.keys(b.revealed).length ? <Facts facts={b.revealed} table={b.table} tone="risk" /> : <span className="text-sm text-muted-foreground">nothing certain</span>}</StageV>
+          <StageV label="Unlocks" tone={total ? "hit" : undefined}><span className="big-number text-[26px] text-risk">{fmt(total)}</span><span className="text-sm text-muted-foreground">linked records</span></StageV>
         </div>
         <div className="flex min-w-0 flex-col gap-2.5"><span className="eyebrow">Release</span>
           <StageV label="Knows"><Facts facts={a.known} table={a.table} /></StageV>
-          <StageV label="Fits" tone={failed ? "miss" : undefined}><span className="big-number text-[26px] text-safe">{fits}</span><span className="text-[13px] text-muted-foreground">{fitsNote}</span></StageV>
+          <StageV label="Fits" tone={failed ? "miss" : undefined}><span className="big-number text-[26px] text-safe">{fits}</span><span className="text-sm text-muted-foreground">{fitsNote}</span></StageV>
           <StageV label="Learns" tone={failed ? "miss" : undefined}>{Object.keys(a.revealed).length ? <Facts facts={a.revealed} table={a.table} tone="risk" />
             : Object.keys(a.hidden).length ? <Facts facts={Object.fromEntries(Object.entries(a.hidden).map(([c, t]) => [c, t === "pseudonymise" ? "keyed code" : t === "drop" ? "dropped" : t]))} table="" tone="safe" />
-            : <span className="text-[13px] text-muted-foreground">no identifiers in the release</span>}</StageV>
+            : <span className="text-sm text-muted-foreground">no identifiers in the release</span>}</StageV>
           <StageV label="Unlocks" tone={failed ? "miss" : undefined}><span className="big-number text-[26px] text-safe">{failed ? "0" : fmt(Object.values(a.linked).reduce((n, r) => n + r, 0))}</span>
-            <span className="text-[13px] text-muted-foreground">{failed ? (a.outcome === "one_in_n" ? `certain records; only a guess with a 1 in ${fmt(a.matches)} chance` : "records") : "records reachable"}</span></StageV>
+            <span className="text-sm text-muted-foreground">{failed ? (a.outcome === "one_in_n" ? `certain records; only a guess with a 1 in ${fmt(a.matches)} chance` : "records") : "records reachable"}</span></StageV>
         </div>
       </div>
       <Verdict tone={failed ? "safe" : "risk"} badge={failed ? "Attack fails" : "Still found"}>
@@ -203,9 +203,9 @@ function Records({ R }: { R: Results }) {
           <thead><tr><Th />{cols.map(c => <Th key={c}>{c}<br /><Badge variant={tech(c) === "drop" ? "risk" : tech(c) === "keep" ? "outline" : "safe"} className="mt-1 normal-case tracking-normal">{tech(c)}</Badge></Th>)}</tr></thead>
           <tbody>{t.pairs.map((p, i) => [
             <tr key={`r${i}`} className="cursor-pointer bg-risk-soft/40 hover:bg-risk-soft" onClick={() => setOpen(i)}>
-              <Td className="sticky left-0 whitespace-nowrap bg-risk-soft font-mono text-[10.5px] font-semibold uppercase text-risk">raw ↗</Td>
+              <Td className="sticky left-0 whitespace-nowrap bg-risk-soft text-[11px] font-semibold uppercase tracking-[0.06em] text-risk">raw ↗</Td>
               {cols.map(c => <Td key={c} className={cn("max-w-[220px] truncate whitespace-nowrap", ROLE_TONE[role(t.name, c)])}>{shown(t.name, c, p.raw[c])}</Td>)}</tr>,
-            <tr key={`p${i}`} className="border-b-2"><Td className="sticky left-0 whitespace-nowrap bg-card font-mono text-[10.5px] font-semibold uppercase text-safe">released</Td>{cols.map(c => cell(p, c))}</tr>,
+            <tr key={`p${i}`} className="border-b-2"><Td className="sticky left-0 whitespace-nowrap bg-card text-[11px] font-semibold uppercase tracking-[0.06em] text-safe">released</Td>{cols.map(c => cell(p, c))}</tr>,
           ])}</tbody>
         </table>
       </TableWrap>
@@ -214,7 +214,7 @@ function Records({ R }: { R: Results }) {
           <DialogContent wide>
             <DialogHeader><DialogTitle>One record of <span className="font-mono">{t.name}</span>, before and after</DialogTitle></DialogHeader>
             <DialogBody><TableWrap className="max-h-none"><table className="w-full border-collapse"><thead><tr><Th>Column</Th><Th>Raw (stays here)</Th><Th>Released</Th><Th>How</Th></tr></thead>
-              <tbody>{cols.map(c => { const l = laneOf(tech(c).split(":")[0]); return <tr key={c}><Td className="font-mono">{c}</Td><Td className={ROLE_TONE[role(t.name, c)]}>{shown(t.name, c, t.pairs[open].raw[c])}</Td>{cell(t.pairs[open], c)}<Td className="text-[13px] text-muted-foreground">{l.icon} {l.name}</Td></tr>; })}</tbody></table></TableWrap></DialogBody>
+              <tbody>{cols.map(c => { const l = laneOf(tech(c).split(":")[0]); return <tr key={c}><Td className="font-mono">{c}</Td><Td className={ROLE_TONE[role(t.name, c)]}>{shown(t.name, c, t.pairs[open].raw[c])}</Td>{cell(t.pairs[open], c)}<Td className="text-sm text-muted-foreground">{l.icon} {l.name}</Td></tr>; })}</tbody></table></TableWrap></DialogBody>
             <DialogFooter>
               <Button variant="outline" onClick={() => setOpen((open + t.pairs.length - 1) % t.pairs.length)}><ArrowLeft /> Previous</Button>
               <Button variant="outline" onClick={() => setOpen((open + 1) % t.pairs.length)}>Next <ArrowRight /></Button>
@@ -261,8 +261,8 @@ function AttackerView({ R }: { R: Results }) {
   return <>{R.attacker.map(v => (
     <div key={v.table} className="flex flex-col gap-2"><h3 className="font-semibold">{v.table}: someone who knows {v.known.join(", ")}</h3>
       <div className="grid gap-3 md:grid-cols-2">
-        <div className="flex flex-col gap-2 rounded-xl border border-risk/40 bg-muted p-4"><span className="eyebrow">Before</span><span className="big-number text-3xl text-risk">{pct(v.before.unique_share)}</span><span className="text-[13px] text-muted-foreground">of {fmt(v.before.rows)} rows have no look-alike: found with certainty</span><Buckets b={v.before.buckets} /></div>
-        <div className="flex flex-col gap-2 rounded-xl border border-safe/40 bg-muted p-4"><span className="eyebrow">After</span><span className="big-number text-3xl text-safe">{pct(v.after.unique_share)}</span><span className="text-[13px] text-muted-foreground">have no look-alike; an attacker's chance to pick the right person is {pct(v.after.guess_chance, 1)}</span><Buckets b={v.after.buckets} /></div>
+        <div className="flex flex-col gap-2 rounded-xl border border-risk/40 bg-muted p-4"><span className="eyebrow">Before</span><span className="big-number text-3xl text-risk">{pct(v.before.unique_share)}</span><span className="text-sm text-muted-foreground">of {fmt(v.before.rows)} rows have no look-alike: found with certainty</span><Buckets b={v.before.buckets} /></div>
+        <div className="flex flex-col gap-2 rounded-xl border border-safe/40 bg-muted p-4"><span className="eyebrow">After</span><span className="big-number text-3xl text-safe">{pct(v.after.unique_share)}</span><span className="text-sm text-muted-foreground">have no look-alike; an attacker's chance to pick the right person is {pct(v.after.guess_chance, 1)}</span><Buckets b={v.after.buckets} /></div>
       </div></div>))}
     <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">{[["bg-risk", "alone"], ["bg-warn", "2–4 look-alikes"], ["bg-safe", "5–49"], ["bg-muted-foreground", "50 or more"]].map(([c, l]) => <span key={l} className="inline-flex items-center gap-1.5"><i className={cn("size-2.5 rounded-sm", c)} />{l}</span>)}</div></>;
 }
@@ -313,9 +313,9 @@ function History() {
       <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm text-muted-foreground">Every release made from this dataset is kept here. Tick two to compare them.</p>{loading && <Spinner />}</div>
       <div className="overflow-hidden rounded-xl border">{history.map(h => (
         <div key={h.release_id} className={cn("grid items-center gap-x-4 gap-y-1 border-b px-4 py-3 last:border-b-0 md:grid-cols-[minmax(0,1.5fr)_auto_minmax(0,1.2fr)_auto]", h.release_id === current && "bg-safe-soft")}>
-          <div className="min-w-0"><b className="block truncate font-mono text-sm">{h.release_id}</b><span className="text-[13px] text-muted-foreground">{when(h.created_at)} · for {h.recipient} · approved by {h.approved_by ?? "–"}</span></div>
-          <span className="text-[13px] text-muted-foreground">{h.plan_version ? `plan v${h.plan_version} · ` : ""}{h.k != null && `k ${h.k}`}{h.epsilon != null && ` ε ${h.epsilon}`} · {plural(h.files.length, "file")}</span>
-          <span className="text-[13px] text-muted-foreground">{h.singled_out_after != null ? <>singled out {pct(h.singled_out_before)} → <b className="text-safe">{pct(h.singled_out_after)}</b>, guess {pct(h.guess_chance_after, 1)}</> : "statistics only"}</span>
+          <div className="min-w-0"><b className="block truncate font-mono text-sm">{h.release_id}</b><span className="text-sm text-muted-foreground">{when(h.created_at)} · for {h.recipient} · approved by {h.approved_by ?? "–"}</span></div>
+          <span className="text-sm text-muted-foreground">{h.plan_version ? `plan v${h.plan_version} · ` : ""}{h.k != null && `k ${h.k}`}{h.epsilon != null && ` ε ${h.epsilon}`} · {plural(h.files.length, "file")}</span>
+          <span className="text-sm text-muted-foreground">{h.singled_out_after != null ? <>singled out {pct(h.singled_out_before)} → <b className="text-safe">{pct(h.singled_out_after)}</b>, guess {pct(h.guess_chance_after, 1)}</> : "statistics only"}</span>
           <div className="flex items-center justify-end gap-2">
             <label className="flex cursor-pointer items-center gap-1.5 text-[13px]"><Checkbox checked={picked.includes(h.release_id)} onCheckedChange={v => pick(h.release_id, !!v)} /> compare</label>
             {h.release_id === current ? <Badge variant="ok">open</Badge> : <Button size="sm" variant="outline" onClick={() => viewRelease(h.release_id)}>Open</Button>}

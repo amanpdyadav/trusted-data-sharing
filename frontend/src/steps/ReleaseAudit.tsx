@@ -58,7 +58,7 @@ function Releases({ items }: { items: AuditItem[] }) {
           return (
             <button key={`${r.session_id}/${r.release_id}`} onClick={() => setPicked(r)} aria-pressed={on}
               className={cn("flex flex-col gap-1 rounded-xl border bg-card p-3.5 text-left shadow-sm transition-colors hover:bg-muted", on && "border-primary ring-1 ring-primary")}>
-              <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">{r.dataset} · {when(r.created_at)}</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{r.dataset} · {when(r.created_at)}</span>
               <b className="leading-snug">{r.recipient}</b>
               <span className="flex flex-wrap gap-1.5">
                 {r.k != null && <Badge variant="safe">k = {r.k}</Badge>}

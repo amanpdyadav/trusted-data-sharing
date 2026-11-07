@@ -26,7 +26,7 @@ export const TableWrap = ({ className, ...p }: React.HTMLAttributes<HTMLDivEleme
   <div className={cn("max-h-[480px] max-w-full overflow-auto rounded-xl border bg-card", className)} {...p} />
 );
 export const Th = ({ className, ...p }: React.ThHTMLAttributes<HTMLTableCellElement>) => (
-  <th className={cn("sticky top-0 z-[1] whitespace-nowrap border-b bg-muted px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground", className)} {...p} />
+  <th className={cn("sticky top-0 z-[1] whitespace-nowrap border-b bg-muted px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground", className)} {...p} />
 );
 export const Td = ({ className, ...p }: React.TdHTMLAttributes<HTMLTableCellElement>) => (
   <td className={cn("border-b px-3 py-2 align-top text-[13px] [overflow-wrap:anywhere]", className)} {...p} />

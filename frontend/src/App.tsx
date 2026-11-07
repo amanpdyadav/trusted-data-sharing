@@ -45,7 +45,7 @@ function Rail() {
       <button onClick={newDataset} aria-label="Home: your data and workspace" title="Home: your data and workspace"
         className="-m-1.5 flex items-center gap-2.5 rounded-xl p-1.5 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[linear-gradient(135deg,hsl(var(--risk))_50%,hsl(var(--safe))_50%)] font-display text-sm font-extrabold text-white">PT</span>
-        <div><b className="block font-display text-[19px] font-extrabold leading-tight" style={{ fontStretch: "118%" }}>PETs Transformer</b><span className="text-xs text-muted-foreground">Beyond Syntax · safe data sharing</span></div>
+        <div><b className="block whitespace-nowrap font-display text-[18px] font-bold leading-tight">PETs Transformer</b><span className="text-xs text-muted-foreground">Beyond Syntax · safe data sharing</span></div>
       </button>
       <Button variant="outline" className="border-dashed font-semibold" onClick={newDataset}><Plus /> New dataset</Button>
       <nav aria-label="Steps" className="flex gap-1 overflow-x-auto lg:flex-col">

@@ -247,7 +247,7 @@ function ModeCards({ c, mode, onPick }: { c: MosaicCase; mode: Mode; onPick: (m:
             mode === k.m && (k.tone === "risk" ? "border-risk ring-1 ring-risk" : "border-safe ring-1 ring-safe"))}>
           <span className="eyebrow">{k.title}</span>
           <b className={cn("big-number text-[26px] leading-tight", k.tone === "risk" ? "text-risk" : "text-safe")}>{k.big}</b>
-          <span className="text-[13px] text-muted-foreground">{k.text}</span>
+          <span className="text-sm text-muted-foreground">{k.text}</span>
         </button>
       ))}
     </div>

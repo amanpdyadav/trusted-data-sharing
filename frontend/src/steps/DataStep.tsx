@@ -71,9 +71,9 @@ function Loaders() {
         <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,210px),1fr))] gap-2.5">
           {samples.map(s => (
             <button key={s.name} onClick={() => openSample(s.name)} className="flex flex-col gap-1 rounded-xl border bg-card p-3.5 text-left shadow-sm transition-colors hover:border-input hover:bg-muted">
-              <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">{s.tables.length} tables</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{s.tables.length} tables</span>
               <b>{s.name.replace(/_/g, " ")}</b>
-              <span className="line-clamp-2 text-[13px] text-muted-foreground">{s.tables.join(", ")}</span>
+              <span className="line-clamp-2 text-sm text-muted-foreground">{s.tables.join(", ")}</span>
             </button>
           ))}
           {!samples.length && <p className="text-sm text-muted-foreground">No sample folder found (set PETS_PACKAGE_ROOT).</p>}
@@ -193,12 +193,12 @@ function Workspace() {
           const stage = x.releases ? plural(x.releases, "release") : st.approved ? "approved" : st.planned ? "planned" : st.scanned ? "scanned" : "new";
           return (
             <div key={x.id} className={cn("grid items-center gap-x-4 gap-y-2 border-b px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1.4fr)_auto_minmax(0,1.2fr)_auto]", isCurrent && "bg-safe-soft")}>
-              <div className="min-w-0"><b className="block truncate">{x.name}</b><span className="text-[13px] text-muted-foreground">{plural(x.tables.length, "table")} · {mb(x.bytes)} MB · {when(x.created_at)}</span></div>
+              <div className="min-w-0"><b className="block truncate">{x.name}</b><span className="text-sm text-muted-foreground">{plural(x.tables.length, "table")} · {mb(x.bytes)} MB · {when(x.created_at)}</span></div>
               <div className="flex items-center gap-1.5">
                 {[st.scanned, st.planned, st.approved, x.releases > 0].map((on, i) => <span key={i} className={cn("size-2 rounded-full bg-input", on && "bg-ok")} />)}
                 <Badge variant={x.released ? "ok" : "outline"} className="ml-1">{x.released && <Lock className="size-3" />}{stage}</Badge>
               </div>
-              <div className="truncate text-[13px] text-muted-foreground">
+              <div className="truncate text-sm text-muted-foreground">
                 {r ? <>Last for <b className="text-foreground">{r.recipient}</b>{r.singled_out_after != null ? <> · singled out {pct(r.singled_out_before)} → <b className="text-safe">{pct(r.singled_out_after)}</b></> : r.epsilon != null ? <> · statistics, ε {r.epsilon}</> : null}</> : x.receiver}
               </div>
               <div className="flex items-center justify-end gap-1">

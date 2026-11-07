@@ -61,7 +61,7 @@ function ReceiverCard({ icon, title, text, gets, stats, selected, onClick, disab
     <button onClick={onClick} aria-pressed={selected} disabled={disabled} title={disabled ? note : undefined}
       className={cn("flex flex-col gap-2 rounded-xl border bg-card p-4 text-left shadow-sm transition-colors hover:border-input disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border", selected && "border-safe ring-1 ring-safe")}>
       <span className="text-[26px] leading-none" aria-hidden>{icon}</span><b>{title}</b>
-      <span className="text-[13px] text-muted-foreground">{text}</span>
+      <span className="text-sm text-muted-foreground">{text}</span>
       {note && <span className={cn("font-mono text-[11px]", disabled ? "text-warn" : "text-muted-foreground")}>{note}</span>}
       <span className={cn("mt-auto border-t border-dashed pt-2 text-[12.5px] font-semibold", stats ? "text-ok" : "text-safe")}>{gets}</span>
     </button>
@@ -133,7 +133,7 @@ function Board() {
                               l.technique === "drop" && "text-muted-foreground line-through decoration-risk/60", review && "border-warn bg-warn-soft font-semibold text-foreground no-underline")}>{review && "⚠ "}{a.column}</button>;
                         })}
                         {inLane.length > LANE_SHOWN && !all && <button onClick={() => setOpenLanes({ ...openLanes, [key]: true })} className="rounded-lg border border-dashed px-2 py-1 text-[12.5px] text-safe">+{inLane.length - LANE_SHOWN} more</button>}
-                        {!inLane.length && <span className="text-[13px] text-muted-foreground">none</span>}
+                        {!inLane.length && <span className="text-sm text-muted-foreground">none</span>}
                       </div>
                     );
                   })}
@@ -209,7 +209,7 @@ function ChangeDialog({ action, onClose }: { action: Action; onClose: () => void
                 <button key={key} onClick={() => changeColumn(a.table, a.column, key.split(":")[0], params)}
                   className={cn("flex items-center gap-3 rounded-xl border bg-card px-3.5 py-3 text-left hover:border-foreground", on && "border-safe bg-safe-soft ring-1 ring-safe")}>
                   <span className="w-7 text-center text-xl">{l.icon}</span>
-                  <span className="flex flex-1 flex-col"><b>{l.name}{detail && `: ${detail}`}</b><span className="text-[13px] text-muted-foreground">{l.help}</span></span>
+                  <span className="flex flex-1 flex-col"><b>{l.name}{detail && `: ${detail}`}</b><span className="text-sm text-muted-foreground">{l.help}</span></span>
                   {on && <Badge variant="ok">now</Badge>}
                 </button>
               );
@@ -233,7 +233,7 @@ function CountsBoard() {
       <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] gap-3">
         {P.aggregates.map(a => (
           <div key={a.name} className="flex flex-col gap-1.5 rounded-xl border bg-muted p-4"><span className="text-2xl">📊</span><b>{a.name.replace(/_/g, " ")}</b>
-            <span className="text-[13px] text-muted-foreground">Counted by {a.dimensions.map(d => (d.name ?? d.column).replace(/_/g, " ")).join(" and ")}, from <span className="font-mono">{a.table}</span></span></div>
+            <span className="text-sm text-muted-foreground">Counted by {a.dimensions.map(d => (d.name ?? d.column).replace(/_/g, " ")).join(" and ")}, from <span className="font-mono">{a.table}</span></span></div>
         ))}
       </div>
       <p className="text-sm text-muted-foreground">A little random noise is added to every number, so nobody can tell whether one particular person is in the data.{P.differential_privacy && ` Each person is counted at most ${P.differential_privacy.max_rows_per_unit} times.`}</p>
@@ -278,7 +278,7 @@ function ExampleRecord() {
                 <Td className={cn("font-semibold max-sm:col-span-2 max-sm:row-start-3 max-sm:border-0 max-sm:p-0 max-sm:before:content-['→_']",
                   tech === "keep" && "font-medium text-muted-foreground", ["generalise", "pseudonymise", "redact_text"].includes(tech) && "text-safe", tech === "pseudonymise" && "font-mono text-xs")}>
                   {tech === "drop" ? <span className="font-mono text-xs text-risk">removed</span> : after}</Td>
-                <Td className="text-[13px] text-muted-foreground max-sm:col-start-2 max-sm:row-start-1 max-sm:border-0 max-sm:p-0 max-sm:text-right">{l.icon} {l.name}</Td>
+                <Td className="text-sm text-muted-foreground max-sm:col-start-2 max-sm:row-start-1 max-sm:border-0 max-sm:p-0 max-sm:text-right">{l.icon} {l.name}</Td>
               </tr>
             );
           })}</tbody>

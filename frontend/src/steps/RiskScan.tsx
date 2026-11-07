@@ -52,7 +52,7 @@ function Stage({ n, title, hit, children }: { n: number; title: string; hit?: bo
   return (
     <div className={cn("stage flex min-w-0 flex-col gap-2 border bg-card p-4 md:border-l-0 md:first:rounded-l-xl md:first:border-l md:last:rounded-r-xl max-md:border-t-0 max-md:first:rounded-t-xl max-md:first:border-t max-md:last:rounded-b-xl",
       hit && "border-risk/45 bg-risk-soft")}>
-      <span className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+      <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
         <span className={cn("grid size-5 place-items-center rounded-full border bg-muted text-foreground", hit && "border-risk bg-risk text-white")}>{n}</span>{title}
       </span>
       {children}
@@ -73,17 +73,17 @@ function AttackReplay({ attack }: { attack: Attack }) {
         </div>
       </div>
       <div className="grid md:grid-cols-4">
-        <Stage n={1} title="The outsider knows"><Facts facts={A.known} table={A.table} /><span className="text-[13px] text-muted-foreground">from a public register, social media or a leaked list</span></Stage>
+        <Stage n={1} title="The outsider knows"><Facts facts={A.known} table={A.table} /><span className="text-sm text-muted-foreground">from a public register, social media or a leaked list</span></Stage>
         <Stage n={2} title={`Searches ${A.table}`} hit={hit}>
           <span className={cn("big-number text-3xl", hit && "text-risk")}>{hit ? "1 person" : `${fmt(A.matches)} people`}</span>
-          <span className="text-[13px] text-muted-foreground">of {fmt(A.rows)} records fit all {facts} facts</span>
+          <span className="text-sm text-muted-foreground">of {fmt(A.rows)} records fit all {facts} facts</span>
         </Stage>
         <Stage n={3} title="Learns who it is" hit={hit}>
-          {Object.keys(A.revealed).length ? <Facts facts={A.revealed} table={A.table} tone="risk" /> : <span className="text-[13px] text-muted-foreground">No single person: the facts fit {fmt(A.matches)} people.</span>}
+          {Object.keys(A.revealed).length ? <Facts facts={A.revealed} table={A.table} tone="risk" /> : <span className="text-sm text-muted-foreground">No single person: the facts fit {fmt(A.matches)} people.</span>}
         </Stage>
         <Stage n={4} title="Unlocks through keys" hit={hit && total > 0}>
-          {hit ? <><span className="big-number text-3xl text-risk">{fmt(total)}</span><span className="text-[13px] text-muted-foreground">records about this person</span>
-            <Facts facts={Object.fromEntries(linked.map(([t, r]) => [t, fmt(r)]))} table="" /></> : <span className="text-[13px] text-muted-foreground">Nothing certain to unlock.</span>}
+          {hit ? <><span className="big-number text-3xl text-risk">{fmt(total)}</span><span className="text-sm text-muted-foreground">records about this person</span>
+            <Facts facts={Object.fromEntries(linked.map(([t, r]) => [t, fmt(r)]))} table="" /></> : <span className="text-sm text-muted-foreground">Nothing certain to unlock.</span>}
         </Stage>
       </div>
       <Verdict tone={hit ? "risk" : "safe"} badge={hit ? "Re-identified" : "Not singled out"}>
@@ -123,7 +123,7 @@ function Trail({ attack }: { attack: Attack }) {
         return <div key={k} className="flex flex-col border-b border-dashed border-risk/25 py-1 text-[12.5px]"><span className="font-mono text-[11px] text-muted-foreground">{k}</span>
           <b className={cn("font-semibold [overflow-wrap:anywhere]", ROLE_TONE[role(h.table, k)] ?? "")}>{shown(h.table, k, vals)}{more}</b></div>;
       })}
-      {!Object.keys(h.learnt).length && <span className="text-[13px] text-muted-foreground">nothing telling beyond the link</span>}
+      {!Object.keys(h.learnt).length && <span className="text-sm text-muted-foreground">nothing telling beyond the link</span>}
     </div>
   );
   return (
@@ -208,7 +208,7 @@ function Details({ scan }: { scan: Scan }) {
 
 function ExposureCard({ t }: { t: TableExposure }) {
   const chips = (cols: string[], v: "risk" | "warn" | "safe") => cols.map(c => <Badge key={c} variant={v} className="font-mono">{c}</Badge>);
-  const row = (label: string, cols: string[], v: "risk" | "warn" | "safe") => cols.length > 0 && <div className="flex flex-wrap items-center gap-1 text-[13px] text-muted-foreground">{label}: {chips(cols, v)}</div>;
+  const row = (label: string, cols: string[], v: "risk" | "warn" | "safe") => cols.length > 0 && <div className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">{label}: {chips(cols, v)}</div>;
   return (
     <div className={cn("flex flex-col gap-3 rounded-xl border bg-muted p-4", t.unique_share >= 0.5 && "border-risk/50")}>
       <div className="flex flex-wrap items-center justify-between gap-2"><b className="min-w-0 break-all font-mono">{t.table}</b>{t.special_category && <Badge variant="risk">GDPR Art. 9</Badge>}</div>

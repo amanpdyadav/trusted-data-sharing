@@ -7,7 +7,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        display: ['"Archivo"', '"Arial Narrow"', "Arial", "sans-serif"],
+        display: ['"Archivo Variable"', '"Archivo"', "Arial", "sans-serif"],
         sans: ['"IBM Plex Sans"', '"Segoe UI"', "Arial", "sans-serif"],
         mono: ['"IBM Plex Mono"', "ui-monospace", "Menlo", "monospace"],
       },

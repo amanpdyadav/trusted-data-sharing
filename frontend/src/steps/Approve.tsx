@@ -89,10 +89,10 @@ function LeavesStays({ recipient }: { recipient: string }) {
     <>
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="flex flex-col gap-1 border-l-[5px] border-l-safe p-4"><span className="eyebrow text-safe">↗ Leaves your organisation</span>
-          <b className="font-display text-[22px] font-extrabold">{plural(leaving.length, "table")}{view.plan.aggregates.length && !planTables(view.plan).length ? " as counts" : ""}, {plural(fieldsOut, "field")}</b>
+          <b className="font-display text-[22px] font-bold">{plural(leaving.length, "table")}{view.plan.aggregates.length && !planTables(view.plan).length ? " as counts" : ""}, {plural(fieldsOut, "field")}</b>
           <span className="text-sm text-muted-foreground">to {recipient}{view.scenario?.purpose ? ` · ${view.scenario.purpose}` : ""}</span></Card>
         <Card className="flex flex-col gap-1 border-l-[5px] border-l-ok p-4"><span className="eyebrow text-ok">🏠 Stays on this computer</span>
-          <b className="font-display text-[22px] font-extrabold">{plural(staying.length, "table")} not shared{removed ? `, ${plural(removed, "field")} removed` : ""}</b>
+          <b className="font-display text-[22px] font-bold">{plural(staying.length, "table")} not shared{removed ? `, ${plural(removed, "field")} removed` : ""}</b>
           <span className="text-sm text-muted-foreground">plus the original data, the row maps and the secret key</span></Card>
       </div>
       <div className="grid items-start gap-4 md:grid-cols-[minmax(240px,320px)_minmax(0,1fr)]">

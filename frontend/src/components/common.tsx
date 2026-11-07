@@ -40,7 +40,7 @@ export function Kpi({ tone = "none", value, label }: { tone?: keyof typeof TONE;
   return (
     <Card className={cn("relative flex flex-col gap-1.5 overflow-hidden p-4 pl-5 before:absolute before:inset-y-0 before:left-0 before:w-1", TONE[tone])}>
       <div className="big-number flex flex-wrap items-baseline gap-2 text-[34px] leading-none">{value}</div>
-      <div className="text-[13px] text-muted-foreground">{label}</div>
+      <div className="text-sm text-muted-foreground">{label}</div>
     </Card>
   );
 }
@@ -64,7 +64,7 @@ export function Facts({ facts, table, tone }: { facts: Record<string, string>; t
       {Object.entries(facts).map(([k, v]) => (
         <div key={k} className="flex min-w-0 justify-between gap-3 border-b border-dashed py-1 text-[13px]">
           <span className="truncate font-mono text-xs text-muted-foreground">{k}</span>
-          <b className={cn("text-right font-semibold [overflow-wrap:anywhere]", tone === "risk" && "text-risk", tone === "safe" && "text-safe", !tone && ROLE_TONE[role(table, k)])}>
+          <b className={cn("text-right font-semibold tabular-nums [overflow-wrap:anywhere]", tone === "risk" && "text-risk", tone === "safe" && "text-safe", !tone && ROLE_TONE[role(table, k)])}>
             {clip(shown(table, k, v), 80) || "–"}
           </b>
         </div>
