@@ -22,6 +22,7 @@ from pets_transformer import __version__
 from pets_transformer.aggregate import EpsilonLedger
 from pets_transformer.config import Settings
 from pets_transformer.contracts import CONTRACTS, Contract, DetectionReport, Plan, RecordSpans, Technique
+from pets_transformer.detect.needs import annotate_needs
 from pets_transformer.detect.rules import detect_source
 from pets_transformer.envfile import load_env_file
 from pets_transformer.keys import DerivedKeyProvider, KeyScope, MissingKeyError
@@ -108,7 +109,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 def cmd_detect(args: argparse.Namespace) -> int:
     settings = Settings.from_env()
     source = open_source(args.source or f"csv:{settings.package_root / 'data' / args.dataset}")
-    report = detect_source(source, args.dataset)
+    report = annotate_needs(detect_source(source, args.dataset), load_scenarios(settings.scenario_dirs).values())
     report.save(args.out)
     counts: dict[str, int] = {}
     for c in report.columns:
