@@ -100,6 +100,9 @@ sharing. The Mosaic attack screen shows its synthetic people as they are, becaus
 
 Screen-by-screen details: [USER_GUIDE.md](USER_GUIDE.md).
 
+**Receivers:** the receiver step shows only receivers whose tables your data has. All 27 challenge scenarios exist
+(25 generated); which are ready and which need tuning: [RECEIVERS.md](RECEIVERS.md).
+
 ---
 
 ## 2. The same steps on the command line
