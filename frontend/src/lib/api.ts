@@ -50,7 +50,7 @@ export interface PlanVersions { current: number; versions: PlanVersion[] }
 export interface PlanCompare { changes: { what: string; before: string; after: string }[]; yaml_a: string; yaml_b: string }
 export interface Tradeoff { k: { k: number; guess_chance: number; cells_kept: number; current: boolean }[]; epsilon: { epsilon: number; mean_error: number | null; current: boolean }[] }
 export interface Example { tables: { table: string; renamed: Dict; rows: { raw: Dict; after: Dict }[] }[] }
-export interface Compare { receivers: Receiver[]; rows: ({ table: string; column: string; role: string } & Dict)[] }
+export interface Compare { receivers: Receiver[]; rows: ({ table: string; column: string; role: string } & Dict)[]; left_out: { id: string; recipient: string; reason: string }[] }
 export interface ColumnChange { column: string; released_as: string | null; technique: string; filled_before: number; filled_after: number; distinct_before: number; distinct_after: number; top_after: [string, number][] }
 export interface Lookalikes { rows: number; unique_share: number; guess_chance: number; buckets: Record<string, number> }
 export interface Results {

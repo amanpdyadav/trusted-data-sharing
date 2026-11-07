@@ -483,10 +483,29 @@ class App:
         return out
 
     def compare(self, s: Session, scenario_ids: list[str]) -> dict[str, Any]:
-        """The same columns under different receivers: what each one would get."""
+        """The same columns under different receivers: what each one would get.
+
+        Only receivers that fit this data are compared. One made for other data (it asks for tables this dataset
+        does not have) or whose request the data cannot meet is listed under `left_out` with the reason, so one
+        unfit receiver never breaks the comparison of the others.
+        """
         det = _need(s.detections, "scan the data first")
         found = load_scenarios(self.settings.scenario_dirs)
-        plans = {i: self.policy().plan(det, found[i]) for i in scenario_ids if i in found}
+        have = set(s.tables())
+        plans: dict[str, Plan] = {}
+        left_out: list[dict[str, str]] = []
+        for i in scenario_ids:
+            if i not in found:
+                continue
+            missing = sorted(_receiver_tables(found[i]) - have)
+            if missing:
+                reason = f"made for the {found[i].dataset.replace('_', ' ')} data; needs {', '.join(missing)}"
+                left_out.append({"id": i, "recipient": found[i].recipient, "reason": reason})
+                continue
+            try:
+                plans[i] = self.policy().plan(det, found[i])
+            except ValueError as exc:
+                left_out.append({"id": i, "recipient": found[i].recipient, "reason": str(exc)})
         if s.plan is not None and s.scenario is not None:
             plans[s.scenario.id] = s.plan
         rows = []
@@ -495,7 +514,8 @@ class App:
             for sid, p in plans.items():
                 row[sid] = _technique(p, c.table, c.column)
             rows.append(row)
-        return {"receivers": [_scenario_card(found.get(i) or s.scenario) for i in plans], "rows": rows}  # type: ignore[arg-type]
+        receivers = [_scenario_card(found.get(i) or s.scenario) for i in plans]  # type: ignore[arg-type]
+        return {"receivers": receivers, "rows": rows, "left_out": left_out}
 
     # ------------------------------------------------------------ downloads
     def sessions(self) -> list[dict[str, Any]]:
@@ -615,14 +635,18 @@ def _summary(
     }  # fmt: skip
 
 
+def _receiver_tables(s: Scenario) -> set[str]:
+    """The tables a receiver asks for: the app offers it only for data that has all of them."""
+    return {n.table for n in s.needs if n.table} | {st.table for st in s.statistics}
+
+
 def _scenario_card(s: Scenario) -> dict[str, Any]:
     return {
         "id": s.id, "title": s.title, "recipient": s.recipient, "purpose": s.purpose, "dataset": s.dataset,
         "trust_level": s.trust_level.value, "kind": "statistics" if s.statistics and not s.needs else "rows",
         "legal_context": s.legal_context, "needs": [n.model_dump() for n in s.needs],
         "statistics": [st.name for st in s.statistics], "k": s.targets.k, "epsilon": s.targets.epsilon,
-        # the tables this receiver asks for: the app offers the receiver only for data that has all of them
-        "tables": sorted({n.table for n in s.needs if n.table} | {st.table for st in s.statistics}),
+        "tables": sorted(_receiver_tables(s)),
     }  # fmt: skip
 
 

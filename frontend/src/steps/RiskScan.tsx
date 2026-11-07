@@ -206,25 +206,67 @@ function ExposureCard({ t }: { t: TableExposure }) {
   );
 }
 
+/** Groups for what one person's records give away, in the same colours as the rest of the scan. */
+const PERSON_GROUPS: { title: string; roles: string[]; tone: "risk" | "warn" | "safe" | "outline" }[] = [
+  { title: "Identifies the person", roles: ["direct_identifier"], tone: "risk" },
+  { title: "An outsider may know", roles: ["quasi_identifier"], tone: "warn" },
+  { title: "Sensitive", roles: ["sensitive_attribute"], tone: "safe" },
+  { title: "Free text", roles: ["free_text"], tone: "risk" },
+  { title: "Codes and other details", roles: [], tone: "outline" },
+];
+
 function PersonFile({ person }: { person: Record<string, Record<string, string>[]> }) {
-  const shown = useShown(), role = useRole(), tables = Object.keys(person ?? {});
+  const tables = Object.keys(person ?? {});
   if (!tables.length) return <p className="text-sm text-muted-foreground">No person key found, so records cannot be gathered per person.</p>;
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-muted-foreground">One person picked the way an attacker would: someone with several records. Red identifies, amber is what an outsider may already know, blue is sensitive.</p>
+      <p className="text-sm text-muted-foreground">One person picked the way an attacker would: someone with several records. Facts that are the same in every record are shown once, grouped by what they give away; below them, what changes from record to record.</p>
       <Accordion type="multiple" defaultValue={[tables[0]]} className="flex flex-col gap-2">
-        {tables.map(t => (
-          <AccordionItem key={t} value={t}>
-            <AccordionTrigger right={plural(person[t].length, "record")}><b className="font-mono">{t}</b></AccordionTrigger>
-            <AccordionContent>{person[t].map((r, i) => (
-              <div key={i} className="flex flex-wrap gap-x-3.5 gap-y-1 rounded-lg border bg-muted px-3 py-2.5 text-[13px]">
-                {Object.entries(r).map(([k, v]) => <span key={k} className={cn("[overflow-wrap:anywhere]", ROLE_TONE[role(t, k)])}><b className="mr-1 font-mono text-[11px] font-medium text-muted-foreground">{k}</b>{shown(t, k, clip(v, 160))}</span>)}
-              </div>))}
-            </AccordionContent>
-          </AccordionItem>
-        ))}
+        {tables.map(t => <PersonTable key={t} table={t} records={person[t]} />)}
       </Accordion>
     </div>
+  );
+}
+
+function PersonTable({ table, records }: { table: string; records: Record<string, string>[] }) {
+  const shown = useShown(), role = useRole();
+  const cols = [...new Set(records.flatMap(r => Object.keys(r)))];
+  const same = records.length > 1 ? cols.filter(c => records.every(r => (r[c] ?? "") === (records[0][c] ?? ""))) : cols;
+  const varies = cols.filter(c => !same.includes(c));
+  const known = PERSON_GROUPS.flatMap(g => g.roles);
+  const groups = PERSON_GROUPS.map(g => ({ ...g, cols: same.filter(c => (g.roles.length ? g.roles.includes(role(table, c)) : !known.includes(role(table, c)))) })).filter(g => g.cols.length);
+  const exposing = same.filter(c => ["direct_identifier", "quasi_identifier"].includes(role(table, c))).length;
+  return (
+    <AccordionItem value={table}>
+      <AccordionTrigger right={<>{plural(records.length, "record")}{exposing ? <span className="text-risk"> · {exposing} identifying facts in every one</span> : null}</>}><b className="font-mono">{table}</b></AccordionTrigger>
+      <AccordionContent className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
+          <span className="eyebrow text-muted-foreground">{records.length > 1 ? `The same in all ${records.length} records` : "The record"}</span>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-3">
+            {groups.map(g => (
+              <div key={g.title} className={cn("flex flex-col gap-2 rounded-xl border bg-muted p-4", g.tone === "risk" && "border-risk/40")}>
+                <div className="flex items-center justify-between gap-2"><b className="text-sm">{g.title}</b><Badge variant={g.tone}>{g.cols.length}</Badge></div>
+                <Facts table={table} facts={Object.fromEntries(g.cols.map(c => [c, clip(records[0][c] ?? "", 44)]))} />
+              </div>
+            ))}
+          </div>
+        </div>
+        {varies.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <span className="eyebrow text-muted-foreground">What changes from record to record</span>
+            <TableWrap>
+              <table className="w-full border-collapse">
+                <thead><tr><Th>#</Th>{varies.map(c => <Th key={c} className={ROLE_TONE[role(table, c)]}>{c}</Th>)}</tr></thead>
+                <tbody>{records.map((r, i) => (
+                  <tr key={i}><Td className="tabular-nums text-muted-foreground">{i + 1}</Td>
+                    {varies.map(c => { const v = shown(table, c, r[c] ?? ""); return <Td key={c} className={cn("whitespace-nowrap", ROLE_TONE[role(table, c)])} title={clip(v, 600)}>{clip(v, 40) || "–"}</Td>; })}</tr>
+                ))}</tbody>
+              </table>
+            </TableWrap>
+          </div>
+        )}
+      </AccordionContent>
+    </AccordionItem>
   );
 }
 

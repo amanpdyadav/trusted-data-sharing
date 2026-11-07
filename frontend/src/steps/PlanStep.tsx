@@ -81,6 +81,12 @@ function PlanResult() {
         <summary className="cursor-pointer font-medium text-muted-foreground">Compare with other receivers</summary>
         <div className="mt-3 flex flex-col gap-3">
           {busy && <Spinner />}
+          {compare && compare.left_out.length > 0 && (
+            <details className="text-sm text-muted-foreground">
+              <summary className="cursor-pointer">{plural(compare.left_out.length, "receiver")} left out: made for other data or asking for what this data does not have</summary>
+              <ul className="mt-2 flex flex-col gap-1 pl-4">{compare.left_out.map(x => <li key={x.id} className="list-disc"><b className="font-medium text-foreground">{x.recipient}</b> ({x.id}): {x.reason}</li>)}</ul>
+            </details>
+          )}
           {compare && <TableWrap><table className="w-full border-collapse">
             <thead><tr><Th>Column</Th>{compare.receivers.map(r => <Th key={r.id}>{r.recipient}</Th>)}</tr></thead>
             <tbody>{compare.rows.filter(r => compare.receivers.some(x => r[x.id] !== "withheld")).map(r => (
