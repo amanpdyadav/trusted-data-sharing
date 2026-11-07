@@ -431,3 +431,14 @@ div.col { display: flex; flex-direction: column; gap: 10px; }
 .gedge .gl { font: 500 10.5px var(--mono, monospace); fill: var(--muted); }
 .gedge.on .gl { fill: var(--ink); } .gedge.broken .gl { fill: var(--safe); }
 @media (prefers-reduced-motion: reduce) { .gnode rect { transition: none; } }
+/* the attacker's dossier as a data mapping: one block per dataset reached, newest on top */
+.dossier { display: flex; flex-direction: column; gap: 10px; }
+.dblock { border: 1px solid var(--line); border-left: 4px solid var(--risk); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; background: var(--surface); }
+.dblock.pub { border-left-color: var(--safe); }
+.dblock.latest { background: var(--risk-soft); box-shadow: var(--shadow); animation: dnew .6s ease; }
+.dblock.latest.pub { background: var(--safe-soft); }
+.dblock .fact { padding: 2px 0; border-top: 1px dashed var(--line); }
+.dblock .fact.repeat { opacity: .55; }
+.dblock .fact b { overflow-wrap: anywhere; text-align: right; }
+@keyframes dnew { from { transform: translateY(-4px); opacity: .4; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .dblock.latest { animation: none; } }

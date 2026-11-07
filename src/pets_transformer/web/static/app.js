@@ -671,7 +671,20 @@ function mosaicView() {
     const shownFunnel = (st.funnel || []).slice(0, Math.max(rowsShown, 1));
     const left = shownFunnel.length ? shownFunnel[shownFunnel.length - 1][1] : null;
     const stepDone = rowsShown >= (st.funnel?.length || 0);  // a step's facts appear once its funnel has narrowed fully
-    const known = Object.assign({}, ...chain.slice(0, stepDone ? si + 1 : si).map(x => x.revealed || {}));
+    const reached = chain.slice(0, stepDone ? si + 1 : si);
+    // the attacker's dossier as a mapping: one block per dataset reached, how it was joined, what it added (newest on top)
+    const val = v => esc(S.mask ? maskValue(v) : v);
+    const newFact = (k, i) => !chain.slice(0, i).some(x => x.revealed && k in x.revealed);
+    const dossier = reached.map((x, i) => ({ x, i })).reverse().map(({ x, i }) => {
+      const facts = Object.entries(x.revealed || {});
+      const latest = i === reached.length - 1;
+      return `<div class="dblock ${latest ? "latest" : ""} ${x.kind === "public" ? "pub" : ""}">
+        <div class="row between"><b>${i + 1}. ${esc(x.dataset)}</b><span class="tag ${x.kind === "public" ? "safe" : "risk"}">${x.kind === "public" ? "public" : x.kind === "release" ? "names removed" : "if shared"}</span></div>
+        ${i > 0 && x.link ? `<span class="small">joined on <b>${esc(x.link)}</b>${x.verified ? " · verified" : ""}</span>` : `<span class="small">read from the ${x.id === "news" ? "news clip" : "post"}</span>`}
+        ${facts.map(([k, v]) => `<div class="row between fact ${newFact(k, i) ? "" : "repeat"}"><span class="small">${esc(k)}</span><b>${val(v)}</b></div>`).join("")}
+      </div>`;
+    }).join("");
+    const factCount = new Set(reached.flatMap(x => Object.keys(x.revealed || {}))).size;
     const nav = `<div class="row"><button class="btn" data-mtick="back" ${t === 0 ? "disabled" : ""}>Back</button>
       <button class="btn primary" data-mtick="next" ${t >= ticks.length - 1 ? "disabled" : ""}>Next ${si === 0 || st.id === "ed" ? "clue" : "link"}</button>
       <button class="btn" data-mtick="play">${S.mplay ? "Stop" : "Play"}</button><button class="btn" data-mtick="restart">Restart</button>
@@ -684,7 +697,8 @@ function mosaicView() {
           ${st.verified ? `<span class="tag ok">verified against ground truth</span>` : ""}</div>
         <div class="panel"><span class="eyebrow">What the attacker now knows</span>
           ${left != null ? `<div class="bignum risk">${fmt(left)}</div><p class="small">${left === 1 ? "record left: one person" : "records still fit"}</p>` : ""}
-          ${Object.entries(known).map(([k, v]) => `<div class="row between"><span class="small">${esc(k)}</span><b>${esc(S.mask ? maskValue(v) : v)}</b></div>`).join("") || `<p class="small">Only the post.</p>`}</div></div>`;
+          <p class="small">${plural(factCount, "fact")} from ${plural(reached.length, "source")}${S.mmode === "names" ? ", with names removed everywhere" : ""}</p>
+          <div class="dossier">${dossier || `<p class="small">Nothing yet.</p>`}</div></div></div>`;
   }
   return head(0, "Mosaic attack", "Pick a public post or a news clip and follow it across datasets, one clue at a time. Switch the mode to see what removing names does, and what our release does.")
     + `<div class="panel flat">${picker}</div>` + body;
