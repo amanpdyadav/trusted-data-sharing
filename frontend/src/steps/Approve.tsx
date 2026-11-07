@@ -81,7 +81,7 @@ function LeavesStays({ recipient }: { recipient: string }) {
   const leaving = all.filter(x => x.kind !== "stays"), staying = all.filter(x => x.kind === "stays");
   const fieldsOut = leaving.reduce((n, x) => n + x.out, 0), removed = leaving.reduce((n, x) => n + x.fields.length - x.out, 0);
   const shown = all.filter(x => sel.has(x.table));
-  const badge = (x: TableFate) => x.kind === "shared" ? <Badge variant="safe">{x.out} of {x.fields.length} shared</Badge> : x.kind === "counts" ? <Badge variant="ok">counts only</Badge> : <Badge>not shared</Badge>;
+  const badge = (x: TableFate) => x.kind === "shared" ? <Badge variant="safe">{x.out} of {x.fields.length} shared</Badge> : x.kind === "counts" ? <Badge variant="ok">counts only</Badge> : <Badge>🏠 0 of {x.fields.length} shared</Badge>;
   const toggle = (t: string, on: boolean) => { const s = new Set(sel); on ? s.add(t) : s.delete(t); setSelected(s); };
   const [openTables, setOpenTables] = useState<string[] | null>(null);
   const open = openTables ?? shown.filter(x => x.kind !== "stays").map(x => x.table);
@@ -121,10 +121,8 @@ function LeavesStays({ recipient }: { recipient: string }) {
                 <AccordionItem key={x.table} value={x.table} className={cn("border-t-4 shadow-sm", x.kind === "shared" ? "border-t-safe" : x.kind === "counts" ? "border-t-ok" : "border-t-input")}>
                   <AccordionTrigger right={badge(x)}><b className="font-mono">{x.table}</b></AccordionTrigger>
                   <AccordionContent>
-                    {x.kind === "stays" ? <>
-                      <p className="text-sm text-muted-foreground">This table is not shared. All {plural(x.fields.length, "field")} stay here:</p>
-                      <div className="flex flex-wrap gap-1.5">{x.fields.map(f => <Badge key={f.column} className="font-mono">{f.column}</Badge>)}</div>
-                    </> : (
+                    {x.kind === "stays" && <p className="text-sm text-muted-foreground">This table is not part of the request, so all {plural(x.fields.length, "field")} stay here.</p>}
+                    {(
                       <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-1.5">
                         {x.fields.map(f => (
                           <div key={f.column} title={f.why} className={cn("flex min-w-0 items-center justify-between gap-2.5 rounded-lg border bg-muted px-2.5 py-2 text-[13px]", f.cls === "drop" && "opacity-75")}>

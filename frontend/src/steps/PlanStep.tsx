@@ -141,7 +141,11 @@ function StaysHereTables({ tables, reason }: { tables: string[]; reason: string 
         <AccordionTrigger right={`0 of ${cols.length} columns shared`}><b className="font-mono">{t}</b><Badge>🏠 not shared</Badge></AccordionTrigger>
         <AccordionContent>
           <p className="text-sm text-muted-foreground">{reason}</p>
-          <div className="flex flex-wrap gap-1.5">{cols.map(c => <span key={c.column} className="rounded-lg border bg-card px-2 py-1 font-mono text-[12.5px] text-muted-foreground">{c.column}</span>)}</div>
+          {/* the same lane box as the shared tables, with every column in "Stays here" */}
+          <div className="flex min-h-[92px] flex-wrap content-start gap-1.5 rounded-xl border border-t-[3px] border-t-input bg-muted p-2.5">
+            <div className="mb-0.5 flex basis-full items-center gap-1.5 text-[13px] font-semibold"><span>🏠</span>Stays here<b className="ml-auto font-mono text-xs text-muted-foreground">{cols.length}</b></div>
+            {cols.map(c => <span key={c.column} className="max-w-full truncate rounded-lg border bg-card px-2 py-1 font-mono text-[12.5px] text-muted-foreground">{c.column}</span>)}
+          </div>
         </AccordionContent>
       </AccordionItem>
     );
