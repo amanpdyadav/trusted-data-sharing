@@ -39,3 +39,6 @@ outputs/
 .claude/
 web/node_modules/
 web/dist/
+
+# Generated screen data (python -m evaluation screens)
+results/screens/

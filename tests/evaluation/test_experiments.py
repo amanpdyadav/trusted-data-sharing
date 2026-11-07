@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 @pytest.fixture
 def base() -> Plan:
-    return Plan.load(ROOT / "plans" / "health-s1.yaml")
+    return Plan.load(ROOT / "plans" / "health-s1.v2.yaml")  # the approved version 2 these experiments started from
 
 
 def test_with_action_replaces_one_decision_and_keeps_everything_else(base: Plan) -> None:
