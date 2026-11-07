@@ -69,6 +69,7 @@ Use `--source csv:path/to/folder` with `detect` and `run` to read your own CSV f
 - [How it works](docs/HOW_IT_WORKS.md): the pipeline, the protections, the checks and the safety rules.
 - [Contributing](CONTRIBUTING.md): code layout, tests and how to add a new protection or detector.
 - [Requirements notes](NOTES_requirements.md): what the challenge asks for and the decisions we made.
+- [Presentation](presentation/PETs-Transformer.pptx): the 15-slide deck for a non-technical audience, built on real app screens (speaker notes included).
 
 ## Folders
 
