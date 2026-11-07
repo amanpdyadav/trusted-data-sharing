@@ -69,14 +69,29 @@ function ReceiverCard({ icon, title, text, gets, stats, selected, onClick, disab
 }
 
 function PlanResult() {
-  const P = useApp(s => s.plan!.plan), compare = useApp(s => s.compare), busy = useApp(s => s.busy === "compare");
+  const view = useApp(s => s.plan!), P = view.plan, compare = useApp(s => s.compare), busy = useApp(s => s.busy === "compare");
+  const reviews = view.reviews.length;
   return (
     <>
-      {P.actions.length > 0 && <Board />}
-      {P.aggregates.length > 0 && <CountsBoard />}
       {P.actions.length > 0 && <ExampleRecord />}
       <ProtectionLevel />
-      <PlanVersionsPanel />
+      {reviews > 0 && (
+        <div className="flex items-center gap-2 rounded-xl border border-warn/45 bg-warn-soft px-4 py-3 text-sm">
+          <AlertTriangle className="size-4 text-warn" />
+          <span><b>{plural(reviews, "column")} need{reviews === 1 ? "s" : ""} a decision</b> — open “Adjust columns” below.</span>
+        </div>
+      )}
+      {P.aggregates.length > 0 && <CountsBoard />}
+      {P.actions.length > 0 && (
+        <details className="rounded-2xl border bg-card px-5 py-3" open={reviews > 0}>
+          <summary className="cursor-pointer font-medium text-muted-foreground">Adjust columns{reviews > 0 ? ` (${reviews} need a decision)` : ""}</summary>
+          <div className="mt-3"><Board /></div>
+        </details>
+      )}
+      <details className="rounded-2xl border bg-card px-5 py-3">
+        <summary className="cursor-pointer font-medium text-muted-foreground">Plan versions</summary>
+        <div className="mt-3"><PlanVersionsPanel /></div>
+      </details>
       <details className="rounded-2xl border bg-card px-5 py-3" onToggle={e => (e.target as HTMLDetailsElement).open && !compare && loadCompare()}>
         <summary className="cursor-pointer font-medium text-muted-foreground">Compare with other receivers</summary>
         <div className="mt-3 flex flex-col gap-3">
@@ -112,7 +127,7 @@ function Board() {
       <TabsContent value="board" className="flex flex-col gap-4">
       {view.reviews.length > 0 && <div className="flex items-center gap-2 rounded-xl border border-warn/45 bg-warn-soft px-4 py-3 text-sm"><AlertTriangle className="size-4 text-warn" />
         <span><b>{plural(view.reviews.length, "column")} need{view.reviews.length === 1 ? "s" : ""} a person's decision</b>: click {view.reviews.length === 1 ? "it" : "them"} below and choose.</span></div>}
-      <Accordion type="multiple" defaultValue={tables.filter((t, i) => i < 3 || flagged(t))} className="flex flex-col gap-2">
+      <Accordion type="multiple" defaultValue={tables.filter((t, i) => flagged(t) || i === 0)} className="flex flex-col gap-2">
         {tables.map(t => {
           const acts = P.actions.filter(a => a.table === t), shared = acts.filter(a => a.technique !== "drop").length;
           return (

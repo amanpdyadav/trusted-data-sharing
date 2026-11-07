@@ -34,7 +34,7 @@ function MosaicBoard({ data }: { data: Mosaic }) {
   const [kind, setKind] = useState<"post" | "news">("post");
   const [caseId, setCaseId] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("names");
-  const [tick, setTick] = useState<number | null>(null);
+  const [tick, setTick] = useState(0); // start at the first clue — do not spoil the ending
   const [playing, setPlaying] = useState(false);
   const ofKind = useMemo(() => data.cases.filter(c => c.kind === kind), [data, kind]);
   const c: MosaicCase = ofKind.find(x => x.id === caseId) ?? ofKind[0] ?? data.cases[0];
@@ -42,7 +42,8 @@ function MosaicBoard({ data }: { data: Mosaic }) {
   const activeMode: Mode = mode === "raw" && !c.raw.length ? "names" : mode;
   const chain = activeMode === "ours" ? [] : c[activeMode];
   const ticks = useMemo(() => ticksOf(chain), [chain]);
-  const t = tick == null || tick >= ticks.length ? ticks.length - 1 : tick;
+  const t = ticks.length ? Math.min(tick, ticks.length - 1) : 0;
+  const finished = activeMode === "ours" || (ticks.length > 0 && t >= ticks.length - 1);
 
   useEffect(() => {
     if (!playing) return;
@@ -54,21 +55,22 @@ function MosaicBoard({ data }: { data: Mosaic }) {
 
   return (
     <>
-      <PageHead title="Mosaic attack" lede="One public post or news clip, followed across eight organisations' data. Removing names is not enough: everyday facts single a person out, and every shared key opens the next dataset. Our release breaks the chain at the first step." />
-      {data.summary && <Headline s={data.summary} />}
+      <PageHead title="Mosaic attack" lede="Follow one public scrap across organisations. Press Play — the ending comes after the walk-through." />
       <Card className="flex flex-col gap-3 p-4">
         <div className="flex flex-wrap items-center gap-3">
           <ToggleGroup type="single" value={kind} onValueChange={v => { if (v) { setKind(v as "post" | "news"); setCaseId(null); reset(); } }}>
-            <ToggleGroupItem value="post" title={`${counts.post} of the posts that lead to one patient, richest chains first`}>Public posts <span className="ml-1 font-mono text-xs opacity-70">{counts.post}</span></ToggleGroupItem>
-            <ToggleGroupItem value="news" title={`${counts.news} of the news clips that lead to one patient, richest chains first`}>News clips <span className="ml-1 font-mono text-xs opacity-70">{counts.news}</span></ToggleGroupItem>
+            <ToggleGroupItem value="post">Public posts <span className="ml-1 font-mono text-xs opacity-70">{counts.post}</span></ToggleGroupItem>
+            <ToggleGroupItem value="news">News clips <span className="ml-1 font-mono text-xs opacity-70">{counts.news}</span></ToggleGroupItem>
           </ToggleGroup>
           <Select aria-label="Pick a scrap" value={c.id} onChange={e => { setCaseId(e.target.value); reset(); }} className="min-w-0 flex-1 basis-64 px-3">
             {ofKind.map(x => <option key={x.id} value={x.id}>{x.id} · {clip(x.label, 24)}: {clip(x.text, 60)}</option>)}
           </Select>
         </div>
-        <p className="-mt-1 text-xs text-muted-foreground">Pick one to follow: the {data.cases.length} richest chains are listed.</p>
-        <ModeCards c={c} mode={activeMode} onPick={m => { setMode(m); reset(); }} />
-        <p className="text-xs text-muted-foreground">All people are synthetic and shown as they appear in the data, to show how re-identification happens. ID codes, phone numbers and IBANs are partly masked. Built {when(data.created_utc)}.</p>
+        <ToggleGroup type="single" value={activeMode} onValueChange={v => { if (v) { setMode(v as Mode); reset(); } }} className="justify-start">
+          {!!c.raw.length && <ToggleGroupItem value="raw">Raw data</ToggleGroupItem>}
+          <ToggleGroupItem value="names">Names removed</ToggleGroupItem>
+          <ToggleGroupItem value="ours">Our release</ToggleGroupItem>
+        </ToggleGroup>
       </Card>
       {activeMode === "ours" ? <OursView c={c} /> : (() => {
         const [si, rowsShown] = ticks[t], st = chain[si];
@@ -78,14 +80,14 @@ function MosaicBoard({ data }: { data: Mosaic }) {
         const reached = chain.slice(0, stepDone ? si + 1 : si);
         return (
           <>
-            <LinkGraph chain={chain} upto={si} />
             <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={() => { if (!playing && t >= ticks.length - 1) setTick(0); setPlaying(!playing); }}>{playing ? <><Pause /> Stop</> : <><Play /> Play</>}</Button>
               <Button variant="outline" disabled={t === 0} onClick={() => { setPlaying(false); setTick(Math.max(0, t - 1)); }}><StepBack /> Back</Button>
-              <Button disabled={t >= ticks.length - 1} onClick={() => { setPlaying(false); setTick(t + 1); }}><StepForward /> Next {si === 0 || st.id === "ed" ? "clue" : "link"}</Button>
-              <Button variant="outline" onClick={() => { if (!playing && t >= ticks.length - 1) setTick(0); setPlaying(!playing); }}>{playing ? <><Pause /> Stop</> : <><Play /> Play</>}</Button>
+              <Button variant="outline" disabled={t >= ticks.length - 1} onClick={() => { setPlaying(false); setTick(t + 1); }}><StepForward /> Next</Button>
               <Button variant="outline" onClick={reset}><RotateCcw /> Restart</Button>
               <span className="text-sm text-muted-foreground">step {t + 1} of {ticks.length}</span>
             </div>
+            <LinkGraph chain={chain} upto={si} />
             <div className="grid gap-4 lg:grid-cols-2">
               <Card className={cn("flex flex-col gap-3 p-5", st.kind !== "public" && "border-risk/50")}>
                 <Badge variant={st.kind === "public" ? "safe" : "risk"} className="w-fit">{KIND_LABEL[st.kind]}</Badge>
@@ -102,6 +104,13 @@ function MosaicBoard({ data }: { data: Mosaic }) {
           </>
         );
       })()}
+      {finished && (
+        <>
+          <ModeCards c={c} mode={activeMode} onPick={m => { setMode(m); reset(); }} />
+          {data.summary && <Headline s={data.summary} />}
+          <p className="text-xs text-muted-foreground">Synthetic people shown as in the data. ID codes, phones and IBANs are partly masked. Built {when(data.created_utc)}.</p>
+        </>
+      )}
     </>
   );
 }

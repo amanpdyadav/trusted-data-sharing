@@ -23,11 +23,11 @@ export function ReleaseAudit() {
   const { data: bench, error: benchError } = useApi<ReceiversBenchmark>("/api/audit/receivers");
   return (
     <>
-      <PageHead title="Release audit" lede="Every release made here: who it was for, who approved it, what was done to each column, and what risk is left. And how the automatic planner does for each of the challenge's receivers." />
+      <PageHead title="Release audit" lede="Your releases first: approval, column decisions, attack before and after, residual risk. The challenge benchmark is a separate tab." />
       <Tabs defaultValue="releases">
         <TabsList>
           <TabsTrigger value="releases">Your releases <Badge>{releases?.length ?? "…"}</Badge></TabsTrigger>
-          <TabsTrigger value="receivers">Receivers benchmark <Badge>{bench?.rows.length ?? "…"}</Badge></TabsTrigger>
+          <TabsTrigger value="receivers">Challenge scoring <Badge>{bench?.rows.length ?? "…"}</Badge></TabsTrigger>
         </TabsList>
         <TabsContent value="releases">{releasesError ? <Failed error={releasesError} /> : releases ? <Releases items={releases} /> : <Spinner />}</TabsContent>
         <TabsContent value="receivers">{benchError ? <Failed error={benchError} /> : bench ? <Receivers bench={bench} /> : <Spinner />}</TabsContent>

@@ -1,8 +1,7 @@
-// Step 2: what could go wrong if the data were shared as it is. Headline numbers, the connection map, the attack
-// replay on one person and the trail through the tables, then the tabs in ScanDetails.
+// Step 2: lead with the attack on one person; connection map, KPIs and column details stay collapsed.
 import { ArrowDown, ArrowRight, Dices, Play } from "lucide-react";
 import type { ReactNode } from "react";
-import { Facts, Guide, Kpi, Kpis, PageHead, ProgressCard, Section, useRole, Verdict } from "@/components/common";
+import { Facts, Kpi, Kpis, PageHead, ProgressCard, useRole, Verdict } from "@/components/common";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -22,19 +21,25 @@ export function RiskScan() {
   const special = R.tables.filter(t => t.special_category).map(t => t.table);
   return (
     <>
-      <PageHead title={title} lede="Found from the data itself: which columns identify people, what outsiders could match, and how the tables connect." />
-      <Guide steps={["See how one person is found", "Follow the trail to see what leaks", "Fix any column labelled wrong, then choose a receiver"]} done={[true, true, false]} />
-      <Kpis>
-        <Kpi tone={worst.unique_share >= 0.5 ? "risk" : "warn"} value={pct(worst.unique_share)} label={<>of rows in <b>{worst.table}</b> can be singled out on facts an outsider may know</>} />
-        <Kpi tone={outside.length ? "risk" : "ok"} value={fmt(outside.length)} label="columns match public registers, social media or leaked lists" />
-        <Kpi tone={joined ? "warn" : "ok"} value={fmt(joined)} label={joined ? "tables joined by shared keys: one match unlocks the rest" : "tables joined: each table stands alone"} />
-        <Kpi tone={special.length ? "warn" : "ok"} value={special.length ? "Art. 9" : "none"} label={special.length ? `special category data (GDPR) in ${special.join(", ")}` : "special category data (GDPR)"} />
-      </Kpis>
-      <Section title="How your data connects" right={<Legend items={[["bg-input", "joined by a shared key"], ["bg-risk", "matchable from outside sources"]]} />}>
-        <div className="-mx-1 overflow-x-auto px-1"><ConnectionMap risk={R} /></div>
-      </Section>
+      <PageHead title={title} lede="Watch how a few everyday facts name one person — then open the detail only if you need it." />
       {scan.attack && <AttackReplay attack={scan.attack} />}
-      <Details scan={scan} />
+      <Kpis>
+        <Kpi tone={worst.unique_share >= 0.5 ? "risk" : "warn"} value={pct(worst.unique_share)} label={<>of rows in <b>{worst.table}</b> can be singled out</>} />
+        <Kpi tone={outside.length ? "risk" : "ok"} value={fmt(outside.length)} label="columns match outside sources" />
+        <Kpi tone={joined ? "warn" : "ok"} value={fmt(joined)} label={joined ? "tables joined by shared keys" : "tables stand alone"} />
+        {special.length > 0 && <Kpi tone="warn" value={fmt(special.length)} label={`table${special.length === 1 ? "" : "s"} with special-category data`} />}
+      </Kpis>
+      <details className="rounded-2xl border bg-card px-5 py-3">
+        <summary className="cursor-pointer font-medium text-muted-foreground">How your data connects</summary>
+        <div className="-mx-1 mt-3 overflow-x-auto px-1">
+          <Legend items={[["bg-input", "joined by a shared key"], ["bg-risk", "matchable from outside sources"]]} />
+          <ConnectionMap risk={R} />
+        </div>
+      </details>
+      <details className="rounded-2xl border bg-card px-5 py-3">
+        <summary className="cursor-pointer font-medium text-muted-foreground">Column details and one person's file</summary>
+        <div className="mt-3"><Details scan={scan} /></div>
+      </details>
     </>
   );
 }
@@ -87,8 +92,13 @@ function AttackReplay({ attack }: { attack: Attack }) {
         {hit ? `${facts} everyday facts are enough to name this person and open ${plural(total, "record")} across ${plural(linked.length, "table")}. This is the mosaic effect, and it is why the data cannot be shared as it is.`
           : `On these facts the person hides among ${fmt(A.matches)} people. Other columns may still expose them; see the tables below.`}
       </Verdict>
-      {hit && attack.trail && attack.trail.length > 0 && <Trail attack={attack} />}
       <AcrossOrganisations />
+      {hit && attack.trail && attack.trail.length > 0 && (
+        <details className="border-t border-dashed pt-3">
+          <summary className="cursor-pointer text-sm font-medium text-muted-foreground">Follow the trail through linked tables</summary>
+          <div className="mt-3"><Trail attack={attack} /></div>
+        </details>
+      )}
     </Card>
   );
 }
@@ -117,8 +127,8 @@ function Trail({ attack }: { attack: Attack }) {
     </div>
   );
   return (
-    <div className="flex flex-col gap-3 border-t border-dashed pt-4">
-      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">Follow the trail: what each table gives away</h3>
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">What each table gives away</h3>
         <span className="text-sm text-muted-foreground">{plural(trail.length, "table")} · {fmt(trail.reduce((n, h) => n + h.rows, 0))} records about one person</span></div>
       <div className="trail flex flex-col overflow-x-auto pb-1.5 md:flex-row md:items-stretch">
         <div className="flex shrink-0 flex-col gap-1.5 rounded-xl border bg-muted p-3.5 md:w-[220px]"><b>The outsider</b><Facts facts={attack.before.known} table={attack.before.table} /></div>

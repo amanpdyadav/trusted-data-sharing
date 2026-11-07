@@ -2,7 +2,7 @@
 // record and column by column, keep every release for download and comparison.
 import { ArrowLeft, ArrowRight, Download, Play, Plus } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { Facts, Guide, Kpi, Kpis, PageHead, useRole, Verdict } from "@/components/common";
+import { Facts, Kpi, Kpis, PageHead, useRole, Verdict } from "@/components/common";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,33 +37,34 @@ export function Release() {
   return (
     <>
       <PageHead title="Release and proof" lede={<><b className="text-foreground">{m.release_id}</b> for {m.recipient} · approved by {m.approved_by ?? "–"} · {when(m.created_at)}</>} />
-      <Guide steps={["Create the release", "Check the proof: the same attack should now fail", "Download it and send it to the receiver"]} done={[true, true, R.published]} />
       {viewing && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warn/40 bg-warn-soft px-4 py-2.5 text-sm">
         <span>Viewing an earlier release: <b>{m.release_id}</b>, made {when(m.created_at)}.</span>
         {history[0] && history[0].release_id !== m.release_id && <Button size="sm" variant="outline" onClick={() => viewRelease(history[0].release_id)}>Open the latest</Button>}</div>}
-      {plan?.plan.approved && !viewing && <div><Button variant="outline" onClick={() => setCreate(true)}><Plus /> New release…</Button></div>}
-      <Kpis>
-        {m.singled_out_after != null && <Kpi tone="safe" value={<>{pct(m.singled_out_after)} <s className="text-xl text-muted-foreground">{pct(m.singled_out_before)}</s></>} label="of people singled out on what an outsider knows (raw value struck through)" />}
-        {m.guess_chance_after != null && <Kpi tone="safe" value={pct(m.guess_chance_after, 1)} label="average chance an attacker picks the right person" />}
-        {kept != null && <Kpi tone={kept >= 0.8 ? "ok" : "warn"} value={pct(kept, 1)} label="of values in the released columns survive (the rest blanked for k)" />}
-        {m.epsilon != null && <Kpi tone="safe" value={`ε ${m.epsilon}`} label="privacy budget spent by the published statistics" />}
-        {A?.after && <Kpi tone={A.after.outcome === "identified" ? "risk" : "safe"} value={headline(A.after)} label="the replayed attack on the same person" />}
-      </Kpis>
       {A?.after && <Duel before={A.before} after={A.after} />}
-      <Proof R={R} />
       <Card className="flex flex-col gap-3 border-safe/45 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><span className="eyebrow">Download</span><h2 className="text-xl">{R.files.map(f => f.name).join(", ")} + manifest</h2></div>
-          <div className="flex gap-2"><Button variant="safe" onClick={askDownload}><Download /> Download release (.zip)</Button><Button variant="outline" asChild><a href={planHref()}>Approved plan</a></Button></div>
+          <div className="flex gap-2">
+            <Button variant="safe" onClick={askDownload}><Download /> Download release (.zip)</Button>
+            <Button variant="outline" asChild><a href={planHref()}>Approved plan</a></Button>
+            {plan?.plan.approved && !viewing && <Button variant="outline" onClick={() => setCreate(true)}><Plus /> New release…</Button>}
+          </div>
         </div>
-        <p className="text-sm text-muted-foreground">The zip holds only what may be shared. Row maps stay in the private folder on this computer.{m.epsilon != null && ` Downloading publishes the statistics and records ε ${m.epsilon} in the privacy budget ledger${R.published ? " (already recorded)" : ""}.`}</p>
+        <p className="text-sm text-muted-foreground">The zip holds only what may be shared. Row maps stay on this computer.{m.epsilon != null && ` Publishing spends ε ${m.epsilon}${R.published ? " (already recorded)" : ""}.`}</p>
       </Card>
+      <Kpis>
+        {m.singled_out_after != null && <Kpi tone="safe" value={<>{pct(m.singled_out_after)} <s className="text-xl text-muted-foreground">{pct(m.singled_out_before)}</s></>} label="singled out (raw struck through)" />}
+        {kept != null && <Kpi tone={kept >= 0.8 ? "ok" : "warn"} value={pct(kept, 1)} label="values kept in released columns" />}
+        {m.epsilon != null && <Kpi tone="safe" value={`ε ${m.epsilon}`} label="privacy budget for these statistics" />}
+      </Kpis>
+      <details className="rounded-2xl border bg-card px-5 py-3">
+        <summary className="cursor-pointer font-medium text-muted-foreground">Evidence: records, columns, risks, history</summary>
+        <div className="mt-3"><Proof R={R} /></div>
+      </details>
       {dialogs}
     </>
   );
 }
-
-const headline = (a: AttackResult) => a.outcome === "withheld" ? "no rows" : a.outcome === "removed" ? "row removed" : a.outcome === "identified" ? "found" : `1 in ${fmt(a.matches)}`;
 
 function CreateDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const plan = useApp(s => s.plan), busy = useApp(s => s.busy === "run"), [name, setName] = useState("receiver");
