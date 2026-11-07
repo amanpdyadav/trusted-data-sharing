@@ -33,10 +33,10 @@ export function RiskScan() {
         <Kpi tone={joined ? "warn" : "ok"} value={fmt(joined)} label={joined ? "tables joined by shared keys: one match unlocks the rest" : "tables joined: each table stands alone"} />
         <Kpi tone={special.length ? "warn" : "ok"} value={special.length ? "Art. 9" : "none"} label={special.length ? `special category data (GDPR) in ${special.join(", ")}` : "special category data (GDPR)"} />
       </Kpis>
-      {scan.attack && <AttackReplay attack={scan.attack} />}
       <Section title="How your data connects" right={<Legend items={[["bg-input", "joined by a shared key"], ["bg-risk", "matchable from outside sources"]]} />}>
         <div className="-mx-1 overflow-x-auto px-1"><ConnectionMap risk={R} /></div>
       </Section>
+      {scan.attack && <AttackReplay attack={scan.attack} />}
       <Details scan={scan} />
     </>
   );
