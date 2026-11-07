@@ -1,0 +1,45 @@
+# FIN-S1: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: FIN-S1
+dataset: finance
+title: Cross-bank fraud consortium
+recipient: Fraud data-sharing consortium of several banks
+purpose: Pool card transactions to detect fraud patterns that span banks.
+trust_level: contractual
+threat_model: 'Consortium member analyst with receipt_photos_ocr and public_directory; private: merchant_knowledge.'
+legal_context: Fraud prevention as legitimate interest (GDPR Art. 6(1)(f), Recital 47); pseudonymised data; PCI
+  DSS for PANs.
+utility_requirements:
+- FIN-U1
+- FIN-U5
+needs:
+- table: card_transactions
+  column: ts
+  detail: hour
+- table: card_transactions
+  column: amount_eur
+- table: card_transactions
+  column: mcc
+- table: card_transactions
+  column: channel
+- table: card_transactions
+  column: merchant_country
+- table: card_transactions
+  column: card_pan
+- table: card_transactions
+  column: is_fraud
+- table: transfers
+  column: booking_ts
+  detail: hour
+- table: transfers
+  column: amount_eur
+- table: transfers
+  column: from_iban
+- table: transfers
+  column: to_iban
+targets:
+  notes: Keyed tokens (HMAC with consortium key) for PAN/device/IP so the same card links across banks; drop names/contacts;
+    coarsen time to minute; no raw PAN.
+  k: 5
+notes: Linkability across banks is the point — random tokens destroy it. Generated from metadata/scenarios.json
+  and the organisers' utility tasks by `python -m evaluation scenarios`; review the data request before use.

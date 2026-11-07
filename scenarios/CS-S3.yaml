@@ -1,0 +1,32 @@
+# CS-S3: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: CS-S3
+dataset: customer_service
+title: Quality-audit samples to an outsourced BPO
+recipient: Quality assurance partner
+purpose: Score 500 conversations a month for compliance (identity verification done, card numbers refused).
+trust_level: contractual
+threat_model: Auditors are human readers; re-identification by recognising neighbours or public figures; linkage
+  via customer_id and timestamps.
+legal_context: Processor; access limited to sample; retention 90 days.
+utility_requirements:
+- CS-U4
+- CS-U6
+- CS-U7
+needs:
+- table: conversations
+  column: intent
+- table: conversations
+  column: handle_time_s
+- table: conversations
+  column: channel
+- table: conversations
+  column: language
+- table: conversations
+  column: resolved
+targets:
+  notes: Mask identifiers but keep evidence that verification happened (e.g. '[NATIONAL_ID]' placeholder); drop
+    customer_id; generalise started_ts to week.
+  k: 5
+notes: Auditor must still see that the agent stopped a card number being read out. Generated from metadata/scenarios.json
+  and the organisers' utility tasks by `python -m evaluation scenarios`; review the data request before use.

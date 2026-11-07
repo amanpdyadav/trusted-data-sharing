@@ -1,0 +1,33 @@
+# ENERGY-S2: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: ENERGY-S2
+dataset: energy
+title: Row-level hourly data to a flexibility aggregator
+recipient: Demand-response aggregator (processor under contract)
+purpose: Identify flexible loads (heat pumps, EV) and forecast them.
+trust_level: contractual
+threat_model: 'Curious insider at the recipient with public_directory and vacation_posts; private: neighbour_knowledge.'
+legal_context: Pseudonymised personal data (GDPR Art. 4(5)); minimisation and purpose limitation apply.
+utility_requirements:
+- ENERGY-U2
+- ENERGY-U4
+- ENERGY-U5
+- ENERGY-U6
+needs:
+- table: meter_readings_hourly
+  column: ts
+  detail: hour
+- table: meter_readings_hourly
+  column: kwh
+- table: meter_readings_hourly
+  column: metering_point_id
+- table: customers
+  column: heating_type
+- table: customers
+  column: metering_point_id
+targets:
+  notes: No names/addresses/contacts; keyed pseudonym for metering point; generalise location to ≥3-digit postcode;
+    coarsen or suppress rare attributes; assess absence inference.
+  k: 5
+notes: Series must remain linkable over time for forecasting. Generated from metadata/scenarios.json and the organisers'
+  utility tasks by `python -m evaluation scenarios`; review the data request before use.

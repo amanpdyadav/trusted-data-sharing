@@ -1,0 +1,32 @@
+# PUB-S3: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: PUB-S3
+dataset: public_admin
+title: Research group studying service equity
+recipient: University research group
+purpose: Do response times differ between areas and languages?
+trust_level: controlled_research
+threat_model: Researchers with public data (forum, permits).
+legal_context: Research use (GDPR Art. 89) with a data use agreement.
+utility_requirements:
+- PUB-U1
+- PUB-U2
+- PUB-U3
+needs:
+- table: service_requests
+  column: ts_created
+- table: service_requests
+  column: category
+- table: service_requests
+  column: postcode
+- table: service_requests
+  column: ts_closed
+- table: service_requests
+  column: lat
+- table: service_requests
+  column: lon
+targets:
+  notes: k>=5 on (postcode, category, month, language); no text or redacted text; aggregated reporter activity.
+  k: 5
+notes: Generated from metadata/scenarios.json and the organisers' utility tasks by `python -m evaluation scenarios`;
+  review the data request before use.

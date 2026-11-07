@@ -1,0 +1,52 @@
+# CYBER-S3: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: CYBER-S3
+dataset: cyber
+title: Publish an open research dataset for detection research
+recipient: Anyone (public download)
+purpose: Benchmark for detection of phishing chains, spraying and insider exfiltration
+trust_level: public
+threat_model: Motivated outsider with company_website_staff.csv and breach/OSINT data (private broker file used
+  in evaluation) trying to identify employees, their browsing, sick leaves or the insider.
+legal_context: 'Must be anonymous in the GDPR Recital 26 sense: no means reasonably likely to re-identify.'
+utility_requirements:
+- CYBER-U1
+- CYBER-U2
+- CYBER-U3
+- CYBER-U5
+- CYBER-U6
+- CYBER-U9
+- CYBER-U10
+statistics:
+- name: cyber_u1_impossible_travel_detection_on_sign_ins
+  table: signin_logs
+  by:
+  - column: ts_utc
+    detail: week
+  - column: result
+- name: cyber_u2_mfa_fatigue_detection_5_denied_pushes_i
+  table: signin_logs
+  by:
+  - column: ts_utc
+    detail: week
+  - column: mfa_result
+- name: cyber_u3_password_spray_detection_failures_from
+  table: signin_logs
+  by:
+  - column: ts_utc
+    detail: time_of_day
+  - column: result
+- name: cyber_u10_sign_in_volume_by_hour_capacity_anomal
+  table: signin_logs
+  by:
+  - column: ts_utc
+    detail: time_of_day
+targets:
+  notes: No direct identifiers or secrets; prefix-preserving IP anonymisation with a discarded key; time-shifted
+    or coarsened timestamps; sensitive categories and subjects removed; check that no employee is unique on (department,
+    job_title, site, shift); e-mail subjects and ticket text removed or fully redacted.
+  epsilon: 1.0
+  epsilon_cap: 4.0
+  rows_per_person: 3
+notes: Labelled campaigns must stay detectable after protection. Generated from metadata/scenarios.json and the
+  organisers' utility tasks by `python -m evaluation scenarios`; review the data request before use.

@@ -1,0 +1,34 @@
+# MOB-S2: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: MOB-S2
+dataset: mobility
+title: 'Urban planning consultancy: row-level journeys under contract'
+recipient: Planning consultancy (processor under a data processing agreement)
+purpose: 'Redesign of the bus network: transfers, commuting corridors, peak loads.'
+trust_level: contractual
+threat_model: Curious analyst with public_directory + social_checkins; must not be able to single out riders.
+legal_context: Pseudonymised data is still personal data; data minimisation and purpose limitation apply (GDPR Art.
+  5, 28).
+utility_requirements:
+- MOB-U1
+- MOB-U2
+- MOB-U4
+- MOB-U5
+needs:
+- table: taps
+  column: card_id
+- table: taps
+  column: ts
+- table: taps
+  column: stop_id
+- table: taps
+  column: line
+- table: bike_trips
+  column: duration_s
+targets:
+  notes: Keyed (HMAC) card pseudonyms rotated per week; no holder fields; times rounded to 5-15 min; trajectory
+    unicity < 5 % with 4 known points.
+  k: 5
+notes: Linking trips of the same card within a day is needed for transfers; across weeks it mostly adds risk. Generated
+  from metadata/scenarios.json and the organisers' utility tasks by `python -m evaluation scenarios`; review the
+  data request before use.

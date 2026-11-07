@@ -1,0 +1,53 @@
+# ENERGY-S1: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: ENERGY-S1
+dataset: energy
+title: 'Open data: neighbourhood electricity load'
+recipient: Anyone (municipal open-data portal)
+purpose: Urban energy planning, journalism, research on heating transition.
+trust_level: public
+threat_model: 'Public: vacation_posts + public_directory; neighbours who know their own consumption (differencing).'
+legal_context: Only anonymous information may be published; aggregated small areas with few households can still
+  be personal data.
+utility_requirements:
+- ENERGY-U1
+- ENERGY-U2
+- ENERGY-U3
+statistics:
+- name: energy_u1_mean_load_per_3_digit_postcode_area_ho
+  table: meter_readings_hourly
+  by:
+  - column: ts
+    detail: time_of_day
+  measure:
+    kind: mean
+    column: kwh
+    lower: 0
+    upper: 3.48
+- name: energy_u2_system_peak_hours_top_50_and_daily_pea
+  table: meter_readings_hourly
+  by:
+  - column: ts
+    detail: time_of_day
+  measure:
+    kind: mean
+    column: kwh
+    lower: 0
+    upper: 3.48
+- name: energy_u3_temperature_sensitivity_kwh_day_per_c
+  table: meter_readings_hourly
+  by:
+  - column: ts
+    detail: week
+  measure:
+    kind: mean
+    column: kwh
+    lower: 0
+    upper: 3.48
+targets:
+  notes: Aggregate ≥10 metering points per cell; no individual series; consider DP noise on hourly sums (state ε).
+  epsilon: 1.0
+  epsilon_cap: 4.0
+  rows_per_person: 3
+notes: Weather table is public context. Generated from metadata/scenarios.json and the organisers' utility tasks
+  by `python -m evaluation scenarios`; review the data request before use.

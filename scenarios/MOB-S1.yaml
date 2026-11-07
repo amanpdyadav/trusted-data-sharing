@@ -1,0 +1,41 @@
+# MOB-S1: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: MOB-S1
+dataset: mobility
+title: 'Open data: public-transport origin-destination matrices'
+recipient: Anyone (municipal open data portal, CC BY 4.0)
+purpose: Publish weekly OD flows between areas by hour band for journey planners, researchers and citizens.
+trust_level: public
+threat_model: Any outsider with public_directory, social_checkins and fitness_app_leak; can see a neighbour at a
+  stop.
+legal_context: Only anonymous data may be published openly (GDPR Recital 26). Pseudonymised card ids are personal
+  data.
+utility_requirements:
+- MOB-U1
+- MOB-U2
+- MOB-U3
+statistics:
+- name: mob_u1_weekday_od_matrix_area_x_area_x_hour_band
+  table: taps
+  by:
+  - column: ts
+    detail: time_of_day
+  - column: stop_id
+- name: mob_u2_weekday_boardings_by_line_x_hour
+  table: taps
+  by:
+  - column: line
+  - column: ts
+    detail: time_of_day
+- name: mob_u3_daily_boardings_time_series_school_break
+  table: taps
+  by:
+  - column: ts
+    detail: time_of_day
+targets:
+  notes: No row-level data; no card ids; suppress or noise OD cells < 10 trips; consider ε-DP counts per release.
+  epsilon: 1.0
+  epsilon_cap: 4.0
+  rows_per_person: 3
+notes: Taps are boardings only; destinations require trip chaining before aggregation. Generated from metadata/scenarios.json
+  and the organisers' utility tasks by `python -m evaluation scenarios`; review the data request before use.

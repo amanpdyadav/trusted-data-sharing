@@ -1,0 +1,45 @@
+# FIN-S3: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: FIN-S3
+dataset: finance
+title: 'Statistics office: consumer spending statistics'
+recipient: National statistics office / public release
+purpose: Monthly spending by category and region; payday and seasonal effects.
+trust_level: public
+threat_model: Anyone with public receipts; differencing between releases.
+legal_context: Published outputs must be anonymous.
+utility_requirements:
+- FIN-U2
+- FIN-U3
+- FIN-U6
+statistics:
+- name: fin_u2_spend_by_mcc_group_merchant_city_month
+  table: card_transactions
+  by:
+  - column: ts
+    detail: week
+  - column: mcc
+  - column: merchant_city
+  measure:
+    kind: mean
+    column: amount_eur
+    lower: 0
+    upper: 264.97
+- name: fin_u3_payday_effect_spend_by_day_of_month
+  table: card_transactions
+  by:
+  - column: ts
+    detail: week
+  measure:
+    kind: mean
+    column: amount_eur
+    lower: 0
+    upper: 264.97
+targets:
+  notes: Aggregate tables with ≥10 cardholders per cell; dominance rule for merchants; DP noise on sums (state ε
+    and clipping bound).
+  epsilon: 1.0
+  epsilon_cap: 4.0
+  rows_per_person: 3
+notes: Generated from metadata/scenarios.json and the organisers' utility tasks by `python -m evaluation scenarios`;
+  review the data request before use.

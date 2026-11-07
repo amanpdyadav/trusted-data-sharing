@@ -1,0 +1,53 @@
+# CYBER-S2: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: CYBER-S2
+dataset: cyber
+title: Share indicators with the national CERT / sector ISAC
+recipient: National CERT and other logistics companies (threat-intelligence sharing community)
+purpose: Share attacker infrastructure and TTPs from campaigns C1 and C2 so others can block them
+trust_level: controlled_research
+threat_model: Other community members are competitors; anything about Meridian staff, customers or internal network
+  layout is out of scope.
+legal_context: Legitimate interest in network security (GDPR Recital 49); share the minimum necessary.
+utility_requirements:
+- CYBER-U3
+- CYBER-U4
+- CYBER-U8
+needs:
+- table: signin_logs
+  column: src_ip
+- table: signin_logs
+  column: upn
+- table: signin_logs
+  column: ts_utc
+- table: signin_logs
+  column: result
+- table: proxy_logs
+  column: src_ip
+- table: proxy_logs
+  column: domain
+- table: proxy_logs
+  column: ts_utc
+- table: proxy_logs
+  column: bytes_sent
+- table: signin_logs
+  column: device_name
+- table: proxy_logs
+  column: user_agent
+- table: signin_logs
+  column: campaign_id
+- table: proxy_logs
+  column: campaign_id
+- table: signin_logs
+  column: event_id
+- table: proxy_logs
+  column: event_id
+- table: proxy_logs
+  column: upn
+targets:
+  notes: Only external attacker IoCs (IPs, domains, user agents, hashes, techniques, timestamps); no employee identifiers,
+    no internal IPs or hostnames, victim count only as aggregate.
+  k: 5
+notes: Attacker IPs are not personal data of employees and must stay exact - masking them destroys the value. Generated
+  from metadata/scenarios.json and the organisers' utility tasks by `python -m evaluation scenarios`; review the
+  data request before use.

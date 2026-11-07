@@ -1,0 +1,46 @@
+# CITY-S2: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: CITY-S2
+dataset: smart_city
+title: Share with the city-centre retail association
+recipient: Retail association (contract, marketing analytics)
+purpose: Dwell time, repeat visits, Black Friday and Christmas market effects, parking demand.
+trust_level: contractual
+threat_model: Association member with its own loyalty-app device list (private adversary) and plate sightings.
+legal_context: Re-identifying visitors for marketing would need a new lawful basis; minimise and pseudonymise (GDPR
+  Art. 5, 6, 25).
+utility_requirements:
+- CITY-U1
+- CITY-U2
+- CITY-U3
+- CITY-U4
+- CITY-U5
+- CITY-U6
+needs:
+- table: footfall_15min
+  column: sensor_id
+- table: footfall_15min
+  column: interval_start
+- table: footfall_15min
+  column: device_count
+- table: wifi_probes
+  column: mac
+- table: wifi_probes
+  column: ts
+- table: anpr_parking
+  column: car_park
+- table: anpr_parking
+  column: entry_ts
+- table: anpr_parking
+  column: exit_ts
+- table: anpr_parking
+  column: plate
+- table: wifi_probes
+  column: sensor_id
+targets:
+  notes: Daily-rotating keyed pseudonyms for MACs and plates; drop SSIDs and payment fields; coarsen times to 15
+    min.
+  k: 5
+notes: Repeat-visitor share needs linkage across days; consider computing it inside the controller and sharing the
+  result. Generated from metadata/scenarios.json and the organisers' utility tasks by `python -m evaluation scenarios`;
+  review the data request before use.

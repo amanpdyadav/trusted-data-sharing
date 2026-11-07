@@ -108,6 +108,15 @@ def cmd_screens(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_scenarios(args: argparse.Namespace) -> int:
+    """Write scenario files for the package's sharing scenarios (keeps hand-written HEALTH-S1/S2)."""
+    from evaluation.scenarios_from_pack import write_all  # noqa: PLC0415
+
+    written = write_all(Settings.from_env().package_root, Path(args.out), force=args.force)
+    print(f"wrote {len(written)} scenario files to {args.out}" + ("" if written else " (all exist; --force rewrites)"))
+    return 0
+
+
 def cmd_baseline(args: argparse.Namespace) -> int:
     quickstart = Settings.from_env().package_root / "results" / "quickstart" / "health"
     if not (quickstart / "ed_visits.csv").exists():
@@ -218,6 +227,11 @@ def build_parser() -> argparse.ArgumentParser:
     sc.add_argument("--scenario", default="HEALTH-S1")
     sc.add_argument("--run-id")
     sc.set_defaults(func=cmd_screens)
+
+    scn = sub.add_parser("scenarios", help="write scenario files for the package's 27 sharing scenarios")
+    scn.add_argument("--out", default="scenarios")
+    scn.add_argument("--force", action="store_true", help="rewrite generated files that already exist")
+    scn.set_defaults(func=cmd_scenarios)
 
     sw = sub.add_parser("sweep", help="replay every public post and news clip on a release (health)")
     sw.add_argument("--release", required=True)

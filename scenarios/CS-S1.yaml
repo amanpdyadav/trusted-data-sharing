@@ -1,0 +1,35 @@
+# CS-S1: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: CS-S1
+dataset: customer_service
+title: Transcripts to an external LLM analytics vendor
+recipient: Cloud AI vendor (processor, outside the EU possible)
+purpose: Topic mining, contact-reason trends and agent-quality insights on all channels.
+trust_level: contractual
+threat_model: Vendor staff and model logs see all text; insider can link with leaked_customer_list.csv (public)
+  or breach dumps (private evaluation).
+legal_context: Processor under GDPR Art. 28; transfer safeguards if outside EEA. Pseudonymised text is still personal
+  data; aim for no direct identifiers and no special-category data in text.
+utility_requirements:
+- CS-U1
+- CS-U3
+- CS-U5
+- CS-U4
+needs:
+- table: turns
+  column: text
+- table: conversations
+  column: intent
+- table: conversations
+  column: handle_time_s
+- table: turns
+  column: conversation_id
+- table: conversations
+  column: conversation_id
+targets:
+  notes: No residual direct identifiers in text (recall ≥ 0.98 on NATIONAL_ID, PAYMENT_CARD, IBAN, SECRET); remove
+    HEALTH mentions; consistent pseudonyms within a conversation; round timestamps to the hour.
+  k: 5
+  text_recall: 0.95
+notes: 'Keep the intent signal: do not delete whole utterances. Generated from metadata/scenarios.json and the organisers''
+  utility tasks by `python -m evaluation scenarios`; review the data request before use.'

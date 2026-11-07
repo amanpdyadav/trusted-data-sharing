@@ -1,0 +1,40 @@
+# EDU-S3: generated from the package's metadata/scenarios.json (docs/SCENARIOS.md). Review it.
+schema_version: '1'
+id: EDU-S3
+dataset: education
+title: Researcher studying grade gaps
+recipient: University research group in a controlled environment
+purpose: Analyse gender and language-group gaps in maths and matriculation results.
+trust_level: controlled_research
+threat_model: Researcher with access to public lists; risk of spontaneous recognition in small schools.
+legal_context: Scientific research (GDPR Art. 89) with safeguards; pseudonymisation and data minimisation expected.
+utility_requirements:
+- EDU-U3
+- EDU-U5
+- EDU-U1
+needs:
+- table: course_grades
+  column: course_code
+- table: course_grades
+  column: grade
+- table: course_grades
+  column: student_id
+- table: students
+  column: sex
+- table: matriculation_results
+  column: subject_code
+- table: matriculation_results
+  column: grade
+- table: course_grades
+  column: school_code
+- table: course_grades
+  column: grade_scale
+- table: students
+  column: student_id
+- table: matriculation_results
+  column: student_id
+targets:
+  notes: k>=10 on quasi-identifiers or synthetic microdata with documented fidelity; no notes text.
+  k: 5
+notes: Generated from metadata/scenarios.json and the organisers' utility tasks by `python -m evaluation scenarios`;
+  review the data request before use.
