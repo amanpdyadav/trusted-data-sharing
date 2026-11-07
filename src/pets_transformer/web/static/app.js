@@ -656,7 +656,7 @@ function mosaicView() {
       <select id="mcase" class="select" aria-label="Pick a scrap">${ofKind.map(x => `<option value="${esc(x.id)}" ${x.id === c.id ? "selected" : ""}>${esc(x.id)} · ${esc(clip(x.label, 24))}: ${esc(clip(x.text, 60))}</option>`).join("")}</select>
       <div class="pills">${modes.map(([k, l]) => `<button data-mmode="${k}" aria-pressed="${k === S.mmode}">${l}</button>`).join("")}</div></div>`;
   const quote = c.names[0]?.quote;
-  const scrap = quote ? `<blockquote class="quote"><b>${esc(S.mask ? maskValue(quote.who) : quote.who)}</b> <span class="small">${esc(quote.when)}</span><br>${esc(quote.text)}</blockquote>` : "";
+  const scrap = quote ? `<blockquote class="quote"><b>${esc(quote.who)}</b> <span class="small">${esc(quote.when)}</span><br>${esc(quote.text)}</blockquote>` : "";
   let body;
   if (S.mmode === "ours") {
     const r = c.ours;
@@ -673,7 +673,7 @@ function mosaicView() {
     const stepDone = rowsShown >= (st.funnel?.length || 0);  // a step's facts appear once its funnel has narrowed fully
     const reached = chain.slice(0, stepDone ? si + 1 : si);
     // the attacker's dossier as a mapping: one block per dataset reached, how it was joined, what it added (newest on top)
-    const val = v => esc(S.mask ? maskValue(v) : v);
+    const val = v => esc(v);  // synthetic people, shown as is: the screen demonstrates how re-identification happens
     const newFact = (k, i) => !chain.slice(0, i).some(x => x.revealed && k in x.revealed);
     const dossier = reached.map((x, i) => ({ x, i })).reverse().map(({ x, i }) => {
       const facts = Object.entries(x.revealed || {});
@@ -701,7 +701,7 @@ function mosaicView() {
           <div class="dossier">${dossier || `<p class="small">Nothing yet.</p>`}</div></div></div>`;
   }
   return head(0, "Mosaic attack", "Pick a public post or a news clip and follow it across datasets, one clue at a time. Switch the mode to see what removing names does, and what our release does.")
-    + `<div class="panel flat">${picker}</div>` + body;
+    + `<div class="panel flat">${picker}<p class="small">All people are synthetic and shown as they appear in the data, to show how re-identification happens. ID codes, phone numbers and IBANs are partly masked.</p></div>` + body;
 }
 function mosaicStep(dir) {
   const d = S.screens.mosaic, c = d?.cases.find(x => x.id === S.mcase);
