@@ -165,6 +165,17 @@ def cmd_approve(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_web(args: argparse.Namespace) -> int:
+    try:
+        from pets_transformer.web.app import serve  # noqa: PLC0415 (optional extra)
+    except ImportError:
+        print('the web app needs the web extra: pip install -e ".[web]"', file=sys.stderr)
+        return 1
+    print(f"PETs Transformer: http://127.0.0.1:{args.port}  (Ctrl+C to stop)")
+    serve(port=args.port)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="pets-transformer", description=__doc__.splitlines()[0])
     p.add_argument("--version", action="version", version=__version__)
@@ -201,6 +212,8 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--receiver", required=True, help="who gets the data; selects their own pseudonym key")
     r.add_argument("--out", required=True, help="output folder; release/ and private/ are created inside")
     r.add_argument("--source", help="e.g. csv:path/to/folder (default: the package data for the plan's dataset)")
+    w = add("web", cmd_web, "open the local web app (this machine only)")
+    w.add_argument("--port", type=int, default=8765)
     return p
 
 
